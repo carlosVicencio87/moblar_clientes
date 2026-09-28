@@ -51,3 +51,29 @@ lib/
   util/formato.dart        fechas, dinero, código (espejo de clienteAcceso.ts)
 test/                      modelos, formato, API, estado y widgets
 ```
+
+## Versión web
+
+La misma app corre en el navegador y se publica **dentro del ERP** en
+`https://caml.osmon-moblar.xyz/clientes` (mismo dominio que `/api/cliente`,
+sin CORS). En web no hace falta `API_BASE`: la app habla con el dominio que la
+sirve, así que el preview de Vercel prueba contra su preview.
+
+Primera vez en un equipo (genera lo que falte de `web/`, respeta lo que ya existe):
+
+```powershell
+flutter create --platforms web .
+```
+
+Publicar una versión nueva:
+
+```powershell
+.\tool\publicar_web.ps1          # ERP en ..\Osmon-moblar-CAML
+# o: .\tool\publicar_web.ps1 -Erp C:\ruta\al\Osmon-moblar-CAML
+```
+
+Luego, en el ERP: `git add public/clientes`, commit y push.
+
+Probar en local sin publicar: `flutter run -d chrome --dart-define=API_BASE=https://caml.osmon-moblar.xyz`
+no funciona (el navegador bloquea otro dominio): para probar web usa el preview
+de Vercel después de publicar.

@@ -53,7 +53,7 @@ class _TarjetaCotizacionState extends State<_TarjetaCotizacion> {
     final messenger = ScaffoldMessenger.of(context);
     try {
       final url = await AppScope.read(context).urlPdf(widget.cotizacion.id);
-      if (mounted) await abrirEnlace(context, url);
+      if (mounted) await abrirEnlace(context, url, trasEspera: true);
     } on SesionTerminada {
       // AppState ya regresó al cliente a la pantalla de ingreso.
     } on ApiException catch (e) {

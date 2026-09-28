@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="es-MX">
+<head>
+  <!--
+    La app web se publica dentro del ERP en /clientes/ (mismo dominio que
+    /api/cliente, sin CORS). flutter build la compila con
+    --base-href /clientes/ y reemplaza $FLUTTER_BASE_HREF.
+  -->
+  <base href="$FLUTTER_BASE_HREF">
+
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Sigue tu cita, tus cotizaciones y la fabricación de tu mueble Moblar.">
+  <meta name="theme-color" content="#407080">
+  <!-- Que no aparezca en buscadores: es solo para clientes con código. -->
+  <meta name="robots" content="noindex, nofollow">
+
+  <!-- iOS: "Agregar a pantalla de inicio" -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Moblar">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <link rel="icon" type="image/png" href="favicon.png">
+  <title>Moblar · Sigue tu mueble</title>
+  <link rel="manifest" href="manifest.json">
+
+  <style>
+    /* Fondo mientras carga Flutter, para que no se vea en blanco puro. */
+    html, body { margin: 0; height: 100%; background: #ffffff; }
+  </style>
+</head>
+<body>
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>

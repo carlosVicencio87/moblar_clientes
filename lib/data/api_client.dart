@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io' show SocketException;
 
 import 'package:http/http.dart' as http;
 
@@ -69,11 +68,12 @@ class ClienteApi {
   Future<http.Response> _enviar(Future<http.Response> Function() peticion) async {
     try {
       return await peticion().timeout(_timeout);
-    } on SocketException {
-      throw const SinConexion();
     } on TimeoutException {
       throw const SinConexion();
     } on http.ClientException {
+      // Sin dart:io a propósito (la app también compila para web): en
+      // celular, package:http envuelve el SocketException en un
+      // ClientException, así que este catch cubre la falta de red en ambos.
       throw const SinConexion();
     }
   }

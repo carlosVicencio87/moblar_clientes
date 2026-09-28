@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -156,19 +157,28 @@ class TituloSeccion extends StatelessWidget {
   }
 }
 
-/// Abre un enlace fuera de la app (WhatsApp, marcador, PDF). Si el teléfono
-/// no puede abrirlo, avisa en vez de fallar en silencio.
-Future<void> abrirEnlace(BuildContext context, Uri uri) async {
+/// Abre un enlace fuera de la app (WhatsApp, marcador, Maps, PDF). Si el
+/// teléfono no puede abrirlo, avisa en vez de fallar en silencio.
+///
+/// [trasEspera]: el enlace se obtuvo DESPUÉS de esperar al servidor (el PDF).
+/// En web el navegador bloquea las pestañas nuevas que no salen directo de un
+/// toque, así que ese caso se abre en la misma pestaña; al regresar, la app
+/// recarga y la sesión sigue guardada.
+Future<void> abrirEnlace(BuildContext context, Uri uri, {bool trasEspera = false}) async {
   final messenger = ScaffoldMessenger.of(context);
   var ok = false;
   try {
-    ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    ok = await launchUrl(
+      uri,
+      mode: LaunchMode.externalApplication,
+      webOnlyWindowName: kIsWeb && trasEspera ? '_self' : null,
+    );
   } catch (_) {
     ok = false;
   }
   if (!ok) {
     messenger.showSnackBar(
-      const SnackBar(content: Text('No pudimos abrir el enlace en este teléfono.')),
+      const SnackBar(content: Text('No pudimos abrir el enlace en este dispositivo.')),
     );
   }
 }
