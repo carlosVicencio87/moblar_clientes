@@ -1,0 +1,8 @@
+# Finales de linea LF en el repo y en la copia de trabajo, igual que el ERP.
+# Evita diffs falsos al trabajar desde varios equipos.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.jar binary

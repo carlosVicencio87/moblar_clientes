@@ -1,0 +1,151 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io' show SocketException;
+
+import 'package:http/http.dart' as http;
+
+import '../config.dart';
+import 'models.dart';
+
+/// Errores que la interfaz sabe explicar al cliente.
+sealed class ApiException implements Exception {
+  const ApiException(this.mensaje);
+  final String mensaje;
+  @override
+  String toString() => mensaje;
+}
+
+/// 401 en /sesion: código inexistente o revocado (el servidor no distingue).
+class CodigoInvalido extends ApiException {
+  const CodigoInvalido(super.mensaje);
+}
+
+/// 429: demasiados intentos desde esta red.
+class DemasiadosIntentos extends ApiException {
+  const DemasiadosIntentos(super.mensaje);
+}
+
+/// 401 en cualquier otra ruta: el pase venció o la operadora lo revocó.
+class SesionTerminada extends ApiException {
+  const SesionTerminada()
+      : super('Tu sesión terminó. Vuelve a entrar con tu código.');
+}
+
+class SinConexion extends ApiException {
+  const SinConexion()
+      : super('No hay conexión. Revisa tu internet e intenta de nuevo.');
+}
+
+class ErrorServidor extends ApiException {
+  const ErrorServidor([super.mensaje = 'No pudimos cargar tu información. Intenta de nuevo.']);
+}
+
+class Sesion {
+  const Sesion({required this.token, required this.nombre});
+  final String token;
+  final String? nombre;
+}
+
+/// Cliente de /api/cliente/* del ERP. Único lugar de la app que habla HTTP.
+class ClienteApi {
+  ClienteApi({http.Client? client, String? base, String? bypass})
+      : _http = client ?? http.Client(),
+        _base = (base ?? AppConfig.apiBase).replaceAll(RegExp(r'/+$'), ''),
+        _bypass = bypass ?? AppConfig.vercelBypass;
+
+  final http.Client _http;
+  final String _base;
+  final String _bypass;
+
+  static const _timeout = Duration(seconds: 20);
+
+  Map<String, String> _headers({String? token, bool json = false}) => {
+        'Accept': 'application/json',
+        if (json) 'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+        if (_bypass.isNotEmpty) 'x-vercel-protection-bypass': _bypass,
+      };
+
+  Future<http.Response> _enviar(Future<http.Response> Function() peticion) async {
+    try {
+      return await peticion().timeout(_timeout);
+    } on SocketException {
+      throw const SinConexion();
+    } on TimeoutException {
+      throw const SinConexion();
+    } on http.ClientException {
+      throw const SinConexion();
+    }
+  }
+
+  Map<String, dynamic> _cuerpo(http.Response r) {
+    try {
+      final v = jsonDecode(utf8.decode(r.bodyBytes));
+      return v is Map<String, dynamic> ? v : const {};
+    } on FormatException {
+      return const {};
+    }
+  }
+
+  String? _errorDe(Map<String, dynamic> cuerpo) =>
+      cuerpo['error'] is String ? cuerpo['error'] as String : null;
+
+  /// POST /api/cliente/sesion
+  Future<Sesion> entrar(String codigo) async {
+    final r = await _enviar(() => _http.post(
+          Uri.parse('$_base/api/cliente/sesion'),
+          headers: _headers(json: true),
+          body: jsonEncode({'codigo': codigo}),
+        ));
+    final cuerpo = _cuerpo(r);
+    switch (r.statusCode) {
+      case 200:
+        final token = cuerpo['token'];
+        if (token is! String || token.isEmpty) throw const ErrorServidor();
+        final cliente = cuerpo['cliente'];
+        return Sesion(
+          token: token,
+          nombre: cliente is Map && cliente['nombre'] is String ? cliente['nombre'] as String : null,
+        );
+      case 401:
+        throw CodigoInvalido(_errorDe(cuerpo) ??
+            'El código no es correcto. Revísalo o pide uno nuevo a atención a clientes.');
+      case 429:
+        throw DemasiadosIntentos(_errorDe(cuerpo) ??
+            'Demasiados intentos. Espera unos minutos e intenta de nuevo.');
+      default:
+        throw ErrorServidor(_errorDe(cuerpo) ?? const ErrorServidor().mensaje);
+    }
+  }
+
+  /// GET /api/cliente/inicio
+  Future<Inicio> inicio(String token) async {
+    final r = await _enviar(() => _http.get(
+          Uri.parse('$_base/api/cliente/inicio'),
+          headers: _headers(token: token),
+        ));
+    if (r.statusCode == 401) throw const SesionTerminada();
+    final cuerpo = _cuerpo(r);
+    if (r.statusCode != 200) throw ErrorServidor(_errorDe(cuerpo) ?? const ErrorServidor().mensaje);
+    return Inicio.fromJson(cuerpo);
+  }
+
+  /// GET /api/cliente/cotizaciones/:id/pdf → URL firmada (vence en minutos:
+  /// se pide justo antes de abrirla, nunca se guarda).
+  Future<Uri> urlPdf(String token, String cotizacionId) async {
+    final r = await _enviar(() => _http.get(
+          Uri.parse('$_base/api/cliente/cotizaciones/$cotizacionId/pdf'),
+          headers: _headers(token: token),
+        ));
+    if (r.statusCode == 401) throw const SesionTerminada();
+    final cuerpo = _cuerpo(r);
+    if (r.statusCode == 404) {
+      throw const ErrorServidor('Esta cotización todavía no tiene documento disponible.');
+    }
+    final url = cuerpo['url'];
+    if (r.statusCode != 200 || url is! String) {
+      throw ErrorServidor(_errorDe(cuerpo) ?? const ErrorServidor().mensaje);
+    }
+    return Uri.parse(url);
+  }
+}

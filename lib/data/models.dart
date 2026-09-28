@@ -1,0 +1,301 @@
+/// Modelos de lo que devuelve GET /api/cliente/inicio.
+///
+/// ESPEJO de los DTO de src/lib/repositories/clientePortal.ts del ERP. El
+/// servidor ya decide qué ve el cliente (etapas traducidas, montos apagados,
+/// nada interno); aquí solo se lee. Todo campo es tolerante a null para que
+/// un cambio menor del servidor no tumbe la app.
+library;
+
+String _s(Object? v) => v is String ? v : '';
+String? _sn(Object? v) => v is String && v.isNotEmpty ? v : null;
+num? _n(Object? v) => v is num ? v : null;
+List<Map<String, dynamic>> _lista(Object? v) =>
+    v is List ? v.whereType<Map<String, dynamic>>().toList() : const [];
+Map<String, dynamic> _mapa(Object? v) =>
+    v is Map<String, dynamic> ? v : const {};
+
+class Marca {
+  const Marca({required this.clave, required this.nombre, this.logo});
+
+  final String clave;
+  final String nombre;
+
+  /// Nombre de archivo del logo ("logo-voreal.jpeg"); la app trae los mismos.
+  final String? logo;
+
+  static const _logosIncluidos = {
+    'logo-moblar.png',
+    'logo-voreal.jpeg',
+    'logo-osmon.jpeg',
+    'logo-mmd.png',
+  };
+
+  /// Ruta del asset. Si el servidor manda una marca que esta versión de la
+  /// app no conoce, se usa el logo de Moblar (marca central de la app).
+  String get asset => 'assets/brand/${_logosIncluidos.contains(logo) ? logo : 'logo-moblar.png'}';
+
+  factory Marca.fromJson(Map<String, dynamic> j) => Marca(
+        clave: _s(j['clave']).isEmpty ? 'moblar' : _s(j['clave']),
+        nombre: _s(j['nombre']).isEmpty ? 'MOBLAR' : _s(j['nombre']),
+        logo: _sn(j['logo']),
+      );
+
+  static const moblar = Marca(clave: 'moblar', nombre: 'MOBLAR', logo: 'logo-moblar.png');
+}
+
+class EstadoCita {
+  const EstadoCita({required this.clave, required this.titulo});
+
+  /// por_confirmar | confirmada | en_camino | en_visita | realizada | cancelada
+  final String clave;
+  final String titulo;
+
+  factory EstadoCita.fromJson(Map<String, dynamic> j) => EstadoCita(
+        clave: _s(j['clave']),
+        titulo: _s(j['titulo']),
+      );
+}
+
+class Cita {
+  const Cita({
+    required this.id,
+    required this.fecha,
+    required this.horario,
+    required this.estado,
+    required this.arquitecto,
+    required this.muebles,
+    required this.costoVisita,
+    required this.marca,
+    this.arquitectoFoto,
+    this.direccion,
+    this.mapsUrl,
+  });
+
+  final String id;
+  final String fecha; // ISO
+  final String? horario;
+  final EstadoCita estado;
+  final String? arquitecto;
+
+  /// URL firmada temporal (vence en ~1 h); se pide de nuevo al refrescar.
+  /// Solo llega en citas vigentes.
+  final String? arquitectoFoto;
+  final String? direccion;
+  final String? mapsUrl;
+  final List<String> muebles;
+  final num? costoVisita;
+  final Marca marca;
+
+  factory Cita.fromJson(Map<String, dynamic> j) => Cita(
+        id: _s(j['id']),
+        fecha: _s(j['fecha']),
+        horario: _sn(j['horario']),
+        estado: EstadoCita.fromJson(_mapa(j['estado'])),
+        arquitecto: _sn(j['arquitecto']),
+        arquitectoFoto: _sn(j['arquitectoFoto']),
+        direccion: _sn(j['direccion']),
+        mapsUrl: _sn(j['mapsUrl']),
+        muebles: j['muebles'] is List
+            ? (j['muebles'] as List).whereType<String>().toList()
+            : const [],
+        costoVisita: _n(j['costoVisita']),
+        marca: Marca.fromJson(_mapa(j['marca'])),
+      );
+
+  /// Todavía puede pasar algo (no realizada ni cancelada).
+  bool get vigente => estado.clave != 'realizada' && estado.clave != 'cancelada';
+}
+
+class Cotizacion {
+  const Cotizacion({
+    required this.id,
+    required this.codigo,
+    required this.mueble,
+    required this.tienePdf,
+    required this.precio,
+    required this.comprado,
+    required this.marca,
+  });
+
+  final String id;
+  final String? codigo;
+  final String? mueble;
+  final bool tienePdf;
+  final num? precio;
+  final bool comprado;
+  final Marca marca;
+
+  factory Cotizacion.fromJson(Map<String, dynamic> j) => Cotizacion(
+        id: _s(j['id']),
+        codigo: _sn(j['codigo']),
+        mueble: _sn(j['mueble']),
+        tienePdf: j['tienePdf'] == true,
+        precio: _n(j['precio']),
+        comprado: j['comprado'] == true,
+        marca: Marca.fromJson(_mapa(j['marca'])),
+      );
+}
+
+enum Situacion { hecha, actual, pendiente }
+
+class EtapaLineaTiempo {
+  const EtapaLineaTiempo({
+    required this.clave,
+    required this.titulo,
+    required this.descripcion,
+    required this.situacion,
+    required this.desde,
+  });
+
+  final String clave;
+  final String titulo;
+  final String descripcion;
+  final Situacion situacion;
+  final String? desde; // ISO o null
+
+  factory EtapaLineaTiempo.fromJson(Map<String, dynamic> j) => EtapaLineaTiempo(
+        clave: _s(j['clave']),
+        titulo: _s(j['titulo']),
+        descripcion: _s(j['descripcion']),
+        situacion: switch (j['situacion']) {
+          'hecha' => Situacion.hecha,
+          'actual' => Situacion.actual,
+          _ => Situacion.pendiente,
+        },
+        desde: _sn(j['desde']),
+      );
+}
+
+class LineaTiempo {
+  const LineaTiempo({
+    required this.etapaActual,
+    required this.mensaje,
+    required this.etapas,
+  });
+
+  final int etapaActual;
+  final String mensaje;
+  final List<EtapaLineaTiempo> etapas;
+
+  bool get entregado => etapas.isNotEmpty && etapas.every((e) => e.situacion == Situacion.hecha);
+
+  /// Título de la etapa en la que está (o la última si ya se entregó).
+  String get tituloActual {
+    if (etapas.isEmpty) return '';
+    final i = etapaActual.clamp(0, etapas.length - 1);
+    return etapas[i].titulo;
+  }
+
+  factory LineaTiempo.fromJson(Map<String, dynamic> j) => LineaTiempo(
+        etapaActual: _n(j['etapaActual'])?.toInt() ?? 0,
+        mensaje: _s(j['mensaje']),
+        etapas: _lista(j['etapas']).map(EtapaLineaTiempo.fromJson).toList(),
+      );
+}
+
+class Pagos {
+  const Pagos({this.total, this.pagado, this.saldo});
+
+  final num? total;
+  final num? pagado;
+  final num? saldo;
+
+  /// El servidor manda los tres en null mientras los montos estén apagados.
+  bool get visibles => total != null || pagado != null || saldo != null;
+
+  factory Pagos.fromJson(Map<String, dynamic> j) => Pagos(
+        total: _n(j['total']),
+        pagado: _n(j['pagado']),
+        saldo: _n(j['saldo']),
+      );
+}
+
+class Instalacion {
+  const Instalacion({required this.fecha, this.horario});
+
+  final String fecha; // yyyy-mm-dd
+  final String? horario;
+
+  static Instalacion? fromJsonOrNull(Object? v) {
+    if (v is! Map<String, dynamic>) return null;
+    final f = _sn(v['fecha']);
+    return f == null ? null : Instalacion(fecha: f, horario: _sn(v['horario']));
+  }
+}
+
+class Compra {
+  const Compra({
+    required this.id,
+    required this.codigo,
+    required this.mueble,
+    required this.lineaTiempo,
+    required this.instalacion,
+    required this.pagos,
+    required this.marca,
+  });
+
+  final String id;
+  final String? codigo;
+  final String? mueble;
+  final LineaTiempo lineaTiempo;
+  final Instalacion? instalacion;
+  final Pagos pagos;
+  final Marca marca;
+
+  factory Compra.fromJson(Map<String, dynamic> j) => Compra(
+        id: _s(j['id']),
+        codigo: _sn(j['codigo']),
+        mueble: _sn(j['mueble']),
+        lineaTiempo: LineaTiempo.fromJson(_mapa(j['lineaTiempo'])),
+        instalacion: Instalacion.fromJsonOrNull(j['instalacion']),
+        pagos: Pagos.fromJson(_mapa(j['pagos'])),
+        marca: Marca.fromJson(_mapa(j['marca'])),
+      );
+}
+
+class Contacto {
+  const Contacto({required this.empresa, required this.telefono, required this.whatsapp});
+
+  final String empresa;
+
+  /// 10 dígitos nacionales.
+  final String telefono;
+  final String whatsapp;
+
+  factory Contacto.fromJson(Map<String, dynamic> j) => Contacto(
+        empresa: _s(j['empresa']).isEmpty ? 'MOBLAR' : _s(j['empresa']),
+        telefono: _s(j['telefono']),
+        whatsapp: _s(j['whatsapp']),
+      );
+}
+
+class Inicio {
+  const Inicio({
+    required this.nombre,
+    required this.contacto,
+    required this.citas,
+    required this.cotizaciones,
+    required this.compras,
+  });
+
+  final String? nombre;
+  final Contacto contacto;
+  final List<Cita> citas;
+  final List<Cotizacion> cotizaciones;
+  final List<Compra> compras;
+
+  /// Compras en curso primero (lo que el cliente quiere ver), luego las
+  /// entregadas; dentro de cada grupo, en el orden del servidor.
+  List<Compra> get comprasOrdenadas => [
+        ...compras.where((c) => !c.lineaTiempo.entregado),
+        ...compras.where((c) => c.lineaTiempo.entregado),
+      ];
+
+  factory Inicio.fromJson(Map<String, dynamic> j) => Inicio(
+        nombre: _sn(_mapa(j['cliente'])['nombre']),
+        contacto: Contacto.fromJson(_mapa(j['contacto'])),
+        citas: _lista(j['citas']).map(Cita.fromJson).toList(),
+        cotizaciones: _lista(j['cotizaciones']).map(Cotizacion.fromJson).toList(),
+        compras: _lista(j['compras']).map(Compra.fromJson).toList(),
+      );
+}
