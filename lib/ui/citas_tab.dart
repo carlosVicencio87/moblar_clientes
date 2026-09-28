@@ -112,19 +112,18 @@ class _CitaDestacada extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  Text(
-                    fecha == null ? 'Por confirmar' : cuandoEs(fecha, ahora),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 26,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const Spacer(),
-                  EstadoChip(texto: cita.estado.titulo, color: color, fondo: fondo),
-                ],
+              // El estado va arriba y el "cuándo" abajo, cada uno con su
+              // renglón: en pantallas angostas "Tu arquitecto va en camino"
+              // junto a "En 12 días" no cabe en una sola línea.
+              EstadoChip(texto: cita.estado.titulo, color: color, fondo: fondo),
+              const SizedBox(height: 10),
+              Text(
+                fecha == null ? 'Por confirmar' : cuandoEs(fecha, ahora),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 26,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
               const SizedBox(height: 4),
               Text(

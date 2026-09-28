@@ -134,7 +134,8 @@ void main() {
     expect(find.byKey(const Key('botonReagendar')), findsOneWidget);
     expect(find.text('Av. Siempre Viva 742, CDMX'), findsOneWidget);
     expect(find.text('Ver en Maps'), findsOneWidget);
-    await tester.pageBack();
+    // pageBack() busca el tooltip en inglés ("Back"); la app está en español.
+    await tester.tap(find.byType(BackButton));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Cotizaciones'));

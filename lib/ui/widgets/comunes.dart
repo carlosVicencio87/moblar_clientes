@@ -66,6 +66,8 @@ class EstadoChip extends StatelessWidget {
       decoration: BoxDecoration(color: fondo, borderRadius: BorderRadius.circular(999)),
       child: Text(
         texto,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color),
       ),
     );
