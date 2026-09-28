@@ -31,7 +31,11 @@ try {
 $destino = Join-Path $Erp "public\clientes"
 if (Test-Path $destino) { Remove-Item $destino -Recurse -Force }
 New-Item -ItemType Directory -Force $destino | Out-Null
-Copy-Item (Join-Path $raiz "build\web\*") $destino -Recurse
+# Todo menos canvaskit/: el motor lo descarga del CDN de Google (gstatic) y
+# la copia local (~37 MB) no se usa; no tiene caso cargarla al repo del ERP.
+Get-ChildItem (Join-Path $raiz "build\web") |
+  Where-Object { $_.Name -ne "canvaskit" } |
+  Copy-Item -Destination $destino -Recurse
 
 Write-Host ""
 Write-Host "Listo: app web copiada a $destino" -ForegroundColor Green
