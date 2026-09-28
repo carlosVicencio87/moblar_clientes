@@ -196,9 +196,11 @@ class _Arquitecto extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    asignado
-                        ? 'Es quien te visitará para tomar medidas y diseñar tu mueble.'
-                        : 'Te avisaremos quién te visitará.',
+                    !asignado
+                        ? 'Te avisaremos quién te visitará.'
+                        : cita.estado.clave == 'realizada'
+                            ? 'Es quien te atendió en tu visita.'
+                            : 'Es quien te visitará para tomar medidas y diseñar tu mueble.',
                     style: const TextStyle(fontSize: 13, color: MoblarColors.textSecondary),
                   ),
                 ],
