@@ -6,6 +6,7 @@ import '../theme.dart';
 import '../util/formato.dart';
 import 'compra_detalle_page.dart';
 import 'widgets/comunes.dart';
+import 'widgets/contacto.dart';
 
 /// "Mi compra": un renglón por mueble comprado con su etapa y avance.
 class ComprasTab extends StatelessWidget {
@@ -36,6 +37,15 @@ class ComprasTab extends StatelessWidget {
           const TituloSeccion('Entregadas'),
           for (final c in entregadas) TarjetaCompra(compra: c),
         ],
+        TarjetaAyuda(
+          titulo: '¿Dudas sobre tus compras?',
+          contacto: datos.contacto,
+          mensaje: mensajeContacto(
+            etiqueta: MotivoContacto.compras,
+            nombre: datos.nombre,
+            texto: 'Tengo una duda sobre mis compras.',
+          ),
+        ),
       ],
     );
   }

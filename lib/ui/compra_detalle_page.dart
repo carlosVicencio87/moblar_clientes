@@ -5,6 +5,7 @@ import '../state/app_scope.dart';
 import '../theme.dart';
 import '../util/formato.dart';
 import 'widgets/comunes.dart';
+import 'widgets/contacto.dart';
 
 /// Seguimiento de un mueble: línea de tiempo vertical con las 6 etapas.
 ///
@@ -45,7 +46,7 @@ class CompraDetallePage extends StatelessWidget {
                   _Pagos(pagos: compra.pagos),
                 ],
                 const SizedBox(height: 16),
-                _Ayuda(contacto: datos.contacto, compra: compra),
+                _Ayuda(contacto: datos.contacto, compra: compra, nombre: datos.nombre),
               ],
             ),
     );
@@ -290,14 +291,14 @@ class _Pagos extends StatelessWidget {
 }
 
 class _Ayuda extends StatelessWidget {
-  const _Ayuda({required this.contacto, required this.compra});
+  const _Ayuda({required this.contacto, required this.compra, required this.nombre});
 
   final Contacto contacto;
   final Compra compra;
+  final String? nombre;
 
   @override
   Widget build(BuildContext context) {
-    final referencia = compra.codigo != null ? ' (pedido ${compra.codigo})' : '';
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -314,18 +315,7 @@ class _Ayuda extends StatelessWidget {
               style: TextStyle(color: MoblarColors.textSecondary),
             ),
             const SizedBox(height: 12),
-            if (contacto.whatsapp.isNotEmpty)
-              FilledButton.icon(
-                onPressed: () => abrirEnlace(
-                  context,
-                  enlaceWhatsApp(
-                    contacto.whatsapp,
-                    mensaje: 'Hola, quiero saber sobre mi ${compra.mueble ?? 'mueble'}$referencia.',
-                  ),
-                ),
-                icon: const Icon(Icons.chat_outlined),
-                label: const Text('Escribir por WhatsApp'),
-              ),
+            BotonesContacto(contacto: contacto, mensaje: mensajeProyecto(compra, nombre)),
           ],
         ),
       ),

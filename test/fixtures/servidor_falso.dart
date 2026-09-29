@@ -8,6 +8,10 @@ import 'inicio_fixture.dart';
 /// Servidor falso: responde según la ruta y deja cambiar el estado de la
 /// sesión para simular que la operadora revoca el código.
 class ServidorFalso {
+  ServidorFalso({this.inicio = inicioJson});
+
+  /// Cuerpo de /api/cliente/inicio (por omisión, el fixture completo).
+  final String inicio;
   bool revocado = false;
   int llamadasInicio = 0;
 
@@ -23,7 +27,7 @@ class ServidorFalso {
       if (revocado || r.headers['Authorization'] != 'Bearer tok-1') {
         return http.Response('{}', 401);
       }
-      return http.Response.bytes(utf8.encode(inicioJson), 200);
+      return http.Response.bytes(utf8.encode(inicio), 200);
     }
     return http.Response('{}', 404);
   });

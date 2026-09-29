@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:moblar_clientes/data/api_client.dart';
@@ -9,6 +11,7 @@ import 'package:moblar_clientes/ui/compra_detalle_page.dart';
 import 'package:moblar_clientes/ui/compras_tab.dart';
 import 'package:moblar_clientes/ui/login_page.dart';
 
+import 'fixtures/inicio_fixture.dart';
 import 'fixtures/servidor_falso.dart';
 
 void main() {
@@ -130,8 +133,9 @@ void main() {
     final lista = find
         .descendant(of: find.byType(CitaDetallePage), matching: find.byType(Scrollable))
         .first;
-    await tester.scrollUntilVisible(find.byKey(const Key('botonReagendar')), 200, scrollable: lista);
-    expect(find.byKey(const Key('botonReagendar')), findsOneWidget);
+    await tester.scrollUntilVisible(find.byKey(const Key('contactoCita')), 200, scrollable: lista);
+    expect(find.byKey(const Key('contactoCita')), findsOneWidget);
+    expect(find.text('¿Necesitas cambiar tu cita?'), findsOneWidget);
     expect(find.text('Av. Siempre Viva 742, CDMX'), findsOneWidget);
     expect(find.text('Ver en Maps'), findsOneWidget);
     // pageBack() busca el tooltip en inglés ("Back"); la app está en español.
@@ -142,9 +146,31 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Cotización 000135'), findsOneWidget);
 
-    await tester.tap(find.text('Atención'));
-    await tester.pumpAndSettle();
-    expect(find.byKey(const Key('botonWhatsApp')), findsOneWidget);
-    expect(find.text('Llamar al 55 3076 8296'), findsOneWidget);
+    expect(find.byKey(const Key('preguntarCotizacion-q1')), findsOneWidget);
+
+    // Ya no existe la pestaña Atención: el contacto vive en cada sección.
+    expect(find.text('Atención'), findsNothing);
+    expect(find.text('Mi compra'), findsOneWidget);
+  });
+
+  testWidgets('sin compras no aparece la pestaña Mi compra', (tester) async {
+    final sinCompras = jsonDecode(inicioJson) as Map<String, dynamic>
+      ..['compras'] = <Object>[];
+    servidor = ServidorFalso(inicio: jsonEncode(sinCompras));
+    state = AppState(
+      api: ClienteApi(client: servidor.client, base: 'https://ejemplo.test', bypass: ''),
+      store: store,
+    );
+    store.token = 'tok-1';
+    await abrirApp(tester);
+
+    expect(find.text('Mi compra'), findsNothing);
+    expect(find.text('Citas'), findsOneWidget);
+    expect(find.text('Cotizaciones'), findsOneWidget);
+    // Abre en Citas y trae su tarjeta de ayuda.
+    expect(find.text('TU PRÓXIMA CITA'), findsOneWidget);
+    final lista = find.byType(Scrollable).first;
+    await tester.scrollUntilVisible(find.byKey(const Key('tarjetaAyuda')), 200, scrollable: lista);
+    expect(find.text('¿Dudas sobre tus citas?'), findsOneWidget);
   });
 }

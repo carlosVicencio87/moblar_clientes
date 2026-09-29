@@ -2,13 +2,14 @@ import 'package:flutter/material.dart';
 
 import '../state/app_scope.dart';
 import '../theme.dart';
-import 'atencion_tab.dart';
 import 'citas_tab.dart';
 import 'compras_tab.dart';
 import 'cotizaciones_tab.dart';
 
-/// Pantalla principal con la barra inferior:
-/// Citas · Cotizaciones · Mi compra · Atención.
+/// Pantalla principal con la barra inferior: Citas · Cotizaciones · Mi compra.
+///
+/// "Mi compra" solo aparece cuando el cliente ya compró algo (2026-09-29).
+/// El contacto con atención a clientes vive dentro de cada sección.
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key});
 
@@ -16,12 +17,14 @@ class HomeShell extends StatefulWidget {
   State<HomeShell> createState() => _HomeShellState();
 }
 
-class _HomeShellState extends State<HomeShell> {
-  static const _citas = 0, _compra = 2;
+enum Seccion { citas, cotizaciones, compra }
 
+class _HomeShellState extends State<HomeShell> {
   /// null hasta que llegan los datos: entonces se abre en "Mi compra" si el
-  /// cliente ya compró (lo que más le interesa) o en "Citas" si no.
-  int? _indice;
+  /// cliente ya compró (lo que más le interesa) o en "Citas" si no. Se guarda
+  /// la SECCIÓN y no el índice, porque la barra cambia de tamaño cuando
+  /// aparece "Mi compra".
+  Seccion? _seccion;
 
   Future<void> _confirmarSalida() async {
     final salir = await showDialog<bool>(
@@ -42,7 +45,18 @@ class _HomeShellState extends State<HomeShell> {
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
     final datos = state.datos;
-    if (datos != null) _indice ??= datos.compras.isNotEmpty ? _compra : _citas;
+    final hayCompras = datos != null && datos.compras.isNotEmpty;
+    final secciones = [
+      Seccion.citas,
+      Seccion.cotizaciones,
+      if (hayCompras) Seccion.compra,
+    ];
+    if (datos != null) {
+      _seccion ??= hayCompras ? Seccion.compra : Seccion.citas;
+      // Si la sección elegida desapareció (no debería), se vuelve a Citas.
+      if (!secciones.contains(_seccion)) _seccion = Seccion.citas;
+    }
+    final indice = _seccion == null ? 0 : secciones.indexOf(_seccion!);
 
     final Widget cuerpo;
     if (datos == null) {
@@ -56,12 +70,14 @@ class _HomeShellState extends State<HomeShell> {
             _AvisoDesactualizado(mensaje: state.errorCarga!, onReintentar: state.refrescar),
           Expanded(
             child: IndexedStack(
-              index: _indice!,
+              index: indice,
               children: [
-                CitasTab(datos: datos),
-                CotizacionesTab(datos: datos),
-                ComprasTab(datos: datos),
-                AtencionTab(datos: datos),
+                for (final s in secciones)
+                  switch (s) {
+                    Seccion.citas => CitasTab(datos: datos),
+                    Seccion.cotizaciones => CotizacionesTab(datos: datos),
+                    Seccion.compra => ComprasTab(datos: datos),
+                  },
               ],
             ),
           ),
@@ -85,29 +101,27 @@ class _HomeShellState extends State<HomeShell> {
       bottomNavigationBar: datos == null
           ? null
           : NavigationBar(
-              selectedIndex: _indice!,
-              onDestinationSelected: (i) => setState(() => _indice = i),
-              destinations: const [
-                NavigationDestination(
-                  icon: Icon(Icons.event_outlined),
-                  selectedIcon: Icon(Icons.event),
-                  label: 'Citas',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.request_quote_outlined),
-                  selectedIcon: Icon(Icons.request_quote),
-                  label: 'Cotizaciones',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.chair_outlined),
-                  selectedIcon: Icon(Icons.chair),
-                  label: 'Mi compra',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.support_agent_outlined),
-                  selectedIcon: Icon(Icons.support_agent),
-                  label: 'Atención',
-                ),
+              selectedIndex: indice,
+              onDestinationSelected: (i) => setState(() => _seccion = secciones[i]),
+              destinations: [
+                for (final s in secciones)
+                  switch (s) {
+                    Seccion.citas => const NavigationDestination(
+                        icon: Icon(Icons.event_outlined),
+                        selectedIcon: Icon(Icons.event),
+                        label: 'Citas',
+                      ),
+                    Seccion.cotizaciones => const NavigationDestination(
+                        icon: Icon(Icons.request_quote_outlined),
+                        selectedIcon: Icon(Icons.request_quote),
+                        label: 'Cotizaciones',
+                      ),
+                    Seccion.compra => const NavigationDestination(
+                        icon: Icon(Icons.chair_outlined),
+                        selectedIcon: Icon(Icons.chair),
+                        label: 'Mi compra',
+                      ),
+                  },
               ],
             ),
     );

@@ -7,6 +7,7 @@ import '../util/formato.dart';
 import 'citas_tab.dart';
 import 'widgets/avatar_arquitecto.dart';
 import 'widgets/comunes.dart';
+import 'widgets/contacto.dart';
 
 /// Detalle de una cita: cuándo, dónde, con quién y en qué va.
 ///
@@ -51,10 +52,8 @@ class CitaDetallePage extends StatelessWidget {
                   const SizedBox(height: 16),
                   _QueSeRevisa(cita: cita),
                 ],
-                if (cita.vigente) ...[
-                  const SizedBox(height: 16),
-                  _Cambios(cita: cita, contacto: datos.contacto),
-                ],
+                const SizedBox(height: 16),
+                _Contacto(cita: cita, contacto: datos.contacto, nombre: datos.nombre),
               ],
             ),
     );
@@ -278,46 +277,48 @@ class _QueSeRevisa extends StatelessWidget {
   }
 }
 
-class _Cambios extends StatelessWidget {
-  const _Cambios({required this.cita, required this.contacto});
+class _Contacto extends StatelessWidget {
+  const _Contacto({required this.cita, required this.contacto, required this.nombre});
 
   final Cita cita;
   final Contacto contacto;
+  final String? nombre;
 
   @override
   Widget build(BuildContext context) {
     final fecha = parseFecha(cita.fecha);
     final hora = horaLegible(cita.horario);
     final cuando = [if (fecha != null) fechaLarga(fecha), if (hora.isNotEmpty) hora].join(' a las ');
-    final mensaje = 'Hola, quiero reagendar o cancelar mi cita'
-        '${cuando.isEmpty ? '' : ' del $cuando'}.';
+    // Cita vigente: el motivo típico es cambiarla. Ya realizada o cancelada:
+    // una duda sobre esa visita.
+    final (titulo, subtitulo, mensaje) = cita.vigente
+        ? (
+            '¿Necesitas cambiar tu cita?',
+            'Escríbenos y te ayudamos a reagendarla o cancelarla.',
+            mensajeContacto(
+              etiqueta: MotivoContacto.cita,
+              referencia: fecha == null ? null : fechaCorta(fecha),
+              nombre: nombre,
+              texto: 'Quiero reagendar o cancelar mi cita${cuando.isEmpty ? '' : ' del $cuando'}.',
+            ),
+          )
+        : (
+            '¿Dudas sobre esta visita?',
+            'Una persona de nuestro equipo te atiende.',
+            mensajeCita(cita, nombre),
+          );
     return Card(
+      key: const Key('contactoCita'),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text(
-              '¿Necesitas cambiar tu cita?',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-            ),
+            Text(titulo, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
             const SizedBox(height: 4),
-            const Text(
-              'Escríbenos y te ayudamos a reagendarla o cancelarla.',
-              style: TextStyle(color: MoblarColors.textSecondary),
-            ),
+            Text(subtitulo, style: const TextStyle(color: MoblarColors.textSecondary)),
             const SizedBox(height: 12),
-            if (contacto.whatsapp.isNotEmpty)
-              OutlinedButton.icon(
-                key: const Key('botonReagendar'),
-                style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
-                onPressed: () => abrirEnlace(
-                  context,
-                  enlaceWhatsApp(contacto.whatsapp, mensaje: mensaje),
-                ),
-                icon: const Icon(Icons.chat_outlined),
-                label: const Text('Reagendar o cancelar'),
-              ),
+            BotonesContacto(contacto: contacto, mensaje: mensaje),
           ],
         ),
       ),

@@ -7,6 +7,7 @@ import '../util/formato.dart';
 import 'cita_detalle_page.dart';
 import 'widgets/avatar_arquitecto.dart';
 import 'widgets/comunes.dart';
+import 'widgets/contacto.dart';
 
 /// Citas del cliente: la próxima destacada arriba, luego las demás próximas y
 /// al final las anteriores.
@@ -68,6 +69,15 @@ class CitasTab extends StatelessWidget {
           const TituloSeccion('Anteriores'),
           for (final c in anteriores) _TarjetaCita(cita: c),
         ],
+        TarjetaAyuda(
+          titulo: '¿Dudas sobre tus citas?',
+          contacto: datos.contacto,
+          mensaje: mensajeContacto(
+            etiqueta: MotivoContacto.citas,
+            nombre: datos.nombre,
+            texto: 'Tengo una duda sobre mis citas.',
+          ),
+        ),
       ],
     );
   }

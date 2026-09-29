@@ -6,6 +6,7 @@ import '../state/app_scope.dart';
 import '../theme.dart';
 import '../util/formato.dart';
 import 'widgets/comunes.dart';
+import 'widgets/contacto.dart';
 
 /// Cotizaciones del cliente con su PDF.
 class CotizacionesTab extends StatelessWidget {
@@ -26,17 +27,29 @@ class CotizacionesTab extends StatelessWidget {
           )
         else ...[
           const TituloSeccion('Tus cotizaciones'),
-          for (final c in datos.cotizaciones) _TarjetaCotizacion(cotizacion: c),
+          for (final c in datos.cotizaciones)
+            _TarjetaCotizacion(cotizacion: c, contacto: datos.contacto, nombre: datos.nombre),
         ],
+        TarjetaAyuda(
+          titulo: '¿Dudas sobre tus cotizaciones?',
+          contacto: datos.contacto,
+          mensaje: mensajeContacto(
+            etiqueta: MotivoContacto.cotizaciones,
+            nombre: datos.nombre,
+            texto: 'Tengo una duda sobre mis cotizaciones.',
+          ),
+        ),
       ],
     );
   }
 }
 
 class _TarjetaCotizacion extends StatefulWidget {
-  const _TarjetaCotizacion({required this.cotizacion});
+  const _TarjetaCotizacion({required this.cotizacion, required this.contacto, this.nombre});
 
   final Cotizacion cotizacion;
+  final Contacto contacto;
+  final String? nombre;
 
   @override
   State<_TarjetaCotizacion> createState() => _TarjetaCotizacionState();
@@ -113,6 +126,22 @@ class _TarjetaCotizacionState extends State<_TarjetaCotizacion> {
                   'El documento estará disponible pronto.',
                   style: TextStyle(color: MoblarColors.textMuted, fontSize: 13),
                 ),
+              // Pregunta sobre ESTA cotización: el mensaje lleva su código.
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  key: Key('preguntarCotizacion-${c.id}'),
+                  onPressed: () => abrirEnlace(
+                    context,
+                    enlaceWhatsApp(
+                      ContactoResuelto(widget.contacto).whatsapp,
+                      mensaje: mensajeCotizacion(c, widget.nombre),
+                    ),
+                  ),
+                  icon: const Icon(Icons.chat_outlined, size: 18),
+                  label: const Text('Preguntar por esta cotización'),
+                ),
+              ),
             ],
           ),
         ),

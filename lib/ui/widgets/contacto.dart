@@ -1,0 +1,187 @@
+import 'package:flutter/material.dart';
+
+import '../../config.dart';
+import '../../data/models.dart';
+import '../../theme.dart';
+import '../../util/formato.dart';
+import 'comunes.dart';
+
+/// Contacto con atención a clientes desde CADA sección (decisión 2026-09-29:
+/// se quitó la pestaña "Atención"). El mensaje de WhatsApp empieza con una
+/// etiqueta entre corchetes —`[CITA …]`, `[COTIZACIÓN …]`, `[PROYECTO …]`—
+/// para que contact center sepa de qué se trata y lo clasifique.
+
+/// Etiquetas: siempre al inicio del mensaje, en mayúsculas.
+abstract final class MotivoContacto {
+  static const cita = 'CITA';
+  static const citas = 'CITAS';
+  static const cotizacion = 'COTIZACIÓN';
+  static const cotizaciones = 'COTIZACIONES';
+  static const proyecto = 'PROYECTO';
+  static const compras = 'COMPRAS';
+}
+
+/// `[ETIQUETA referencia] Hola, soy Nombre. texto`
+String mensajeContacto({
+  required String etiqueta,
+  String? referencia,
+  String? nombre,
+  required String texto,
+}) {
+  final ref = (referencia ?? '').trim();
+  final quien = (nombre ?? '').trim();
+  final cabecera = ref.isEmpty ? '[$etiqueta]' : '[$etiqueta $ref]';
+  final saludo = quien.isEmpty ? 'Hola.' : 'Hola, soy $quien.';
+  return '$cabecera $saludo $texto';
+}
+
+String mensajeCita(Cita cita, String? nombre) {
+  final fecha = parseFecha(cita.fecha);
+  final hora = horaLegible(cita.horario);
+  final cuando = [if (fecha != null) fechaLarga(fecha), if (hora.isNotEmpty) hora].join(' a las ');
+  return mensajeContacto(
+    etiqueta: MotivoContacto.cita,
+    referencia: fecha == null ? null : fechaCorta(fecha),
+    nombre: nombre,
+    texto: cuando.isEmpty
+        ? 'Tengo una duda sobre mi cita.'
+        : 'Tengo una duda sobre mi cita del $cuando.',
+  );
+}
+
+String mensajeCotizacion(Cotizacion c, String? nombre) => mensajeContacto(
+      etiqueta: MotivoContacto.cotizacion,
+      referencia: c.codigo,
+      nombre: nombre,
+      texto: 'Tengo una duda sobre mi cotización'
+          '${c.mueble == null ? '' : ' de ${c.mueble}'}'
+          '${c.codigo == null ? '' : ' (${c.codigo})'}.',
+    );
+
+String mensajeProyecto(Compra c, String? nombre) => mensajeContacto(
+      etiqueta: MotivoContacto.proyecto,
+      referencia: c.codigo,
+      nombre: nombre,
+      texto: 'Quiero saber sobre mi ${c.mueble ?? 'mueble'}'
+          '${c.codigo == null ? '' : ' (pedido ${c.codigo})'}.',
+    );
+
+/// Teléfono y WhatsApp a usar: lo que mande el servidor o, si falta, el de
+/// respaldo de la app. Moblar atiende a todas las marcas por ahora.
+class ContactoResuelto {
+  ContactoResuelto(Contacto c)
+      : telefono = c.telefono.isNotEmpty ? c.telefono : AppConfig.telefonoAtencion,
+        whatsapp = c.whatsapp.isNotEmpty
+            ? c.whatsapp
+            : '52${c.telefono.isNotEmpty ? c.telefono : AppConfig.telefonoAtencion}';
+
+  final String telefono;
+  final String whatsapp;
+
+  /// "5530768296" → "55 3076 8296"
+  String get telefonoLegible {
+    final d = telefono.replaceAll(RegExp(r'\D'), '');
+    return d.length == 10 ? '${d.substring(0, 2)} ${d.substring(2, 6)} ${d.substring(6)}' : telefono;
+  }
+}
+
+/// Dos botones, WhatsApp (con el mensaje ya escrito) y llamar.
+class BotonesContacto extends StatelessWidget {
+  const BotonesContacto({
+    super.key,
+    required this.contacto,
+    required this.mensaje,
+    this.compactos = false,
+  });
+
+  final Contacto contacto;
+  final String mensaje;
+
+  /// Compactos: para ir dentro de una tarjeta de la lista.
+  final bool compactos;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = ContactoResuelto(contacto);
+    final alto = compactos ? 40.0 : 48.0;
+    final estilo = OutlinedButton.styleFrom(
+      minimumSize: Size.fromHeight(alto),
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+    );
+    return Row(
+      children: [
+        Expanded(
+          child: OutlinedButton.icon(
+            key: const Key('contactoWhatsApp'),
+            style: estilo,
+            onPressed: () => abrirEnlace(context, enlaceWhatsApp(c.whatsapp, mensaje: mensaje)),
+            icon: const Icon(Icons.chat_outlined, size: 20),
+            label: const Text('WhatsApp'),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: OutlinedButton.icon(
+            key: const Key('contactoLlamar'),
+            style: estilo,
+            onPressed: () => abrirEnlace(context, Uri(scheme: 'tel', path: c.telefono)),
+            icon: const Icon(Icons.call_outlined, size: 20),
+            label: const Text('Llamar'),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Tarjeta "¿Necesitas ayuda?" al final de cada sección.
+class TarjetaAyuda extends StatelessWidget {
+  const TarjetaAyuda({
+    super.key,
+    required this.titulo,
+    required this.contacto,
+    required this.mensaje,
+  });
+
+  final String titulo;
+  final Contacto contacto;
+  final String mensaje;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Card(
+        key: const Key('tarjetaAyuda'),
+        color: MoblarColors.primarySoft,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.support_agent, color: MoblarColors.primary),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      titulo,
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Una persona de nuestro equipo te atiende.',
+                style: TextStyle(color: MoblarColors.textSecondary),
+              ),
+              const SizedBox(height: 12),
+              BotonesContacto(contacto: contacto, mensaje: mensaje),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

@@ -26,8 +26,11 @@ class DemasiadosIntentos extends ApiException {
 
 /// 401 en cualquier otra ruta: el pase venció o la operadora lo revocó.
 class SesionTerminada extends ApiException {
+  /// También llega aquí cuando el mismo código se usó para entrar en otro
+  /// dispositivo: solo una sesión activa por cliente (2026-09-29).
   const SesionTerminada()
-      : super('Tu sesión terminó. Vuelve a entrar con tu código.');
+      : super('Tu sesión se cerró: tu código se usó en otro dispositivo o fue '
+            'actualizado. Vuelve a entrar con tu código.');
 }
 
 class SinConexion extends ApiException {
