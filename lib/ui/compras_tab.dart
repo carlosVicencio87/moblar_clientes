@@ -31,11 +31,13 @@ class ComprasTab extends StatelessWidget {
           ),
         if (enCurso.isNotEmpty) ...[
           const TituloSeccion('En proceso'),
-          for (final c in enCurso) TarjetaCompra(compra: c),
+          for (final c in enCurso)
+            TarjetaCompra(compra: c, contacto: datos.contacto, nombre: datos.nombre),
         ],
         if (entregadas.isNotEmpty) ...[
           const TituloSeccion('Entregadas'),
-          for (final c in entregadas) TarjetaCompra(compra: c),
+          for (final c in entregadas)
+            TarjetaCompra(compra: c, contacto: datos.contacto, nombre: datos.nombre),
         ],
         TarjetaAyuda(
           titulo: '¿Dudas sobre tus compras?',
@@ -51,18 +53,23 @@ class ComprasTab extends StatelessWidget {
   }
 }
 
+/// Tarjeta de un mueble comprado: etapa, porcentaje grande, barra y
+/// contacto directo con el motivo `[PROYECTO código]` ya escrito.
 class TarjetaCompra extends StatelessWidget {
-  const TarjetaCompra({super.key, required this.compra});
+  const TarjetaCompra({
+    super.key,
+    required this.compra,
+    required this.contacto,
+    this.nombre,
+  });
 
   final Compra compra;
+  final Contacto contacto;
+  final String? nombre;
 
   @override
   Widget build(BuildContext context) {
     final lt = compra.lineaTiempo;
-    final total = lt.etapas.isEmpty ? 1 : lt.etapas.length;
-    final hechas = lt.etapas.where((e) => e.situacion == Situacion.hecha).length;
-    // La etapa actual cuenta como media: el mueble está en camino dentro de ella.
-    final avance = lt.entregado ? 1.0 : ((hechas + 0.5) / total).clamp(0.0, 1.0);
     final inst = compra.instalacion;
     final fechaInst = parseFechaCalendario(inst?.fecha);
 
@@ -70,69 +77,125 @@ class TarjetaCompra extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 12),
       child: Card(
         clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute<void>(builder: (_) => CompraDetallePage(compraId: compra.id)),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                MarcaEncabezado(
-                  marca: compra.marca,
-                  trailing: const Icon(Icons.chevron_right, color: MoblarColors.textMuted),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  compra.mueble ?? 'Tu mueble',
-                  style: const TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w600,
-                    color: MoblarColors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            InkWell(
+              key: const Key('abrirCompra'),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(builder: (_) => CompraDetallePage(compraId: compra.id)),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    EstadoChip(
-                      texto: lt.tituloActual,
-                      color: lt.entregado ? const Color(0xFF065F46) : MoblarColors.primaryDark,
-                      fondo: lt.entregado ? const Color(0xFFD1FAE5) : MoblarColors.primarySoft,
+                    MarcaEncabezado(
+                      marca: compra.marca,
+                      trailing: const Icon(Icons.chevron_right, color: MoblarColors.textMuted),
                     ),
-                    const Spacer(),
+                    const SizedBox(height: 12),
+                    Text(
+                      compra.mueble ?? 'Tu mueble',
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w600,
+                        color: MoblarColors.textPrimary,
+                      ),
+                    ),
                     if (compra.codigo != null)
                       Text(
-                        compra.codigo!,
+                        'Pedido ${compra.codigo}',
                         style: const TextStyle(color: MoblarColors.textMuted, fontSize: 12),
+                      ),
+                    const SizedBox(height: 12),
+                    AvanceCompra(linea: lt),
+                    if (lt.mensaje.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      Text(lt.mensaje, style: const TextStyle(color: MoblarColors.textSecondary)),
+                    ],
+                    if (!lt.entregado && fechaInst != null)
+                      Dato(
+                        icono: Icons.event_available_outlined,
+                        texto: 'Instalación: ${fechaCorta(fechaInst)}'
+                            '${inst?.horario != null ? ', ${horaLegible(inst!.horario)}' : ''}',
                       ),
                   ],
                 ),
-                const SizedBox(height: 12),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(999),
-                  child: LinearProgressIndicator(
-                    value: avance,
-                    minHeight: 6,
-                    backgroundColor: MoblarColors.primarySoft,
-                    color: lt.entregado ? MoblarColors.success : MoblarColors.primary,
-                  ),
+              ),
+            ),
+            const Divider(height: 1),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+              child: BotonesContacto(
+                contacto: contacto,
+                mensaje: mensajeProyecto(compra, nombre),
+                compactos: true,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Etapa + porcentaje grande + barra. Se usa en la tarjeta y en el detalle.
+class AvanceCompra extends StatelessWidget {
+  const AvanceCompra({super.key, required this.linea, this.grande = false});
+
+  final LineaTiempo linea;
+  final bool grande;
+
+  @override
+  Widget build(BuildContext context) {
+    final pct = linea.porcentaje;
+    final entregado = linea.entregado;
+    final color = entregado ? MoblarColors.success : MoblarColors.primary;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Expanded(
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: EstadoChip(
+                  texto: linea.tituloActual,
+                  color: entregado ? const Color(0xFF065F46) : MoblarColors.primaryDark,
+                  fondo: entregado ? const Color(0xFFD1FAE5) : MoblarColors.primarySoft,
                 ),
-                if (lt.mensaje.isNotEmpty) ...[
-                  const SizedBox(height: 10),
-                  Text(lt.mensaje, style: const TextStyle(color: MoblarColors.textSecondary)),
-                ],
-                if (!lt.entregado && fechaInst != null)
-                  Dato(
-                    icono: Icons.event_available_outlined,
-                    texto: 'Instalación: ${fechaCorta(fechaInst)}'
-                        '${inst?.horario != null ? ', ${horaLegible(inst!.horario)}' : ''}',
-                  ),
-              ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              '$pct%',
+              key: const Key('avancePorcentaje'),
+              style: TextStyle(
+                fontSize: grande ? 34 : 28,
+                height: 1,
+                fontWeight: FontWeight.w700,
+                color: entregado ? const Color(0xFF065F46) : MoblarColors.primaryDark,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Semantics(
+          label: 'Avance de tu mueble',
+          value: '$pct por ciento',
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              value: pct / 100,
+              minHeight: grande ? 12 : 10,
+              backgroundColor: MoblarColors.primaryTint,
+              color: color,
             ),
           ),
         ),
-      ),
+      ],
     );
   }
 }

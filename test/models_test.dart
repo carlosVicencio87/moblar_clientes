@@ -65,6 +65,29 @@ void main() {
     ]);
   });
 
+  test('porcentaje: el del ERP; si no llega, se estima por etapas', () {
+    expect(inicio.compras.first.lineaTiempo.porcentaje, 100);
+    expect(inicio.compras.last.lineaTiempo.porcentaje, 58);
+
+    final sinPct = Map<String, dynamic>.from(
+      (jsonDecode(inicioJson) as Map<String, dynamic>)['compras'][1]['lineaTiempo'] as Map,
+    )..remove('porcentaje');
+    // 2 hechas + la actual a la mitad, de 6 → 41.
+    expect(LineaTiempo.fromJson(sinPct).porcentaje, 41);
+    expect(LineaTiempo.fromJson({...sinPct, 'porcentaje': 140}).porcentaje, 100);
+    expect(LineaTiempo.fromJson({...sinPct, 'porcentaje': 'x'}).porcentaje, 41);
+  });
+
+  test('habilidades del arquitecto: estrellas solo si hay datos', () {
+    final hs = inicio.citas.first.arquitectoHabilidades;
+    expect(hs.map((h) => h.clave), ['precision', 'puntualidad', 'atencion']);
+    expect(hs.first.estrellas, 4.5);
+    expect(hs[1].estrellas, isNull);
+    // Cita sin el campo (servidor anterior): lista vacía.
+    expect(inicio.citas.last.arquitectoHabilidades, isEmpty);
+    expect(Habilidad.fromJson({'estrellas': 9}).estrellas, 5);
+  });
+
   test('compras en curso primero', () {
     expect(inicio.comprasOrdenadas.map((c) => c.id), ['p-fabricacion', 'p-entregado']);
   });

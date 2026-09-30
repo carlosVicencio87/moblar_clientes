@@ -67,6 +67,7 @@ class Cita {
     required this.costoVisita,
     required this.marca,
     this.arquitectoFoto,
+    this.arquitectoHabilidades = const [],
     this.direccion,
     this.mapsUrl,
   });
@@ -80,6 +81,9 @@ class Cita {
   /// URL firmada temporal (vence en ~1 h); se pide de nuevo al refrescar.
   /// Solo llega en citas vigentes.
   final String? arquitectoFoto;
+
+  /// Estrellas solo con datos reales; vacío en canceladas o servidor viejo.
+  final List<Habilidad> arquitectoHabilidades;
   final String? direccion;
   final String? mapsUrl;
   final List<String> muebles;
@@ -93,6 +97,7 @@ class Cita {
         estado: EstadoCita.fromJson(_mapa(j['estado'])),
         arquitecto: _sn(j['arquitecto']),
         arquitectoFoto: _sn(j['arquitectoFoto']),
+        arquitectoHabilidades: _lista(j['arquitectoHabilidades']).map(Habilidad.fromJson).toList(),
         direccion: _sn(j['direccion']),
         mapsUrl: _sn(j['mapsUrl']),
         muebles: j['muebles'] is List
@@ -104,6 +109,33 @@ class Cita {
 
   /// Todavía puede pasar algo (no realizada ni cancelada).
   bool get vigente => estado.clave != 'realizada' && estado.clave != 'cancelada';
+}
+
+/// Habilidad del arquitecto (arquitectoHabilidades.ts del ERP).
+class Habilidad {
+  const Habilidad({
+    required this.clave,
+    required this.titulo,
+    required this.estrellas,
+    required this.detalle,
+  });
+
+  final String clave;
+  final String titulo;
+
+  /// 0–5 en medios; null = aún sin calificaciones (nunca se inventa).
+  final double? estrellas;
+  final String detalle;
+
+  factory Habilidad.fromJson(Map<String, dynamic> j) {
+    final e = _n(j['estrellas'])?.toDouble();
+    return Habilidad(
+      clave: _s(j['clave']),
+      titulo: _s(j['titulo']),
+      estrellas: e?.clamp(0, 5).toDouble(),
+      detalle: _s(j['detalle']),
+    );
+  }
 }
 
 class Cotizacion {
@@ -171,11 +203,24 @@ class LineaTiempo {
     required this.etapaActual,
     required this.mensaje,
     required this.etapas,
-  });
+    int? porcentaje,
+  }) : _porcentaje = porcentaje;
 
   final int etapaActual;
   final String mensaje;
   final List<EtapaLineaTiempo> etapas;
+  final int? _porcentaje;
+
+  /// Avance 0–100 que calcula el ERP (tramos por estado + días en el
+  /// estado). Si el servidor aún no lo manda, se estima por etapas.
+  int get porcentaje {
+    final p = _porcentaje;
+    if (p != null) return p.clamp(0, 100).toInt();
+    if (etapas.isEmpty) return 0;
+    if (entregado) return 100;
+    final hechas = etapas.where((e) => e.situacion == Situacion.hecha).length;
+    return ((hechas + 0.5) / etapas.length * 100).floor().clamp(0, 99).toInt();
+  }
 
   bool get entregado => etapas.isNotEmpty && etapas.every((e) => e.situacion == Situacion.hecha);
 
@@ -190,6 +235,7 @@ class LineaTiempo {
         etapaActual: _n(j['etapaActual'])?.toInt() ?? 0,
         mensaje: _s(j['mensaje']),
         etapas: _lista(j['etapas']).map(EtapaLineaTiempo.fromJson).toList(),
+        porcentaje: _n(j['porcentaje'])?.round(),
       );
 }
 

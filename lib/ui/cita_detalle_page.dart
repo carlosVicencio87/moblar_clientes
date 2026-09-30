@@ -8,6 +8,7 @@ import 'citas_tab.dart';
 import 'widgets/avatar_arquitecto.dart';
 import 'widgets/comunes.dart';
 import 'widgets/contacto.dart';
+import 'widgets/estrellas.dart';
 
 /// Detalle de una cita: cuándo, dónde, con quién y en qué va.
 ///
@@ -162,6 +163,8 @@ class _Avance extends StatelessWidget {
   }
 }
 
+/// Tarjeta grande del arquitecto: foto al centro, nombre y, desplegable,
+/// sus habilidades con estrellas SOLO de datos reales.
 class _Arquitecto extends StatelessWidget {
   const _Arquitecto({required this.cita});
 
@@ -170,43 +173,66 @@ class _Arquitecto extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final asignado = cita.arquitecto != null;
+    final habilidades = asignado ? cita.arquitectoHabilidades : const <Habilidad>[];
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            AvatarArquitecto(nombre: cita.arquitecto, fotoUrl: cita.arquitectoFoto, tamano: 72),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Tu arquitecto',
-                    style: TextStyle(fontSize: 12, color: MoblarColors.textMuted),
+      key: const Key('tarjetaArquitecto'),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
+            child: Column(
+              children: [
+                const Text(
+                  'TU ARQUITECTO',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.8,
+                    color: MoblarColors.textMuted,
                   ),
-                  Text(
-                    cita.arquitecto ?? 'Por asignar',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: MoblarColors.textPrimary,
-                    ),
+                ),
+                const SizedBox(height: 14),
+                AvatarArquitecto(nombre: cita.arquitecto, fotoUrl: cita.arquitectoFoto, tamano: 120),
+                const SizedBox(height: 12),
+                Text(
+                  cita.arquitecto ?? 'Por asignar',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: MoblarColors.textPrimary,
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    !asignado
-                        ? 'Te avisaremos quién te visitará.'
-                        : cita.estado.clave == 'realizada'
-                            ? 'Es quien te atendió en tu visita.'
-                            : 'Es quien te visitará para tomar medidas y diseñar tu mueble.',
-                    style: const TextStyle(fontSize: 13, color: MoblarColors.textSecondary),
-                  ),
-                ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  !asignado
+                      ? 'Te avisaremos quién te visitará.'
+                      : cita.estado.clave == 'realizada'
+                          ? 'Es quien te atendió en tu visita.'
+                          : 'Es quien te visitará para tomar medidas y diseñar tu mueble.',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 13, color: MoblarColors.textSecondary),
+                ),
+              ],
+            ),
+          ),
+          if (habilidades.isNotEmpty) ...[
+            const Divider(height: 1),
+            Theme(
+              // Sin las líneas que ExpansionTile dibuja al abrir.
+              data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+              child: ExpansionTile(
+                key: const Key('habilidadesArquitecto'),
+                leading: const Icon(Icons.workspace_premium_outlined, color: MoblarColors.primary),
+                title: const Text('Habilidades', style: TextStyle(fontWeight: FontWeight.w600)),
+                childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                children: [for (final h in habilidades) RenglonHabilidad(habilidad: h)],
               ),
             ),
           ],
-        ),
+        ],
       ),
     );
   }

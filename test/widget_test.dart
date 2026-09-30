@@ -86,11 +86,25 @@ void main() {
     // Con compras, la app abre en "Mi compra" y la que está en curso va primero.
     expect(find.text('EN PROCESO'), findsOneWidget);
     expect(find.byType(TarjetaCompra), findsNWidgets(2));
+    // Porcentaje del ERP, grande, y contacto directo en cada tarjeta.
+    expect(find.text('58%'), findsOneWidget);
+    expect(find.text('100%'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(TarjetaCompra).first,
+        matching: find.byKey(const Key('contactoWhatsApp')),
+      ),
+      findsOneWidget,
+    );
 
-    await tester.tap(find.byType(TarjetaCompra).first);
+    await tester.tap(find.byKey(const Key('abrirCompra')).first);
     await tester.pumpAndSettle();
     expect(find.byType(CompraDetallePage), findsOneWidget);
     expect(find.text('Pedido P-0002'), findsOneWidget);
+    expect(
+      find.descendant(of: find.byType(CompraDetallePage), matching: find.text('58%')),
+      findsOneWidget,
+    );
     expect(find.byType(LineaTiempoVertical), findsOneWidget);
     expect(find.text('Control de calidad'), findsOneWidget);
     // Montos apagados: no aparece la tarjeta de pagos.
@@ -100,7 +114,7 @@ void main() {
   testWidgets('si revocan el código, cualquier pantalla regresa al ingreso con aviso', (tester) async {
     store.token = 'tok-1';
     await abrirApp(tester);
-    await tester.tap(find.byType(TarjetaCompra).first);
+    await tester.tap(find.byKey(const Key('abrirCompra')).first);
     await tester.pumpAndSettle();
     expect(find.byType(CompraDetallePage), findsOneWidget);
 
@@ -128,16 +142,28 @@ void main() {
     await tester.tap(find.byKey(const Key('citaDestacada')));
     await tester.pumpAndSettle();
     expect(find.byType(CitaDetallePage), findsOneWidget);
-    expect(find.text('Tu arquitecto'), findsOneWidget);
-    // La lista construye solo lo visible: se desplaza hasta el final.
+    expect(find.text('TU ARQUITECTO'), findsOneWidget);
+    // La lista construye solo lo visible: se desplaza para ver cada parte.
     final lista = find
         .descendant(of: find.byType(CitaDetallePage), matching: find.byType(Scrollable))
         .first;
+
+    // Habilidades: plegadas; al abrir, estrellas solo donde hay datos.
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('habilidadesArquitecto')), 200, scrollable: lista);
+    expect(find.text('Precisión en medidas'), findsNothing);
+    await tester.tap(find.byKey(const Key('habilidadesArquitecto')));
+    await tester.pumpAndSettle();
+    expect(find.text('Precisión en medidas'), findsOneWidget);
+    expect(find.text('18 de 20 proyectos sin corrección de medidas.'), findsOneWidget);
+    expect(find.byIcon(Icons.star_half_rounded), findsOneWidget); // 4.5
+    expect(find.text('Sin calificar'), findsNWidgets(2)); // puntualidad y atención
+
+    await tester.scrollUntilVisible(find.text('Ver en Maps'), 200, scrollable: lista);
+    expect(find.text('Av. Siempre Viva 742, CDMX'), findsOneWidget);
     await tester.scrollUntilVisible(find.byKey(const Key('contactoCita')), 200, scrollable: lista);
     expect(find.byKey(const Key('contactoCita')), findsOneWidget);
     expect(find.text('¿Necesitas cambiar tu cita?'), findsOneWidget);
-    expect(find.text('Av. Siempre Viva 742, CDMX'), findsOneWidget);
-    expect(find.text('Ver en Maps'), findsOneWidget);
     // pageBack() busca el tooltip en inglés ("Back"); la app está en español.
     await tester.tap(find.byType(BackButton));
     await tester.pumpAndSettle();

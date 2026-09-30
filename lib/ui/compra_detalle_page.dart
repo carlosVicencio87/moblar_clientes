@@ -4,6 +4,7 @@ import '../data/models.dart';
 import '../state/app_scope.dart';
 import '../theme.dart';
 import '../util/formato.dart';
+import 'compras_tab.dart' show AvanceCompra;
 import 'widgets/comunes.dart';
 import 'widgets/contacto.dart';
 
@@ -79,6 +80,8 @@ class _Encabezado extends StatelessWidget {
               ),
             ),
             if (compra.codigo != null) Dato(icono: Icons.tag, texto: 'Pedido ${compra.codigo}'),
+            const SizedBox(height: 16),
+            AvanceCompra(linea: compra.lineaTiempo, grande: true),
             if (fechaInst != null)
               Dato(
                 icono: Icons.event_available_outlined,

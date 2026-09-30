@@ -14,6 +14,11 @@ const inicioJson = r'''
       "estado": {"clave": "confirmada", "titulo": "Confirmada"},
       "arquitecto": "Ana López",
       "arquitectoFoto": null,
+      "arquitectoHabilidades": [
+        {"clave": "precision", "titulo": "Precisión en medidas", "estrellas": 4.5, "detalle": "18 de 20 proyectos sin corrección de medidas."},
+        {"clave": "puntualidad", "titulo": "Puntualidad", "estrellas": null, "detalle": "Muy pronto: se medirá con el registro de llegada a tus citas."},
+        {"clave": "atencion", "titulo": "Atención y asesoría", "estrellas": null, "detalle": "Muy pronto: con la opinión de clientes después de su visita."}
+      ],
       "direccion": "Av. Siempre Viva 742, CDMX",
       "mapsUrl": "https://maps.app.goo.gl/ejemplo",
       "muebles": ["Cocina", "Closet"],
@@ -44,6 +49,7 @@ const inicioJson = r'''
       "mueble": "Closet",
       "lineaTiempo": {
         "etapaActual": 5,
+        "porcentaje": 100,
         "mensaje": "¡Tu mueble está instalado! Gracias por tu confianza.",
         "etapas": [
           {"clave": "pedido", "titulo": "Pedido confirmado", "descripcion": "Recibimos tu pedido.", "situacion": "hecha", "desde": "2026-06-01T12:00:00Z"},
@@ -64,6 +70,7 @@ const inicioJson = r'''
       "mueble": "Cocina",
       "lineaTiempo": {
         "etapaActual": 2,
+        "porcentaje": 58,
         "mensaje": "Tu mueble se está fabricando en nuestro taller.",
         "etapas": [
           {"clave": "pedido", "titulo": "Pedido confirmado", "descripcion": "Recibimos tu pedido.", "situacion": "hecha", "desde": "2026-09-01T12:00:00Z"},
