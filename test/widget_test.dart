@@ -190,13 +190,56 @@ void main() {
     store.token = 'tok-1';
     await abrirApp(tester);
 
+    // Sin compras abre directo el detalle de su próxima cita.
+    expect(find.byType(CitaDetallePage), findsOneWidget);
+    expect(find.text('TU ARQUITECTO'), findsOneWidget);
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+
+    // Al regresar queda en Citas, sin la pestaña Mi compra.
+    expect(find.byType(CitaDetallePage), findsNothing);
     expect(find.text('Mi compra'), findsNothing);
     expect(find.text('Citas'), findsOneWidget);
     expect(find.text('Cotizaciones'), findsOneWidget);
-    // Abre en Citas y trae su tarjeta de ayuda.
     expect(find.text('TU PRÓXIMA CITA'), findsOneWidget);
+    // Con citas no hay tarjeta de ayuda repetida: cada cita trae su contacto.
+    expect(find.byKey(const Key('preguntarCita-c-futura')), findsOneWidget);
     final lista = find.byType(Scrollable).first;
-    await tester.scrollUntilVisible(find.byKey(const Key('tarjetaAyuda')), 200, scrollable: lista);
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('preguntarCita-c-pasada')), 200, scrollable: lista);
+    expect(find.byKey(const Key('tarjetaAyuda')), findsNothing);
+  });
+
+  testWidgets('sin compras y sin cita próxima: se queda en Citas', (tester) async {
+    final soloPasadas = jsonDecode(inicioJson) as Map<String, dynamic>
+      ..['compras'] = <Object>[]
+      ..['citas'] = [(jsonDecode(inicioJson) as Map<String, dynamic>)['citas'][1]];
+    servidor = ServidorFalso(inicio: jsonEncode(soloPasadas));
+    state = AppState(
+      api: ClienteApi(client: servidor.client, base: 'https://ejemplo.test', bypass: ''),
+      store: store,
+    );
+    store.token = 'tok-1';
+    await abrirApp(tester);
+
+    expect(find.byType(CitaDetallePage), findsNothing);
+    expect(find.text('ANTERIORES'), findsOneWidget);
+  });
+
+  testWidgets('sección vacía: ahí sí aparece la tarjeta de ayuda', (tester) async {
+    final vacio = jsonDecode(inicioJson) as Map<String, dynamic>
+      ..['compras'] = <Object>[]
+      ..['citas'] = <Object>[]
+      ..['cotizaciones'] = <Object>[];
+    servidor = ServidorFalso(inicio: jsonEncode(vacio));
+    state = AppState(
+      api: ClienteApi(client: servidor.client, base: 'https://ejemplo.test', bypass: ''),
+      store: store,
+    );
+    store.token = 'tok-1';
+    await abrirApp(tester);
+
+    expect(find.text('Todavía no tienes citas'), findsOneWidget);
     expect(find.text('¿Dudas sobre tus citas?'), findsOneWidget);
   });
 }

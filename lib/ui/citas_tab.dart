@@ -19,6 +19,13 @@ class CitasTab extends StatelessWidget {
   /// Para pruebas; por omisión, el reloj del teléfono.
   final DateTime? ahora;
 
+  /// La próxima cita vigente (hoy o después), o null.
+  static Cita? proxima(Inicio datos, DateTime ahora) {
+    final proximas = datos.citas.where((c) => esProxima(c, ahora)).toList()
+      ..sort((a, b) => a.fecha.compareTo(b.fecha));
+    return proximas.firstOrNull;
+  }
+
   static bool esProxima(Cita c, DateTime ahora) {
     if (!c.vigente) return false;
     final f = parseFecha(c.fecha);
@@ -59,25 +66,33 @@ class CitasTab extends StatelessWidget {
           ),
         if (proximas.isNotEmpty) ...[
           const TituloSeccion('Tu próxima cita'),
-          _CitaDestacada(cita: proximas.first, ahora: hoy),
+          _CitaDestacada(
+            cita: proximas.first,
+            ahora: hoy,
+            contacto: datos.contacto,
+            nombre: datos.nombre,
+          ),
         ],
         if (proximas.length > 1) ...[
           const TituloSeccion('Después'),
-          for (final c in proximas.skip(1)) _TarjetaCita(cita: c),
+          for (final c in proximas.skip(1))
+            _TarjetaCita(cita: c, contacto: datos.contacto, nombre: datos.nombre),
         ],
         if (anteriores.isNotEmpty) ...[
           const TituloSeccion('Anteriores'),
-          for (final c in anteriores) _TarjetaCita(cita: c),
+          for (final c in anteriores)
+            _TarjetaCita(cita: c, contacto: datos.contacto, nombre: datos.nombre),
         ],
-        TarjetaAyuda(
-          titulo: '¿Dudas sobre tus citas?',
-          contacto: datos.contacto,
-          mensaje: mensajeContacto(
-            etiqueta: MotivoContacto.citas,
-            nombre: datos.nombre,
-            texto: 'Tengo una duda sobre mis citas.',
+        if (datos.citas.isEmpty)
+          TarjetaAyuda(
+            titulo: '¿Dudas sobre tus citas?',
+            contacto: datos.contacto,
+            mensaje: mensajeContacto(
+              etiqueta: MotivoContacto.citas,
+              nombre: datos.nombre,
+              texto: 'Tengo una duda sobre mis citas.',
+            ),
           ),
-        ),
       ],
     );
   }
@@ -99,10 +114,17 @@ void abrirCita(BuildContext context, Cita cita) {
     };
 
 class _CitaDestacada extends StatelessWidget {
-  const _CitaDestacada({required this.cita, required this.ahora});
+  const _CitaDestacada({
+    required this.cita,
+    required this.ahora,
+    required this.contacto,
+    this.nombre,
+  });
 
   final Cita cita;
   final DateTime ahora;
+  final Contacto contacto;
+  final String? nombre;
 
   @override
   Widget build(BuildContext context) {
@@ -170,6 +192,14 @@ class _CitaDestacada extends StatelessWidget {
                   const Icon(Icons.chevron_right, color: Colors.white),
                 ],
               ),
+              const SizedBox(height: 8),
+              BotonPreguntar(
+                key: Key('preguntarCita-${cita.id}'),
+                texto: 'Preguntar por esta cita',
+                contacto: contacto,
+                mensaje: mensajeCita(cita, nombre),
+                color: Colors.white,
+              ),
             ],
           ),
         ),
@@ -179,9 +209,11 @@ class _CitaDestacada extends StatelessWidget {
 }
 
 class _TarjetaCita extends StatelessWidget {
-  const _TarjetaCita({required this.cita});
+  const _TarjetaCita({required this.cita, required this.contacto, this.nombre});
 
   final Cita cita;
+  final Contacto contacto;
+  final String? nombre;
 
   @override
   Widget build(BuildContext context) {
@@ -218,6 +250,13 @@ class _TarjetaCita extends StatelessWidget {
                   Dato(icono: Icons.person_outline, texto: 'Tu arquitecto: ${cita.arquitecto}'),
                 if (cita.muebles.isNotEmpty)
                   Dato(icono: Icons.chair_outlined, texto: cita.muebles.join(', ')),
+                const SizedBox(height: 4),
+                BotonPreguntar(
+                  key: Key('preguntarCita-${cita.id}'),
+                  texto: 'Preguntar por esta cita',
+                  contacto: contacto,
+                  mensaje: mensajeCita(cita, nombre),
+                ),
               ],
             ),
           ),

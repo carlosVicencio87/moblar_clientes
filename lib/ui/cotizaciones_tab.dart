@@ -30,15 +30,16 @@ class CotizacionesTab extends StatelessWidget {
           for (final c in datos.cotizaciones)
             _TarjetaCotizacion(cotizacion: c, contacto: datos.contacto, nombre: datos.nombre),
         ],
-        TarjetaAyuda(
-          titulo: '¿Dudas sobre tus cotizaciones?',
-          contacto: datos.contacto,
-          mensaje: mensajeContacto(
-            etiqueta: MotivoContacto.cotizaciones,
-            nombre: datos.nombre,
-            texto: 'Tengo una duda sobre mis cotizaciones.',
+        if (datos.cotizaciones.isEmpty)
+          TarjetaAyuda(
+            titulo: '¿Dudas sobre tus cotizaciones?',
+            contacto: datos.contacto,
+            mensaje: mensajeContacto(
+              etiqueta: MotivoContacto.cotizaciones,
+              nombre: datos.nombre,
+              texto: 'Tengo una duda sobre mis cotizaciones.',
+            ),
           ),
-        ),
       ],
     );
   }
@@ -127,20 +128,11 @@ class _TarjetaCotizacionState extends State<_TarjetaCotizacion> {
                   style: TextStyle(color: MoblarColors.textMuted, fontSize: 13),
                 ),
               // Pregunta sobre ESTA cotización: el mensaje lleva su código.
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton.icon(
-                  key: Key('preguntarCotizacion-${c.id}'),
-                  onPressed: () => abrirEnlace(
-                    context,
-                    enlaceWhatsApp(
-                      ContactoResuelto(widget.contacto).whatsapp,
-                      mensaje: mensajeCotizacion(c, widget.nombre),
-                    ),
-                  ),
-                  icon: const Icon(Icons.chat_outlined, size: 18),
-                  label: const Text('Preguntar por esta cotización'),
-                ),
+              BotonPreguntar(
+                key: Key('preguntarCotizacion-${c.id}'),
+                texto: 'Preguntar por esta cotización',
+                contacto: widget.contacto,
+                mensaje: mensajeCotizacion(c, widget.nombre),
               ),
             ],
           ),

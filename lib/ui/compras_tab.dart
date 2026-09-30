@@ -39,15 +39,6 @@ class ComprasTab extends StatelessWidget {
           for (final c in entregadas)
             TarjetaCompra(compra: c, contacto: datos.contacto, nombre: datos.nombre),
         ],
-        TarjetaAyuda(
-          titulo: '¿Dudas sobre tus compras?',
-          contacto: datos.contacto,
-          mensaje: mensajeContacto(
-            etiqueta: MotivoContacto.compras,
-            nombre: datos.nombre,
-            texto: 'Tengo una duda sobre mis compras.',
-          ),
-        ),
       ],
     );
   }

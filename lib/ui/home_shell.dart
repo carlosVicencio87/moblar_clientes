@@ -9,6 +9,8 @@ import 'cotizaciones_tab.dart';
 /// Pantalla principal con la barra inferior: Citas · Cotizaciones · Mi compra.
 ///
 /// "Mi compra" solo aparece cuando el cliente ya compró algo (2026-09-29).
+/// Sin compras, al entrar se abre directo el detalle de su próxima cita
+/// (pedido del stakeholder, 2026-09-30); al regresar queda en Citas.
 /// El contacto con atención a clientes vive dentro de cada sección.
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key});
@@ -52,6 +54,15 @@ class _HomeShellState extends State<HomeShell> {
       if (hayCompras) Seccion.compra,
     ];
     if (datos != null) {
+      if (_seccion == null) {
+        // Primera vez que llegan los datos en esta sesión (no al refrescar).
+        final proxima = hayCompras ? null : CitasTab.proxima(datos, DateTime.now());
+        if (proxima != null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) abrirCita(context, proxima);
+          });
+        }
+      }
       _seccion ??= hayCompras ? Seccion.compra : Seccion.citas;
       // Si la sección elegida desapareció (no debería), se vuelve a Citas.
       if (!secciones.contains(_seccion)) _seccion = Seccion.citas;

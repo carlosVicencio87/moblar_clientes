@@ -134,7 +134,44 @@ class BotonesContacto extends StatelessWidget {
   }
 }
 
-/// Tarjeta "¿Necesitas ayuda?" al final de cada sección.
+/// Enlace discreto "Preguntar por esta …" dentro de una tarjeta: abre
+/// WhatsApp con el motivo ya escrito. Es el contacto de cada tarjeta de las
+/// listas (decisión 2026-09-30: sin tarjeta de ayuda repetida al final).
+class BotonPreguntar extends StatelessWidget {
+  const BotonPreguntar({
+    super.key,
+    required this.texto,
+    required this.contacto,
+    required this.mensaje,
+    this.color,
+  });
+
+  final String texto;
+  final Contacto contacto;
+  final String mensaje;
+
+  /// Para tarjetas de fondo oscuro (la cita destacada).
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: TextButton.icon(
+        style: color == null ? null : TextButton.styleFrom(foregroundColor: color),
+        onPressed: () => abrirEnlace(
+          context,
+          enlaceWhatsApp(ContactoResuelto(contacto).whatsapp, mensaje: mensaje),
+        ),
+        icon: const Icon(Icons.chat_outlined, size: 18),
+        label: Text(texto),
+      ),
+    );
+  }
+}
+
+/// Tarjeta "¿Necesitas ayuda?". Solo cuando la sección está vacía: si hay
+/// tarjetas, cada una trae su propio contacto.
 class TarjetaAyuda extends StatelessWidget {
   const TarjetaAyuda({
     super.key,
