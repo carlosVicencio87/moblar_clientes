@@ -95,6 +95,24 @@ void main() {
     expect(inicio.citas.last.agendoPor, isNull);
   });
 
+  test('detalle del mueble: piezas, tonos, lo que incluye', () {
+    final d = DetalleProyecto.fromJson(jsonDecode(detalleJson) as Map<String, dynamic>);
+    expect(d.tieneContenido, isTrue);
+    expect(d.imagenDiseno, isNull);
+    expect(d.medidas, '240 × 180 cm');
+    expect(d.piezas.first.cantidad, 2);
+    expect(d.piezas.last.medidas, isNull);
+    expect(d.tonos.map((t) => t.hex), ['#8B5A2B', null]);
+    expect(d.incluye, contains('Cajones'));
+    expect(d.porTuCuenta, ['Chimenea']);
+
+    final conImagen = DetalleProyecto.fromJson({'id': 'x', 'imagenDiseno': 'https://f/i.png'});
+    expect(conImagen.tieneContenido, isTrue);
+    final vacio = DetalleProyecto.fromJson({'id': 'x', 'piezas': 'no', 'incluye': [1, '', 'Luces']});
+    expect(vacio.piezas, isEmpty);
+    expect(vacio.incluye, ['Luces']);
+  });
+
   test('compras en curso primero', () {
     expect(inicio.comprasOrdenadas.map((c) => c.id), ['p-fabricacion', 'p-entregado']);
   });

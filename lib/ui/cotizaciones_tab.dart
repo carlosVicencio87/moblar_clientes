@@ -7,6 +7,7 @@ import '../theme.dart';
 import '../util/formato.dart';
 import 'widgets/comunes.dart';
 import 'widgets/contacto.dart';
+import 'widgets/detalle_mueble.dart';
 
 /// Cotizaciones del cliente con su PDF.
 class CotizacionesTab extends StatelessWidget {
@@ -128,6 +129,19 @@ class _TarjetaCotizacionState extends State<_TarjetaCotizacion> {
                   style: TextStyle(color: MoblarColors.textMuted, fontSize: 13),
                 ),
               // Pregunta sobre ESTA cotización: el mensaje lleva su código.
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  key: Key('verDetalle-${c.id}'),
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => DetalleMueblePage(proyectoId: c.id, titulo: c.mueble),
+                    ),
+                  ),
+                  icon: const Icon(Icons.chair_outlined, size: 18),
+                  label: const Text('Ver diseño y lo que incluye'),
+                ),
+              ),
               BotonPreguntar(
                 key: Key('preguntarCotizacion-${c.id}'),
                 texto: 'Preguntar por esta cotización',

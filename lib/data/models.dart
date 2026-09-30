@@ -355,3 +355,90 @@ class Inicio {
         compras: _lista(j['compras']).map(Compra.fromJson).toList(),
       );
 }
+
+// ---------------------------------------------------------------------------
+// Detalle del mueble: GET /api/cliente/proyectos/:id/detalle
+// (espejo de clienteProyectoDetalle.ts del ERP)
+// ---------------------------------------------------------------------------
+
+class Tono {
+  const Tono({required this.nombre, this.hex});
+
+  final String nombre;
+
+  /// "#RRGGBB" o null si el catálogo no trae muestra.
+  final String? hex;
+
+  factory Tono.fromJson(Map<String, dynamic> j) =>
+      Tono(nombre: _s(j['nombre']), hex: _sn(j['hex']));
+}
+
+class PiezaPedido {
+  const PiezaPedido({
+    required this.nombre,
+    required this.cantidad,
+    this.medidas,
+    this.fondo,
+    this.tono,
+  });
+
+  final String nombre;
+  final int cantidad;
+  final String? medidas;
+  final String? fondo;
+  final String? tono;
+
+  factory PiezaPedido.fromJson(Map<String, dynamic> j) => PiezaPedido(
+        nombre: _s(j['nombre']),
+        cantidad: (_n(j['cantidad'])?.toInt() ?? 1).clamp(1, 9999).toInt(),
+        medidas: _sn(j['medidas']),
+        fondo: _sn(j['fondo']),
+        tono: _sn(j['tono']),
+      );
+}
+
+class DetalleProyecto {
+  const DetalleProyecto({
+    required this.id,
+    this.mueble,
+    this.imagenDiseno,
+    this.medidas,
+    this.piezas = const [],
+    this.tonos = const [],
+    this.incluye = const [],
+    this.porTuCuenta = const [],
+  });
+
+  final String id;
+  final String? mueble;
+
+  /// URL firmada temporal (≈1 h) de la imagen del diseño en Moblo.
+  final String? imagenDiseno;
+  final String? medidas;
+  final List<PiezaPedido> piezas;
+  final List<Tono> tonos;
+  final List<String> incluye;
+  final List<String> porTuCuenta;
+
+  bool get tieneContenido =>
+      imagenDiseno != null ||
+      medidas != null ||
+      piezas.isNotEmpty ||
+      tonos.isNotEmpty ||
+      incluye.isNotEmpty ||
+      porTuCuenta.isNotEmpty;
+
+  static List<String> _textos(Object? v) =>
+      v is List ? v.whereType<String>().where((t) => t.trim().isNotEmpty).toList() : const [];
+
+  factory DetalleProyecto.fromJson(Map<String, dynamic> j) => DetalleProyecto(
+        id: _s(j['id']),
+        mueble: _sn(j['mueble']),
+        imagenDiseno: _sn(j['imagenDiseno']),
+        medidas: _sn(j['medidas']),
+        piezas: _lista(j['piezas']).map(PiezaPedido.fromJson).where((p) => p.nombre.isNotEmpty).toList(),
+        tonos: _lista(j['tonos']).map(Tono.fromJson).where((t) => t.nombre.isNotEmpty).toList(),
+        incluye: _textos(j['incluye']),
+        porTuCuenta: _textos(j['porTuCuenta']),
+      );
+}

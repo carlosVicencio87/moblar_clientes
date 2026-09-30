@@ -135,6 +135,23 @@ class ClienteApi {
 
   /// GET /api/cliente/cotizaciones/:id/pdf → URL firmada (vence en minutos:
   /// se pide justo antes de abrirla, nunca se guarda).
+  /// GET /api/cliente/proyectos/:id/detalle
+  Future<DetalleProyecto> detalleProyecto(String token, String proyectoId) async {
+    final r = await _enviar(() => _http.get(
+          Uri.parse('$_base/api/cliente/proyectos/$proyectoId/detalle'),
+          headers: _headers(token: token),
+        ));
+    if (r.statusCode == 401) throw const SesionTerminada();
+    final cuerpo = _cuerpo(r);
+    if (r.statusCode == 404) {
+      throw const ErrorServidor('No encontramos el detalle de este mueble.');
+    }
+    if (r.statusCode != 200) {
+      throw ErrorServidor(_errorDe(cuerpo) ?? const ErrorServidor().mensaje);
+    }
+    return DetalleProyecto.fromJson(cuerpo);
+  }
+
   Future<Uri> urlPdf(String token, String cotizacionId) async {
     final r = await _enviar(() => _http.get(
           Uri.parse('$_base/api/cliente/cotizaciones/$cotizacionId/pdf'),

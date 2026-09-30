@@ -146,4 +146,43 @@ void main() {
       await expectLater(api.urlPdf('tok', 'q1'), throwsA(isA<SesionTerminada>()));
     });
   });
+
+  group('detalleProyecto', () {
+    test('200 arma el detalle y pide la ruta del proyecto', () async {
+      late http.Request recibida;
+      final api = ClienteApi(
+        base: 'https://ejemplo.test',
+        bypass: '',
+        client: MockClient((r) async {
+          recibida = r;
+          return http.Response.bytes(utf8.encode(detalleJson), 200);
+        }),
+      );
+      final d = await api.detalleProyecto('tok', 'p-fabricacion');
+      expect(recibida.url.path, '/api/cliente/proyectos/p-fabricacion/detalle');
+      expect(recibida.headers['Authorization'], 'Bearer tok');
+      expect(d.tonos.first.nombre, 'Nogal Terracota');
+    });
+
+    test('404 es error con mensaje claro', () async {
+      final api = ClienteApi(
+        base: 'https://ejemplo.test',
+        bypass: '',
+        client: MockClient((_) async => _json({'error': 'x'}, 404)),
+      );
+      expect(
+        () => api.detalleProyecto('tok', 'p'),
+        throwsA(isA<ErrorServidor>().having((e) => e.mensaje, 'mensaje', contains('detalle'))),
+      );
+    });
+
+    test('401 es sesión terminada', () async {
+      final api = ClienteApi(
+        base: 'https://ejemplo.test',
+        bypass: '',
+        client: MockClient((_) async => _json({}, 401)),
+      );
+      expect(() => api.detalleProyecto('tok', 'p'), throwsA(isA<SesionTerminada>()));
+    });
+  });
 }

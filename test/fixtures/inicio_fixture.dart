@@ -90,3 +90,24 @@ const inicioJson = r'''
   ]
 }
 ''';
+
+/// Respuesta de GET /api/cliente/proyectos/:id/detalle (sin imagen: en las
+/// pruebas de widgets no hay red para Image.network).
+const detalleJson = r'''
+{
+  "id": "p-fabricacion",
+  "mueble": "Cocina",
+  "imagenDiseno": null,
+  "medidas": "240 × 180 cm",
+  "piezas": [
+    {"nombre": "Alacena", "cantidad": 2, "medidas": "60 × 90 cm", "fondo": "35 cm", "tono": "Nogal Terracota"},
+    {"nombre": "Isla", "cantidad": 1, "medidas": null, "fondo": null, "tono": null}
+  ],
+  "tonos": [
+    {"nombre": "Nogal Terracota", "hex": "#8B5A2B"},
+    {"nombre": "Blanco Brillante", "hex": null}
+  ],
+  "incluye": ["Mueble a piso", "Cajones", "Correderas (4)"],
+  "porTuCuenta": ["Chimenea"]
+}
+''';

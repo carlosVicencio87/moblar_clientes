@@ -10,6 +10,7 @@ import 'package:moblar_clientes/ui/cita_detalle_page.dart';
 import 'package:moblar_clientes/ui/compra_detalle_page.dart';
 import 'package:moblar_clientes/ui/compras_tab.dart';
 import 'package:moblar_clientes/ui/login_page.dart';
+import 'package:moblar_clientes/ui/widgets/detalle_mueble.dart';
 
 import 'fixtures/inicio_fixture.dart';
 import 'fixtures/servidor_falso.dart';
@@ -107,6 +108,18 @@ void main() {
     );
     expect(find.byType(LineaTiempoVertical), findsOneWidget);
     expect(find.text('Control de calidad'), findsOneWidget);
+    // Tonos y lo que incluye, pedidos al servidor al abrir el detalle.
+    final listaCompra = find
+        .descendant(of: find.byType(CompraDetallePage), matching: find.byType(Scrollable))
+        .first;
+    await tester.scrollUntilVisible(find.byKey(const Key('tonosMueble')), 200, scrollable: listaCompra);
+    expect(find.text('Nogal Terracota'), findsOneWidget);
+    await tester.scrollUntilVisible(find.byKey(const Key('incluyeMueble')), 200, scrollable: listaCompra);
+    expect(find.text('Lo que incluye tu pedido'), findsOneWidget);
+    expect(find.text('Medidas generales: 240 × 180 cm'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('Chimenea'), 200, scrollable: listaCompra);
+    expect(find.text('Alacena × 2'), findsOneWidget);
+    expect(find.text('CORRE POR TU CUENTA'), findsOneWidget);
     // Montos apagados: no aparece la tarjeta de pagos.
     expect(find.text('Pagos'), findsNothing);
   });
@@ -183,6 +196,19 @@ void main() {
     // Ya no existe la pestaña Atención: el contacto vive en cada sección.
     expect(find.text('Atención'), findsNothing);
     expect(find.text('Mi compra'), findsOneWidget);
+  });
+
+  testWidgets('desde una cotización se abre el diseño y lo que incluye', (tester) async {
+    store.token = 'tok-1';
+    await abrirApp(tester);
+    await tester.tap(find.text('Cotizaciones'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('verDetalle-q1')));
+    await tester.pumpAndSettle();
+    expect(find.byType(DetalleMueblePage), findsOneWidget);
+    expect(find.text('Tonos'), findsOneWidget);
+    expect(find.text('Blanco Brillante'), findsOneWidget);
+    expect(find.byKey(const Key('disenoMueble')), findsNothing); // sin imagen
   });
 
   testWidgets('sin compras no aparece la pestaña Mi compra', (tester) async {

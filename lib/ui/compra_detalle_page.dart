@@ -7,6 +7,7 @@ import '../util/formato.dart';
 import 'compras_tab.dart' show AvanceCompra;
 import 'widgets/comunes.dart';
 import 'widgets/contacto.dart';
+import 'widgets/detalle_mueble.dart';
 
 /// Seguimiento de un mueble: línea de tiempo vertical con las 6 etapas.
 ///
@@ -42,6 +43,8 @@ class CompraDetallePage extends StatelessWidget {
                     child: LineaTiempoVertical(linea: compra.lineaTiempo),
                   ),
                 ),
+                const SizedBox(height: 16),
+                DetalleMueble(proyectoId: compra.id),
                 if (compra.pagos.visibles) ...[
                   const SizedBox(height: 16),
                   _Pagos(pagos: compra.pagos),

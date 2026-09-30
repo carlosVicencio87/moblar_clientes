@@ -66,6 +66,19 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  /// Detalle del mueble (imagen, tonos, lo que incluye). No se guarda en el
+  /// estado: la imagen es una URL firmada que vence, se pide al abrir.
+  Future<DetalleProyecto> detalleProyecto(String proyectoId) async {
+    final token = _token;
+    if (token == null) throw const SesionTerminada();
+    try {
+      return await api.detalleProyecto(token, proyectoId);
+    } on SesionTerminada catch (e) {
+      await _cerrar(aviso: e.mensaje);
+      rethrow;
+    }
+  }
+
   Future<Uri> urlPdf(String cotizacionId) async {
     final token = _token;
     if (token == null) throw const SesionTerminada();
