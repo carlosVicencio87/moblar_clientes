@@ -143,6 +143,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(CitaDetallePage), findsOneWidget);
     expect(find.text('TU ARQUITECTO'), findsOneWidget);
+    expect(find.text('Agendó tu cita: Estela Ramírez'), findsOneWidget);
     // La lista construye solo lo visible: se desplaza para ver cada parte.
     final lista = find
         .descendant(of: find.byType(CitaDetallePage), matching: find.byType(Scrollable))
@@ -151,13 +152,18 @@ void main() {
     // Habilidades: plegadas; al abrir, estrellas solo donde hay datos.
     await tester.scrollUntilVisible(
       find.byKey(const Key('habilidadesArquitecto')), 200, scrollable: lista);
-    expect(find.text('Precisión en medidas'), findsNothing);
+    expect(find.text('Creatividad en diseños'), findsNothing);
     await tester.tap(find.byKey(const Key('habilidadesArquitecto')));
     await tester.pumpAndSettle();
-    expect(find.text('Precisión en medidas'), findsOneWidget);
-    expect(find.text('18 de 20 proyectos sin corrección de medidas.'), findsOneWidget);
+    expect(find.text('Creatividad en diseños'), findsOneWidget);
     expect(find.byIcon(Icons.star_half_rounded), findsOneWidget); // 4.5
     expect(find.text('Sin calificar'), findsNWidgets(2)); // puntualidad y atención
+    // Al final del desplegable: contacto directo y discreto con el arquitecto.
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('contactoArquitecto')), 200, scrollable: lista);
+    expect(find.text('Contacta a tu arquitecto'), findsOneWidget);
+    expect(find.byKey(const Key('arquitectoLlamar')), findsOneWidget);
+    expect(find.byKey(const Key('arquitectoWhatsApp')), findsOneWidget);
 
     await tester.scrollUntilVisible(find.text('Ver en Maps'), 200, scrollable: lista);
     expect(find.text('Av. Siempre Viva 742, CDMX'), findsOneWidget);

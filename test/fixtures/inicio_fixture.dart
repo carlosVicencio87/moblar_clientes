@@ -15,10 +15,12 @@ const inicioJson = r'''
       "arquitecto": "Ana López",
       "arquitectoFoto": null,
       "arquitectoHabilidades": [
-        {"clave": "precision", "titulo": "Precisión en medidas", "estrellas": 4.5, "detalle": "18 de 20 proyectos sin corrección de medidas."},
+        {"clave": "creatividad", "titulo": "Creatividad en diseños", "estrellas": 4.5, "detalle": ""},
         {"clave": "puntualidad", "titulo": "Puntualidad", "estrellas": null, "detalle": "Muy pronto: se medirá con el registro de llegada a tus citas."},
         {"clave": "atencion", "titulo": "Atención y asesoría", "estrellas": null, "detalle": "Muy pronto: con la opinión de clientes después de su visita."}
       ],
+      "arquitectoTelefono": "5512345678",
+      "agendoPor": "Estela Ramírez",
       "direccion": "Av. Siempre Viva 742, CDMX",
       "mapsUrl": "https://maps.app.goo.gl/ejemplo",
       "muebles": ["Cocina", "Closet"],

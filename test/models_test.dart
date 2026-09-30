@@ -80,12 +80,19 @@ void main() {
 
   test('habilidades del arquitecto: estrellas solo si hay datos', () {
     final hs = inicio.citas.first.arquitectoHabilidades;
-    expect(hs.map((h) => h.clave), ['precision', 'puntualidad', 'atencion']);
+    expect(hs.map((h) => h.clave), ['creatividad', 'puntualidad', 'atencion']);
     expect(hs.first.estrellas, 4.5);
     expect(hs[1].estrellas, isNull);
     // Cita sin el campo (servidor anterior): lista vacía.
     expect(inicio.citas.last.arquitectoHabilidades, isEmpty);
     expect(Habilidad.fromJson({'estrellas': 9}).estrellas, 5);
+  });
+
+  test('teléfono del arquitecto y quién agendó', () {
+    expect(inicio.citas.first.arquitectoTelefono, '5512345678');
+    expect(inicio.citas.first.agendoPor, 'Estela Ramírez');
+    expect(inicio.citas.last.arquitectoTelefono, isNull);
+    expect(inicio.citas.last.agendoPor, isNull);
   });
 
   test('compras en curso primero', () {

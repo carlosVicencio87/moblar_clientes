@@ -57,6 +57,13 @@ void main() {
     });
   });
 
+  test('mensaje al arquitecto: sin etiqueta de contact center', () {
+    final m = mensajeArquitecto(inicio.citas.first, 'Carlos Prueba');
+    expect(m, startsWith('Hola, soy Carlos Prueba. Te escribo por mi cita del '));
+    expect(m, isNot(contains('[')));
+    expect(m, contains('2030'));
+  });
+
   group('contacto resuelto', () {
     test('usa el del servidor', () {
       final c = ContactoResuelto(inicio.contacto);

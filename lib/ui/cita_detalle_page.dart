@@ -44,7 +44,7 @@ class CitaDetallePage extends StatelessWidget {
                   _Avance(clave: cita.estado.clave),
                   const SizedBox(height: 16),
                 ],
-                _Arquitecto(cita: cita),
+                _Arquitecto(cita: cita, nombreCliente: datos.nombre),
                 if (cita.direccion != null || cita.mapsUrl != null) ...[
                   const SizedBox(height: 16),
                   _Lugar(cita: cita),
@@ -102,6 +102,8 @@ class _Encabezado extends StatelessWidget {
               ),
             ),
             if (hora.isNotEmpty) Dato(icono: Icons.schedule, texto: hora),
+            if (cita.agendoPor != null)
+              Dato(icono: Icons.support_agent, texto: 'Agendó tu cita: ${cita.agendoPor}'),
           ],
         ),
       ),
@@ -164,16 +166,18 @@ class _Avance extends StatelessWidget {
 }
 
 /// Tarjeta grande del arquitecto: foto al centro, nombre y, desplegable,
-/// sus habilidades con estrellas SOLO de datos reales.
+/// sus habilidades y, al final, el contacto directo con el arquitecto.
 class _Arquitecto extends StatelessWidget {
-  const _Arquitecto({required this.cita});
+  const _Arquitecto({required this.cita, this.nombreCliente});
 
   final Cita cita;
+  final String? nombreCliente;
 
   @override
   Widget build(BuildContext context) {
     final asignado = cita.arquitecto != null;
     final habilidades = asignado ? cita.arquitectoHabilidades : const <Habilidad>[];
+    final telefono = asignado ? cita.arquitectoTelefono : null;
     return Card(
       key: const Key('tarjetaArquitecto'),
       clipBehavior: Clip.antiAlias,
@@ -218,7 +222,7 @@ class _Arquitecto extends StatelessWidget {
               ],
             ),
           ),
-          if (habilidades.isNotEmpty) ...[
+          if (habilidades.isNotEmpty || telefono != null) ...[
             const Divider(height: 1),
             Theme(
               // Sin las líneas que ExpansionTile dibuja al abrir.
@@ -228,12 +232,59 @@ class _Arquitecto extends StatelessWidget {
                 leading: const Icon(Icons.workspace_premium_outlined, color: MoblarColors.primary),
                 title: const Text('Habilidades', style: TextStyle(fontWeight: FontWeight.w600)),
                 childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                children: [for (final h in habilidades) RenglonHabilidad(habilidad: h)],
+                children: [
+                  for (final h in habilidades) RenglonHabilidad(habilidad: h),
+                  if (telefono != null) ...[
+                    const Divider(height: 16),
+                    _ContactoArquitecto(
+                      telefono: telefono,
+                      mensaje: mensajeArquitecto(cita, nombreCliente),
+                    ),
+                  ],
+                ],
               ),
             ),
           ],
         ],
       ),
+    );
+  }
+}
+
+/// Renglón discreto al final del desplegable: llamar o escribir directo al
+/// arquitecto (sin pasar por atención a clientes).
+class _ContactoArquitecto extends StatelessWidget {
+  const _ContactoArquitecto({required this.telefono, required this.mensaje});
+
+  final String telefono;
+  final String mensaje;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      key: const Key('contactoArquitecto'),
+      children: [
+        const Expanded(
+          child: Text(
+            'Contacta a tu arquitecto',
+            style: TextStyle(fontSize: 13, color: MoblarColors.textSecondary),
+          ),
+        ),
+        IconButton(
+          key: const Key('arquitectoLlamar'),
+          tooltip: 'Llamar',
+          color: MoblarColors.primary,
+          icon: const Icon(Icons.call_outlined, size: 20),
+          onPressed: () => abrirEnlace(context, Uri(scheme: 'tel', path: telefono)),
+        ),
+        IconButton(
+          key: const Key('arquitectoWhatsApp'),
+          tooltip: 'WhatsApp',
+          color: MoblarColors.primary,
+          icon: const Icon(Icons.chat_outlined, size: 20),
+          onPressed: () => abrirEnlace(context, enlaceWhatsApp('52$telefono', mensaje: mensaje)),
+        ),
+      ],
     );
   }
 }

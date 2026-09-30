@@ -66,6 +66,17 @@ String mensajeProyecto(Compra c, String? nombre) => mensajeContacto(
           '${c.codigo == null ? '' : ' (pedido ${c.codigo})'}.',
     );
 
+/// Mensaje directo al arquitecto: sin etiqueta, porque no pasa por
+/// contact center.
+String mensajeArquitecto(Cita cita, String? nombre) {
+  final fecha = parseFecha(cita.fecha);
+  final quien = (nombre ?? '').trim();
+  final saludo = quien.isEmpty ? 'Hola.' : 'Hola, soy $quien.';
+  return fecha == null
+      ? '$saludo Te escribo por mi cita con MOBLAR.'
+      : '$saludo Te escribo por mi cita del ${fechaLarga(fecha)}.';
+}
+
 /// Teléfono y WhatsApp a usar: lo que mande el servidor o, si falta, el de
 /// respaldo de la app. Moblar atiende a todas las marcas por ahora.
 class ContactoResuelto {

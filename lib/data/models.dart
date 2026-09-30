@@ -68,6 +68,8 @@ class Cita {
     required this.marca,
     this.arquitectoFoto,
     this.arquitectoHabilidades = const [],
+    this.arquitectoTelefono,
+    this.agendoPor,
     this.direccion,
     this.mapsUrl,
   });
@@ -84,6 +86,12 @@ class Cita {
 
   /// Estrellas solo con datos reales; vacío en canceladas o servidor viejo.
   final List<Habilidad> arquitectoHabilidades;
+
+  /// 10 dígitos; solo en citas vigentes o realizadas.
+  final String? arquitectoTelefono;
+
+  /// Quién agendó la cita en atención a clientes.
+  final String? agendoPor;
   final String? direccion;
   final String? mapsUrl;
   final List<String> muebles;
@@ -98,6 +106,8 @@ class Cita {
         arquitecto: _sn(j['arquitecto']),
         arquitectoFoto: _sn(j['arquitectoFoto']),
         arquitectoHabilidades: _lista(j['arquitectoHabilidades']).map(Habilidad.fromJson).toList(),
+        arquitectoTelefono: _sn(j['arquitectoTelefono']),
+        agendoPor: _sn(j['agendoPor']),
         direccion: _sn(j['direccion']),
         mapsUrl: _sn(j['mapsUrl']),
         muebles: j['muebles'] is List

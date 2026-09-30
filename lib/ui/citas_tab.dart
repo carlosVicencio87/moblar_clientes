@@ -250,6 +250,8 @@ class _TarjetaCita extends StatelessWidget {
                   Dato(icono: Icons.person_outline, texto: 'Tu arquitecto: ${cita.arquitecto}'),
                 if (cita.muebles.isNotEmpty)
                   Dato(icono: Icons.chair_outlined, texto: cita.muebles.join(', ')),
+                if (cita.agendoPor != null)
+                  Dato(icono: Icons.support_agent, texto: 'Agendó tu cita: ${cita.agendoPor}'),
                 const SizedBox(height: 4),
                 BotonPreguntar(
                   key: Key('preguntarCita-${cita.id}'),
