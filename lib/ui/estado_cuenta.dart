@@ -4,6 +4,7 @@ import '../data/models.dart';
 import '../theme.dart';
 import '../util/formato.dart';
 import 'widgets/comunes.dart';
+import 'widgets/detalle_pago.dart';
 
 /// Estado de cuenta de UNA compra (decisión de Carlos, 2026-10-02): cada
 /// pago queda ligado a su mueble, aunque el cliente tenga varios proyectos.
@@ -90,7 +91,7 @@ class EstadoCuentaCompra extends StatelessWidget {
               ),
               for (var i = 0; i < c.pagos.length; i++) ...[
                 if (i > 0) const Divider(height: 1),
-                _Pago(p: c.pagos[i]),
+                _Pago(p: c.pagos[i], indice: i),
               ],
             ],
           ],
@@ -168,9 +169,10 @@ class _Renglon extends StatelessWidget {
 }
 
 class _Pago extends StatelessWidget {
-  const _Pago({required this.p});
+  const _Pago({required this.p, required this.indice});
 
   final PagoCliente p;
+  final int indice;
 
   @override
   Widget build(BuildContext context) {
@@ -179,7 +181,10 @@ class _Pago extends StatelessWidget {
       if (fecha != null) fechaCorta(fecha),
       ?p.metodo,
     ].join(' · ');
-    return Padding(
+    return InkWell(
+      key: Key('pago-$indice'),
+      onTap: () => mostrarDetallePago(context, p),
+      child: Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -216,7 +221,13 @@ class _Pago extends StatelessWidget {
                   : const EstadoChip(texto: 'En revisión', color: Color(0xFF92400E), fondo: MoblarColors.amberSoft),
             ],
           ),
+          const SizedBox(width: 4),
+          const Padding(
+            padding: EdgeInsets.only(top: 2),
+            child: Icon(Icons.chevron_right, color: MoblarColors.textMuted),
+          ),
         ],
+      ),
       ),
     );
   }

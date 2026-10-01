@@ -95,8 +95,8 @@ const inicioJson = r'''
         "subtotal": 250000, "iva": 0, "total": 250000, "pagado": 100000, "enRevision": 20000,
         "saldo": 150000, "conFactura": false, "visitaAbonada": 500,
         "pagos": [
-          {"fecha": "2026-09-20", "monto": 20000, "concepto": "Abono", "metodo": "Transferencia", "estado": "en_revision", "visitaIncluida": null},
-          {"fecha": "2026-09-01", "monto": 100000, "concepto": "Anticipo", "metodo": "Transferencia", "estado": "validado", "visitaIncluida": 500}
+          {"id": "pg-abono", "fecha": "2026-09-20", "monto": 20000, "concepto": "Abono", "metodo": "Transferencia", "estado": "en_revision", "visitaIncluida": null, "referencia": null, "tieneComprobante": false},
+          {"id": "pg-anticipo", "fecha": "2026-09-01", "monto": 100000, "concepto": "Anticipo", "metodo": "Transferencia", "estado": "validado", "visitaIncluida": 500, "referencia": "123456", "tieneComprobante": true}
         ]
       },
       "marca": {"clave": "voreal", "nombre": "VOREAL", "logo": "logo-voreal.jpeg"}

@@ -135,6 +135,24 @@ class ClienteApi {
 
   /// GET /api/cliente/cotizaciones/:id/pdf → URL firmada (vence en minutos:
   /// se pide justo antes de abrirla, nunca se guarda).
+  /// GET /api/cliente/pagos/:id/comprobante
+  Future<Comprobante> comprobantePago(String token, String pagoId) async {
+    final r = await _enviar(() => _http.get(
+          Uri.parse('$_base/api/cliente/pagos/$pagoId/comprobante'),
+          headers: _headers(token: token),
+        ));
+    if (r.statusCode == 401) throw const SesionTerminada();
+    final cuerpo = _cuerpo(r);
+    if (r.statusCode == 404) {
+      throw const ErrorServidor('Este pago no tiene comprobante disponible.');
+    }
+    final url = cuerpo['url'];
+    if (r.statusCode != 200 || url is! String) {
+      throw ErrorServidor(_errorDe(cuerpo) ?? const ErrorServidor().mensaje);
+    }
+    return Comprobante(url: Uri.parse(url), esPdf: cuerpo['tipo'] == 'pdf');
+  }
+
   /// GET /api/cliente/proyectos/:id/detalle
   Future<DetalleProyecto> detalleProyecto(String token, String proyectoId) async {
     final r = await _enviar(() => _http.get(

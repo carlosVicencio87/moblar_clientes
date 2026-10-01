@@ -185,4 +185,37 @@ void main() {
       expect(() => api.detalleProyecto('tok', 'p'), throwsA(isA<SesionTerminada>()));
     });
   });
+
+  group('comprobantePago', () {
+    test('200 con PDF', () async {
+      late http.Request recibida;
+      final api = ClienteApi(
+        base: 'https://ejemplo.test',
+        bypass: '',
+        client: MockClient((r) async {
+          recibida = r;
+          return _json({'url': 'https://f/x.pdf', 'tipo': 'pdf', 'expiraEnSeg': 300}, 200);
+        }),
+      );
+      final c = await api.comprobantePago('tok', 'pg1');
+      expect(recibida.url.path, '/api/cliente/pagos/pg1/comprobante');
+      expect(c.esPdf, isTrue);
+      expect(c.url.toString(), 'https://f/x.pdf');
+    });
+
+    test('imagen y 404', () async {
+      final img = ClienteApi(
+        base: 'https://ejemplo.test',
+        bypass: '',
+        client: MockClient((_) async => _json({'url': 'https://f/x.jpg', 'tipo': 'imagen'}, 200)),
+      );
+      expect((await img.comprobantePago('tok', 'p')).esPdf, isFalse);
+      final no = ClienteApi(
+        base: 'https://ejemplo.test',
+        bypass: '',
+        client: MockClient((_) async => _json({'error': 'x'}, 404)),
+      );
+      expect(() => no.comprobantePago('tok', 'p'), throwsA(isA<ErrorServidor>()));
+    });
+  });
 }

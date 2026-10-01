@@ -234,6 +234,24 @@ void main() {
     expect(find.text('Validado'), findsOneWidget);
     expect(find.text('En revisión'), findsOneWidget);
     expect(find.text('Incluye costo de la visita (\$500.00)'), findsOneWidget);
+
+    // Detalle del pago con su comprobante (PDF en la prueba: sin red para imágenes).
+    await tester.ensureVisible(find.byKey(const Key('pago-1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('pago-1')));
+    await tester.pumpAndSettle();
+    expect(find.text('Detalle del pago'), findsOneWidget);
+    expect(find.text('Referencia 123456'), findsOneWidget);
+    expect(find.byKey(const Key('abrirComprobantePdf')), findsOneWidget);
+    Navigator.of(tester.element(find.byKey(const Key('detallePago')))).pop();
+    await tester.pumpAndSettle();
+
+    // Pago sin comprobante.
+    await tester.ensureVisible(find.byKey(const Key('pago-0')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('pago-0')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('sinComprobante')), findsOneWidget);
   });
 
   testWidgets('cotización comercial: precio, vigencia, arquitecto e incluye', (tester) async {

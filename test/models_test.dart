@@ -137,6 +137,10 @@ void main() {
     expect(c.visitaAbonada, 500);
     expect(c.pagos.first.validado, isFalse);
     expect(c.pagos.last.visitaIncluida, 500);
+    expect(c.pagos.last.id, 'pg-anticipo');
+    expect(c.pagos.last.referencia, '123456');
+    expect(c.pagos.last.tieneComprobante, isTrue);
+    expect(c.pagos.first.tieneComprobante, isFalse);
     expect(inicio.compras.first.cuenta, isNull);
     expect(
       const CuentaCompra(

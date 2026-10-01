@@ -229,13 +229,19 @@ class CotizacionComercial {
 
 class PagoCliente {
   const PagoCliente({
+    this.id,
     required this.fecha,
     required this.monto,
     required this.concepto,
     this.metodo,
     required this.validado,
     this.visitaIncluida,
+    this.referencia,
+    this.tieneComprobante = false,
   });
+
+  /// Para pedir el comprobante (URL firmada aparte).
+  final String? id;
 
   /// "2026-09-01" (fecha del pago).
   final String fecha;
@@ -251,13 +257,22 @@ class PagoCliente {
   /// Parte del monto que corresponde al costo de la visita.
   final num? visitaIncluida;
 
+  /// Número de referencia de la transferencia o depósito.
+  final String? referencia;
+
+  /// Hay foto o PDF del comprobante.
+  final bool tieneComprobante;
+
   factory PagoCliente.fromJson(Map<String, dynamic> j) => PagoCliente(
+        id: _sn(j['id']),
         fecha: _s(j['fecha']),
         monto: _n(j['monto']) ?? 0,
         concepto: _s(j['concepto']).isEmpty ? 'Pago' : _s(j['concepto']),
         metodo: _sn(j['metodo']),
         validado: j['estado'] == 'validado',
         visitaIncluida: _n(j['visitaIncluida']),
+        referencia: _sn(j['referencia']),
+        tieneComprobante: j['tieneComprobante'] == true,
       );
 }
 
@@ -589,4 +604,12 @@ class DetalleProyecto {
         incluye: _textos(j['incluye']),
         porTuCuenta: _textos(j['porTuCuenta']),
       );
+}
+
+/// URL firmada (vence en minutos) del comprobante de un pago.
+class Comprobante {
+  const Comprobante({required this.url, required this.esPdf});
+
+  final Uri url;
+  final bool esPdf;
 }

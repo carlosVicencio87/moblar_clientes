@@ -79,6 +79,18 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  /// Comprobante de un pago: se pide al abrir el detalle, no se guarda.
+  Future<Comprobante> comprobantePago(String pagoId) async {
+    final token = _token;
+    if (token == null) throw const SesionTerminada();
+    try {
+      return await api.comprobantePago(token, pagoId);
+    } on SesionTerminada catch (e) {
+      await _cerrar(aviso: e.mensaje);
+      rethrow;
+    }
+  }
+
   Future<Uri> urlPdf(String cotizacionId) async {
     final token = _token;
     if (token == null) throw const SesionTerminada();

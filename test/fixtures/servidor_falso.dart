@@ -32,6 +32,15 @@ class ServidorFalso {
       }
       return http.Response.bytes(utf8.encode(inicio), 200);
     }
+    final comprobante = RegExp(r'^/api/cliente/pagos/([^/]+)/comprobante$').firstMatch(r.url.path);
+    if (comprobante != null) {
+      if (revocado || r.headers['Authorization'] != 'Bearer tok-1') {
+        return http.Response('{}', 401);
+      }
+      return comprobante.group(1) == 'pg-anticipo'
+          ? http.Response(jsonEncode({'url': 'https://ejemplo.test/c.pdf', 'tipo': 'pdf'}), 200)
+          : http.Response(jsonEncode({'error': 'Comprobante no encontrado.'}), 404);
+    }
     final ruta = RegExp(r'^/api/cliente/proyectos/([^/]+)/detalle$').firstMatch(r.url.path);
     if (ruta != null) {
       if (revocado || r.headers['Authorization'] != 'Bearer tok-1') {
