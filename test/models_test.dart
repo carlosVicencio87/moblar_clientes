@@ -43,7 +43,7 @@ void main() {
     expect(q.codigo, '000135');
     expect(q.tienePdf, isTrue);
     expect(q.comprado, isTrue);
-    expect(q.precio, isNull);
+    expect(q.precio, 250000);
     expect(inicio.cotizaciones.last.tienePdf, isFalse);
   });
 

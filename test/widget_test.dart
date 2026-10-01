@@ -87,19 +87,23 @@ void main() {
     expect(store.token, 'tok-1');
     // Con compras, la app abre en "Mi compra" y la que está en curso va primero.
     expect(find.text('EN PROCESO'), findsOneWidget);
-    expect(find.byType(TarjetaCompra), findsNWidgets(2));
-    // Porcentaje del ERP, grande, y contacto directo en cada tarjeta.
+    // Estado de cuenta arriba de las compras.
+    expect(find.byKey(const Key('tarjetaEstadoCuenta')), findsOneWidget);
+    expect(find.text('\$150,000.00'), findsOneWidget);
+    // Porcentaje del ERP, grande, seguimiento en miniatura (no barra lisa)
+    // y contacto directo en cada tarjeta.
     expect(find.text('58%'), findsOneWidget);
-    expect(find.text('100%'), findsOneWidget);
-    // La barra lisa se cambió por el seguimiento en miniatura.
-    expect(find.byKey(const Key('seguimientoMini')), findsNWidgets(2));
+    expect(find.byKey(const Key('seguimientoMini')), findsWidgets);
     expect(
       find.descendant(of: find.byType(TarjetaCompra), matching: find.byType(LinearProgressIndicator)),
       findsNothing,
     );
-    // Estado de cuenta arriba de las compras.
-    expect(find.byKey(const Key('tarjetaEstadoCuenta')), findsOneWidget);
-    expect(find.text('\$150,000.00'), findsOneWidget);
+    // La entregada va después: se baja para verla y se regresa.
+    final listaCompras = find.byType(Scrollable).first;
+    await tester.scrollUntilVisible(find.text('100%'), 300, scrollable: listaCompras);
+    expect(find.text('ENTREGADAS'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('EN PROCESO'), -300, scrollable: listaCompras);
+    await tester.pumpAndSettle();
     expect(
       find.descendant(
         of: find.byType(TarjetaCompra).first,

@@ -85,6 +85,7 @@ class _TarjetaCotizacionState extends State<_TarjetaCotizacion> {
     final hasta = parseFecha(com?.vigenteHasta);
     final vencida = com != null && !com.vigente && !c.comprado;
     final precio = com?.precio ?? c.precio;
+    final imagen = com?.imagenDiseno;
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Card(
@@ -113,17 +114,17 @@ class _TarjetaCotizacionState extends State<_TarjetaCotizacion> {
               ),
             ),
             // Imagen de Moblo: lo primero que ve el cliente.
-            if (com?.imagenDiseno != null) ...[
+            if (imagen != null) ...[
               const SizedBox(height: 12),
               InkWell(
                 key: Key('imagenCotizacion-${c.id}'),
-                onTap: () => ampliarImagen(context, com!.imagenDiseno!, titulo: c.mueble),
+                onTap: () => ampliarImagen(context, imagen, titulo: c.mueble),
                 child: AspectRatio(
                   aspectRatio: 16 / 10,
                   child: Container(
                     color: MoblarColors.surfaceSubtle,
                     child: Image.network(
-                      com!.imagenDiseno!,
+                      imagen,
                       fit: BoxFit.contain,
                       semanticLabel: 'Diseño de tu mueble',
                       errorBuilder: (_, _, _) => const Center(
@@ -207,7 +208,12 @@ class _TarjetaCotizacionState extends State<_TarjetaCotizacion> {
                               children: [
                                 const Icon(Icons.check, size: 14, color: MoblarColors.primary),
                                 const SizedBox(width: 4),
-                                Text(t, style: const TextStyle(fontSize: 12, color: MoblarColors.primaryDark)),
+                                Flexible(
+                                  child: Text(
+                                    t,
+                                    style: const TextStyle(fontSize: 12, color: MoblarColors.primaryDark),
+                                  ),
+                                ),
                               ],
                             ),
                           ),
