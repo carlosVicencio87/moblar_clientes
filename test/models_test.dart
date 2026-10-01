@@ -113,6 +113,14 @@ void main() {
     expect(vacio.incluye, ['Luces']);
   });
 
+  test('meta de cada etapa: la del servidor o la de respaldo', () {
+    final etapas = inicio.compras.last.lineaTiempo.etapas;
+    expect(etapas.map((e) => e.meta), [15, 35, 70, 80, 95, 100]);
+    final delServidor = EtapaLineaTiempo.fromJson({'clave': 'pedido', 'meta': 12});
+    expect(delServidor.meta, 12);
+    expect(EtapaLineaTiempo.fromJson({'clave': 'otra'}).meta, isNull);
+  });
+
   test('compras en curso primero', () {
     expect(inicio.comprasOrdenadas.map((c) => c.id), ['p-fabricacion', 'p-entregado']);
   });

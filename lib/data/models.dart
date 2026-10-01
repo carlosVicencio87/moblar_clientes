@@ -187,13 +187,29 @@ class EtapaLineaTiempo {
     required this.descripcion,
     required this.situacion,
     required this.desde,
-  });
+    int? meta,
+  }) : _meta = meta;
 
   final String clave;
   final String titulo;
   final String descripcion;
   final Situacion situacion;
   final String? desde; // ISO o null
+  final int? _meta;
+
+  /// Porcentajes al terminar cada etapa (decisión de Carlos, 2026-10-01).
+  /// Respaldo si el servidor todavía no manda `meta`.
+  static const metasPorOmision = {
+    'pedido': 15,
+    'diseno': 35,
+    'fabricacion': 70,
+    'calidad': 80,
+    'instalacion': 95,
+    'entregado': 100,
+  };
+
+  /// Porcentaje al terminar esta etapa (se pinta junto a su bolita).
+  int? get meta => _meta ?? metasPorOmision[clave];
 
   factory EtapaLineaTiempo.fromJson(Map<String, dynamic> j) => EtapaLineaTiempo(
         clave: _s(j['clave']),
@@ -205,6 +221,7 @@ class EtapaLineaTiempo {
           _ => Situacion.pendiente,
         },
         desde: _sn(j['desde']),
+        meta: _n(j['meta'])?.round().clamp(0, 100).toInt(),
       );
 }
 

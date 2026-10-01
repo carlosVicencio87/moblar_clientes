@@ -131,18 +131,16 @@ class TarjetaCompra extends StatelessWidget {
   }
 }
 
-/// Etapa + porcentaje grande + barra. Se usa en la tarjeta y en el detalle.
+/// Etapa + porcentaje grande + seguimiento en miniatura (las 6 etapas).
 class AvanceCompra extends StatelessWidget {
-  const AvanceCompra({super.key, required this.linea, this.grande = false});
+  const AvanceCompra({super.key, required this.linea});
 
   final LineaTiempo linea;
-  final bool grande;
 
   @override
   Widget build(BuildContext context) {
     final pct = linea.porcentaje;
     final entregado = linea.entregado;
-    final color = entregado ? MoblarColors.success : MoblarColors.primary;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -164,7 +162,7 @@ class AvanceCompra extends StatelessWidget {
               '$pct%',
               key: const Key('avancePorcentaje'),
               style: TextStyle(
-                fontSize: grande ? 34 : 28,
+                fontSize: 28,
                 height: 1,
                 fontWeight: FontWeight.w700,
                 color: entregado ? const Color(0xFF065F46) : MoblarColors.primaryDark,
@@ -172,21 +170,83 @@ class AvanceCompra extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: 10),
-        Semantics(
-          label: 'Avance de tu mueble',
-          value: '$pct por ciento',
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(999),
-            child: LinearProgressIndicator(
-              value: pct / 100,
-              minHeight: grande ? 12 : 10,
-              backgroundColor: MoblarColors.primaryTint,
-              color: color,
-            ),
-          ),
-        ),
+        const SizedBox(height: 14),
+        SeguimientoMini(linea: linea),
       ],
+    );
+  }
+}
+
+/// Línea de seguimiento horizontal en miniatura: una bolita por etapa, con los
+/// mismos colores que la línea de tiempo del detalle (hecha, actual, pendiente).
+class SeguimientoMini extends StatelessWidget {
+  const SeguimientoMini({super.key, required this.linea});
+
+  final LineaTiempo linea;
+
+  static const _punto = 14.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final etapas = linea.etapas;
+    if (etapas.isEmpty) return const SizedBox.shrink();
+    final i = linea.etapaActual.clamp(0, etapas.length - 1);
+    return Semantics(
+      label: 'Etapa ${i + 1} de ${etapas.length}: ${linea.tituloActual}',
+      excludeSemantics: true,
+      child: Row(
+        key: const Key('seguimientoMini'),
+        children: [
+          for (var k = 0; k < etapas.length; k++) ...[
+            if (k > 0)
+              Expanded(
+                child: Container(
+                  height: 2,
+                  color: etapas[k].situacion == Situacion.pendiente
+                      ? MoblarColors.border
+                      : MoblarColors.primary,
+                ),
+              ),
+            _Punto(situacion: etapas[k].situacion, tamano: _punto),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _Punto extends StatelessWidget {
+  const _Punto({required this.situacion, required this.tamano});
+
+  final Situacion situacion;
+  final double tamano;
+
+  @override
+  Widget build(BuildContext context) {
+    final hecha = situacion == Situacion.hecha;
+    final actual = situacion == Situacion.actual;
+    final color = hecha
+        ? MoblarColors.primary
+        : actual
+            ? MoblarColors.amber
+            : MoblarColors.border;
+    return Container(
+      width: tamano,
+      height: tamano,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: hecha || actual ? color : MoblarColors.surface,
+        border: Border.all(color: color, width: 2),
+        boxShadow: actual
+            ? [
+                BoxShadow(
+                  color: MoblarColors.amber.withValues(alpha: 0.35),
+                  blurRadius: 0,
+                  spreadRadius: 3,
+                ),
+              ]
+            : null,
+      ),
     );
   }
 }

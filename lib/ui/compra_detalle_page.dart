@@ -4,7 +4,6 @@ import '../data/models.dart';
 import '../state/app_scope.dart';
 import '../theme.dart';
 import '../util/formato.dart';
-import 'compras_tab.dart' show AvanceCompra;
 import 'widgets/comunes.dart';
 import 'widgets/contacto.dart';
 import 'widgets/detalle_mueble.dart';
@@ -83,8 +82,6 @@ class _Encabezado extends StatelessWidget {
               ),
             ),
             if (compra.codigo != null) Dato(icono: Icons.tag, texto: 'Pedido ${compra.codigo}'),
-            const SizedBox(height: 16),
-            AvanceCompra(linea: compra.lineaTiempo, grande: true),
             if (fechaInst != null)
               Dato(
                 icono: Icons.event_available_outlined,
@@ -128,6 +125,8 @@ class LineaTiempoVertical extends StatelessWidget {
         for (var i = 0; i < etapas.length; i++)
           _PasoEtapa(
             etapa: etapas[i],
+            // Etapa actual: el avance real; las demás, su meta.
+            porcentaje: etapas[i].situacion == Situacion.actual ? linea.porcentaje : etapas[i].meta,
             primera: i == 0,
             ultima: i == etapas.length - 1,
             siguienteAlcanzada: i + 1 < etapas.length && etapas[i + 1].situacion != Situacion.pendiente,
@@ -140,12 +139,14 @@ class LineaTiempoVertical extends StatelessWidget {
 class _PasoEtapa extends StatelessWidget {
   const _PasoEtapa({
     required this.etapa,
+    required this.porcentaje,
     required this.primera,
     required this.ultima,
     required this.siguienteAlcanzada,
   });
 
   final EtapaLineaTiempo etapa;
+  final int? porcentaje;
   final bool primera;
   final bool ultima;
   final bool siguienteAlcanzada;
@@ -167,6 +168,32 @@ class _PasoEtapa extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // Porcentaje a la izquierda de la bolita, a su altura.
+          SizedBox(
+            width: 44,
+            child: Align(
+              alignment: Alignment.topRight,
+              child: SizedBox(
+                height: 32,
+                child: Center(
+                  child: Text(
+                    porcentaje == null ? '' : '$porcentaje%',
+                    key: Key('pctEtapa-${etapa.clave}'),
+                    style: TextStyle(
+                      fontSize: actual ? 14 : 12,
+                      fontWeight: actual ? FontWeight.w800 : FontWeight.w600,
+                      color: actual
+                          ? const Color(0xFFB45309)
+                          : hecha
+                              ? MoblarColors.primary
+                              : MoblarColors.textMuted,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 6),
           SizedBox(
             width: 32,
             child: Column(

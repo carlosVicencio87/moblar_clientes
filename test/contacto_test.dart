@@ -64,6 +64,13 @@ void main() {
     expect(m, contains('2030'));
   });
 
+  test('nueva cita lleva su etiqueta', () {
+    expect(
+      mensajeNuevaCita('Carlos Prueba'),
+      '[NUEVA CITA] Hola, soy Carlos Prueba. Quiero agendar una nueva cita.',
+    );
+  });
+
   group('contacto resuelto', () {
     test('usa el del servidor', () {
       final c = ContactoResuelto(inicio.contacto);

@@ -90,6 +90,9 @@ void main() {
     // Porcentaje del ERP, grande, y contacto directo en cada tarjeta.
     expect(find.text('58%'), findsOneWidget);
     expect(find.text('100%'), findsOneWidget);
+    // La barra lisa se cambió por el seguimiento en miniatura.
+    expect(find.byKey(const Key('seguimientoMini')), findsNWidgets(2));
+    expect(find.byType(LinearProgressIndicator), findsNothing);
     expect(
       find.descendant(
         of: find.byType(TarjetaCompra).first,
@@ -102,10 +105,17 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(CompraDetallePage), findsOneWidget);
     expect(find.text('Pedido P-0002'), findsOneWidget);
-    expect(
-      find.descendant(of: find.byType(CompraDetallePage), matching: find.text('58%')),
-      findsOneWidget,
-    );
+    // En Seguimiento ya no hay barra: el % va junto a cada bolita de la
+    // línea de tiempo (la actual con el avance real, las demás con su meta).
+    Finder enDetalle(Finder f) => find.descendant(of: find.byType(CompraDetallePage), matching: f);
+    expect(enDetalle(find.byKey(const Key('avancePorcentaje'))), findsNothing);
+    expect(enDetalle(find.byKey(const Key('seguimientoMini'))), findsNothing);
+    expect(enDetalle(find.text('58%')), findsOneWidget);
+    expect(enDetalle(find.text('15%')), findsOneWidget);
+    expect(enDetalle(find.text('35%')), findsOneWidget);
+    expect(enDetalle(find.text('80%')), findsOneWidget);
+    expect(enDetalle(find.text('95%')), findsOneWidget);
+    expect(enDetalle(find.text('100%')), findsOneWidget);
     expect(find.byType(LineaTiempoVertical), findsOneWidget);
     expect(find.text('Control de calidad'), findsOneWidget);
     // Tonos y lo que incluye, pedidos al servidor al abrir el detalle.
@@ -147,6 +157,7 @@ void main() {
     await tester.tap(find.text('Citas'));
     await tester.pumpAndSettle();
     expect(find.text('Hola, Carlos'), findsOneWidget);
+    expect(find.byKey(const Key('agendarNuevaCita')), findsOneWidget);
     expect(find.text('TU PRÓXIMA CITA'), findsOneWidget);
 
     expect(find.byKey(const Key('citaDestacada')), findsOneWidget);

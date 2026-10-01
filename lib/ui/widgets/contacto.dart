@@ -19,6 +19,7 @@ abstract final class MotivoContacto {
   static const cotizaciones = 'COTIZACIONES';
   static const proyecto = 'PROYECTO';
   static const compras = 'COMPRAS';
+  static const nuevaCita = 'NUEVA CITA';
 }
 
 /// `[ETIQUETA referencia] Hola, soy Nombre. texto`
@@ -64,6 +65,13 @@ String mensajeProyecto(Compra c, String? nombre) => mensajeContacto(
       nombre: nombre,
       texto: 'Quiero saber sobre mi ${c.mueble ?? 'mueble'}'
           '${c.codigo == null ? '' : ' (pedido ${c.codigo})'}.',
+    );
+
+/// Pedir otra visita: contact center agenda por WhatsApp.
+String mensajeNuevaCita(String? nombre) => mensajeContacto(
+      etiqueta: MotivoContacto.nuevaCita,
+      nombre: nombre,
+      texto: 'Quiero agendar una nueva cita.',
     );
 
 /// Mensaje directo al arquitecto: sin etiqueta, porque no pasa por

@@ -58,6 +58,26 @@ class CitasTab extends StatelessWidget {
               ),
             ),
           ),
+        // Agendar otra visita: directo a WhatsApp de citas con el motivo
+        // ya escrito (pedido de Carlos, 2026-10-01).
+        Padding(
+          padding: const EdgeInsets.fromLTRB(0, 8, 0, 4),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: FilledButton.tonalIcon(
+              key: const Key('agendarNuevaCita'),
+              onPressed: () => abrirEnlace(
+                context,
+                enlaceWhatsApp(
+                  ContactoResuelto(datos.contacto).whatsapp,
+                  mensaje: mensajeNuevaCita(datos.nombre),
+                ),
+              ),
+              icon: const Icon(Icons.add_circle_outline, size: 20),
+              label: const Text('Agendar nueva cita'),
+            ),
+          ),
+        ),
         if (datos.citas.isEmpty)
           const VistaVacia(
             icono: Icons.event_available_outlined,
