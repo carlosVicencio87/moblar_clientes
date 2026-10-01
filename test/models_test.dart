@@ -130,13 +130,20 @@ void main() {
     expect(inicio.cotizaciones.last.comercial!.vigente, isFalse);
     expect(Cotizacion.fromJson(const {'id': 'x'}).comercial, isNull);
 
-    final e = inicio.estadoCuenta!;
-    expect(e.saldo, 150000);
-    expect(e.avance, closeTo(0.4, 1e-9));
-    expect(e.pagos.first.validado, isFalse);
-    expect(e.pagos.last.validado, isTrue);
-    expect(Inicio.fromJson(const {}).estadoCuenta, isNull);
-    expect(const EstadoCuenta(total: 0, pagado: 0, enRevision: 0, saldo: 0, conIva: false).avance, 0);
+    // Estado de cuenta por compra.
+    final c = inicio.compras.last.cuenta!;
+    expect(c.saldo, 150000);
+    expect(c.avance, closeTo(0.4, 1e-9));
+    expect(c.visitaAbonada, 500);
+    expect(c.pagos.first.validado, isFalse);
+    expect(c.pagos.last.visitaIncluida, 500);
+    expect(inicio.compras.first.cuenta, isNull);
+    expect(
+      const CuentaCompra(
+        subtotal: 0, iva: 0, total: 0, pagado: 0, enRevision: 0, saldo: 0, conFactura: false,
+      ).avance,
+      0,
+    );
   });
 
   test('compras en curso primero', () {

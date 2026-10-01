@@ -91,20 +91,17 @@ const inicioJson = r'''
       },
       "instalacion": null,
       "pagos": {"total": null, "pagado": null, "saldo": null},
+      "cuenta": {
+        "subtotal": 250000, "iva": 0, "total": 250000, "pagado": 100000, "enRevision": 20000,
+        "saldo": 150000, "conFactura": false, "visitaAbonada": 500,
+        "pagos": [
+          {"fecha": "2026-09-20", "monto": 20000, "concepto": "Abono", "metodo": "Transferencia", "estado": "en_revision", "visitaIncluida": null},
+          {"fecha": "2026-09-01", "monto": 100000, "concepto": "Anticipo", "metodo": "Transferencia", "estado": "validado", "visitaIncluida": 500}
+        ]
+      },
       "marca": {"clave": "voreal", "nombre": "VOREAL", "logo": "logo-voreal.jpeg"}
     }
-  ],
-  "estadoCuenta": {
-    "total": 250000, "pagado": 100000, "enRevision": 20000, "saldo": 150000, "conIva": false,
-    "muebles": [
-      {"id": "p-fabricacion", "codigo": "P-0002", "mueble": "Cocina", "subtotal": 250000, "iva": 0,
-       "total": 250000, "pagado": 100000, "saldo": 150000, "conFactura": false}
-    ],
-    "pagos": [
-      {"fecha": "2026-09-20", "monto": 20000, "concepto": "Abono", "metodo": "Transferencia", "estado": "en_revision", "mueble": "Cocina", "codigo": "P-0002"},
-      {"fecha": "2026-09-01", "monto": 100000, "concepto": "Anticipo", "metodo": "Transferencia", "estado": "validado", "mueble": "Cocina", "codigo": "P-0002"}
-    ]
-  }
+  ]
 }
 ''';
 

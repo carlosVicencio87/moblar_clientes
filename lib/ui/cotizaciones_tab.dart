@@ -140,6 +140,17 @@ class _TarjetaCotizacionState extends State<_TarjetaCotizacion> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  if (com != null)
+                    const Text(
+                      'COTIZACIÓN COMERCIAL',
+                      key: Key('etiquetaComercial'),
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.8,
+                        color: MoblarColors.primary,
+                      ),
+                    ),
                   Text(
                     c.mueble ?? 'Mueble a la medida',
                     style: const TextStyle(

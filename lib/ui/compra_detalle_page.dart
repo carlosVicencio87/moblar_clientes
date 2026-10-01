@@ -4,6 +4,7 @@ import '../data/models.dart';
 import '../state/app_scope.dart';
 import '../theme.dart';
 import '../util/formato.dart';
+import 'estado_cuenta.dart';
 import 'widgets/comunes.dart';
 import 'widgets/contacto.dart';
 import 'widgets/detalle_mueble.dart';
@@ -42,12 +43,12 @@ class CompraDetallePage extends StatelessWidget {
                     child: LineaTiempoVertical(linea: compra.lineaTiempo),
                   ),
                 ),
+                if (compra.cuenta != null) ...[
+                  const SizedBox(height: 16),
+                  EstadoCuentaCompra(cuenta: compra.cuenta!),
+                ],
                 const SizedBox(height: 16),
                 DetalleMueble(proyectoId: compra.id),
-                if (compra.pagos.visibles) ...[
-                  const SizedBox(height: 16),
-                  _Pagos(pagos: compra.pagos),
-                ],
                 const SizedBox(height: 16),
                 _Ayuda(contacto: datos.contacto, compra: compra, nombre: datos.nombre),
               ],
@@ -275,49 +276,6 @@ class _PasoEtapa extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _Pagos extends StatelessWidget {
-  const _Pagos({required this.pagos});
-
-  final Pagos pagos;
-
-  @override
-  Widget build(BuildContext context) {
-    Widget fila(String etiqueta, num? valor, {bool fuerte = false}) => valor == null
-        ? const SizedBox.shrink()
-        : Padding(
-            padding: const EdgeInsets.only(top: 6),
-            child: Row(
-              children: [
-                Text(etiqueta, style: const TextStyle(color: MoblarColors.textSecondary)),
-                const Spacer(),
-                Text(
-                  dinero(valor),
-                  style: TextStyle(
-                    fontWeight: fuerte ? FontWeight.w700 : FontWeight.w500,
-                    color: MoblarColors.textPrimary,
-                  ),
-                ),
-              ],
-            ),
-          );
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Pagos', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-            fila('Total', pagos.total),
-            fila('Pagado', pagos.pagado),
-            fila('Saldo', pagos.saldo, fuerte: true),
-          ],
-        ),
       ),
     );
   }

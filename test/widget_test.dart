@@ -9,7 +9,6 @@ import 'package:moblar_clientes/state/app_state.dart';
 import 'package:moblar_clientes/ui/cita_detalle_page.dart';
 import 'package:moblar_clientes/ui/compra_detalle_page.dart';
 import 'package:moblar_clientes/ui/compras_tab.dart';
-import 'package:moblar_clientes/ui/estado_cuenta.dart';
 import 'package:moblar_clientes/ui/login_page.dart';
 import 'package:moblar_clientes/ui/widgets/detalle_mueble.dart';
 
@@ -87,9 +86,8 @@ void main() {
     expect(store.token, 'tok-1');
     // Con compras, la app abre en "Mi compra" y la que está en curso va primero.
     expect(find.text('EN PROCESO'), findsOneWidget);
-    // Estado de cuenta arriba de las compras.
-    expect(find.byKey(const Key('tarjetaEstadoCuenta')), findsOneWidget);
-    expect(find.text('\$150,000.00'), findsOneWidget);
+    // Saldo de cada compra en su propia tarjeta (no sumado entre muebles).
+    expect(find.byKey(const Key('saldoCompra')), findsOneWidget);
     // Porcentaje del ERP, grande, seguimiento en miniatura (no barra lisa)
     // y contacto directo en cada tarjeta.
     expect(find.text('58%'), findsOneWidget);
@@ -220,21 +218,22 @@ void main() {
     expect(find.text('Mi compra'), findsOneWidget);
   });
 
-  testWidgets('estado de cuenta: saldo, pagos validados y en revisión', (tester) async {
+  testWidgets('estado de cuenta dentro de la compra, con la visita abonada', (tester) async {
     store.token = 'tok-1';
     await abrirApp(tester);
-    await tester.tap(find.byKey(const Key('tarjetaEstadoCuenta')));
+    await tester.tap(find.byKey(const Key('abrirCompra')).first);
     await tester.pumpAndSettle();
-    expect(find.byType(EstadoCuentaPage), findsOneWidget);
-    expect(find.text('Saldo pendiente'), findsOneWidget);
     final lista = find
-        .descendant(of: find.byType(EstadoCuentaPage), matching: find.byType(Scrollable))
+        .descendant(of: find.byType(CompraDetallePage), matching: find.byType(Scrollable))
         .first;
+    await tester.scrollUntilVisible(find.byKey(const Key('estadoCuentaCompra')), 200, scrollable: lista);
+    expect(find.text('Saldo pendiente'), findsOneWidget);
+    expect(find.byKey(const Key('visitaAbonada')), findsOneWidget);
+    expect(find.textContaining('en revisión: se sumará'), findsOneWidget);
     await tester.scrollUntilVisible(find.text('Anticipo'), 200, scrollable: lista);
     expect(find.text('Validado'), findsOneWidget);
     expect(find.text('En revisión'), findsOneWidget);
-    expect(find.textContaining('en revisión: se sumará'), findsOneWidget);
-    await tester.scrollUntilVisible(find.byKey(const Key('preguntarPagos')), 200, scrollable: lista);
+    expect(find.text('Incluye costo de la visita (\$500.00)'), findsOneWidget);
   });
 
   testWidgets('cotización comercial: precio, vigencia, arquitecto e incluye', (tester) async {
@@ -243,6 +242,7 @@ void main() {
     await tester.tap(find.text('Cotizaciones'));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('precioCotizacion-q1')), findsOneWidget);
+    expect(find.byKey(const Key('etiquetaComercial')), findsWidgets);
     expect(find.text('\$250,000.00'), findsOneWidget);
     expect(find.text('Tu arquitecto: Ana López'), findsOneWidget);
     expect(find.text('Transporte'), findsWidgets);

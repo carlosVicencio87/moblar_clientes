@@ -1,245 +1,162 @@
 import 'package:flutter/material.dart';
 
 import '../data/models.dart';
-import '../state/app_scope.dart';
 import '../theme.dart';
 import '../util/formato.dart';
 import 'widgets/comunes.dart';
-import 'widgets/contacto.dart';
 
-/// Resumen del estado de cuenta arriba de "Mi compra": saldo pendiente,
-/// total y pagado de todos los muebles. Al tocarlo abre el detalle de pagos.
-class TarjetaEstadoCuenta extends StatelessWidget {
-  const TarjetaEstadoCuenta({super.key, required this.cuenta, this.abreDetalle = true});
+/// Estado de cuenta de UNA compra (decisión de Carlos, 2026-10-02): cada
+/// pago queda ligado a su mueble, aunque el cliente tenga varios proyectos.
+class EstadoCuentaCompra extends StatelessWidget {
+  const EstadoCuentaCompra({super.key, required this.cuenta});
 
-  final EstadoCuenta cuenta;
-
-  /// false dentro del propio detalle (no se abre a sí mismo).
-  final bool abreDetalle;
+  final CuentaCompra cuenta;
 
   @override
   Widget build(BuildContext context) {
     final c = cuenta;
     final liquidado = c.saldo <= 0;
-    return Padding(
-      padding: const EdgeInsets.only(top: 8, bottom: 4),
-      child: Card(
-        key: const Key('tarjetaEstadoCuenta'),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: abreDetalle
-              ? () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(builder: (_) => const EstadoCuentaPage()),
-                  )
-              : null,
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+    return Card(
+      key: const Key('estadoCuentaCompra'),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Row(
               children: [
-                Row(
-                  children: [
-                    const Icon(Icons.account_balance_wallet_outlined, color: MoblarColors.primary),
-                    const SizedBox(width: 8),
-                    const Expanded(
-                      child: Text(
-                        'Tu estado de cuenta',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                    if (abreDetalle) const Icon(Icons.chevron_right, color: MoblarColors.textMuted),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  liquidado ? 'Liquidado' : 'Saldo pendiente',
-                  style: const TextStyle(fontSize: 12, color: MoblarColors.textMuted),
-                ),
-                Text(
-                  dinero(c.saldo),
-                  key: const Key('saldoPendiente'),
-                  style: TextStyle(
-                    fontSize: 28,
-                    height: 1.1,
-                    fontWeight: FontWeight.w700,
-                    color: liquidado ? const Color(0xFF065F46) : MoblarColors.primaryDark,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(999),
-                  child: LinearProgressIndicator(
-                    value: c.avance,
-                    minHeight: 8,
-                    backgroundColor: MoblarColors.primaryTint,
-                    color: liquidado ? MoblarColors.success : MoblarColors.primary,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Expanded(child: _Cifra(etiqueta: 'Pagado', valor: dinero(c.pagado))),
-                    Expanded(
-                      child: _Cifra(
-                        etiqueta: c.conIva ? 'Total (con IVA)' : 'Total',
-                        valor: dinero(c.total),
-                        alinearDerecha: true,
-                      ),
-                    ),
-                  ],
-                ),
-                if (c.enRevision > 0) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    '${dinero(c.enRevision)} en revisión: se sumará cuando lo validemos.',
-                    style: const TextStyle(fontSize: 12, color: Color(0xFF92400E)),
-                  ),
-                ],
+                Icon(Icons.account_balance_wallet_outlined, color: MoblarColors.primary),
+                SizedBox(width: 8),
+                Text('Estado de cuenta', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
               ],
             ),
-          ),
+            const SizedBox(height: 12),
+            Text(
+              liquidado ? 'Liquidado' : 'Saldo pendiente',
+              style: const TextStyle(fontSize: 12, color: MoblarColors.textMuted),
+            ),
+            Text(
+              dinero(c.saldo),
+              key: const Key('saldoPendiente'),
+              style: TextStyle(
+                fontSize: 28,
+                height: 1.1,
+                fontWeight: FontWeight.w700,
+                color: liquidado ? const Color(0xFF065F46) : MoblarColors.primaryDark,
+              ),
+            ),
+            const SizedBox(height: 12),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(999),
+              child: LinearProgressIndicator(
+                value: c.avance,
+                minHeight: 8,
+                backgroundColor: MoblarColors.primaryTint,
+                color: liquidado ? MoblarColors.success : MoblarColors.primary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            if (c.conFactura) ...[
+              _Renglon('Subtotal', dinero(c.subtotal)),
+              _Renglon('IVA (16%)', dinero(c.iva)),
+            ],
+            _Renglon(c.conFactura ? 'Total con IVA' : 'Total', dinero(c.total), fuerte: true),
+            _Renglon('Pagado', dinero(c.pagado)),
+            if (c.visitaAbonada != null)
+              _Renglon(
+                'Incluye costo de la visita',
+                dinero(c.visitaAbonada!),
+                clave: const Key('visitaAbonada'),
+                sutil: true,
+              ),
+            _Renglon('Saldo', dinero(c.saldo), fuerte: true),
+            if (c.enRevision > 0) ...[
+              const SizedBox(height: 8),
+              Text(
+                '${dinero(c.enRevision)} en revisión: se sumará cuando lo validemos.',
+                style: const TextStyle(fontSize: 12, color: Color(0xFF92400E)),
+              ),
+            ],
+            if (c.pagos.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              const Text(
+                'PAGOS',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.8,
+                  color: MoblarColors.textMuted,
+                ),
+              ),
+              for (var i = 0; i < c.pagos.length; i++) ...[
+                if (i > 0) const Divider(height: 1),
+                _Pago(p: c.pagos[i]),
+              ],
+            ],
+          ],
         ),
       ),
     );
   }
 }
 
-class _Cifra extends StatelessWidget {
-  const _Cifra({required this.etiqueta, required this.valor, this.alinearDerecha = false});
+/// Línea compacta para la tarjeta de la compra en la lista.
+class SaldoCompra extends StatelessWidget {
+  const SaldoCompra({super.key, required this.cuenta});
 
-  final String etiqueta;
-  final String valor;
-  final bool alinearDerecha;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: alinearDerecha ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-      children: [
-        Text(etiqueta, style: const TextStyle(fontSize: 12, color: MoblarColors.textMuted)),
-        Text(
-          valor,
-          style: const TextStyle(fontWeight: FontWeight.w600, color: MoblarColors.textPrimary),
-        ),
-      ],
-    );
-  }
-}
-
-/// Detalle: resumen, cuánto lleva cada mueble y la lista de pagos.
-/// Lee del estado para redibujarse al jalar para actualizar.
-class EstadoCuentaPage extends StatelessWidget {
-  const EstadoCuentaPage({super.key});
+  final CuentaCompra cuenta;
 
   @override
   Widget build(BuildContext context) {
-    final datos = AppScope.of(context).datos;
-    final c = datos?.estadoCuenta;
-    return Scaffold(
-      appBar: AppBar(title: const Text('Estado de cuenta')),
-      body: datos == null || c == null
-          ? const VistaVacia(
-              icono: Icons.account_balance_wallet_outlined,
-              titulo: 'Sin movimientos',
-              texto: 'Aquí verás tus pagos cuando los registremos.',
-            )
-          : ListaRefrescable(
-              onRefrescar: AppScope.read(context).refrescar,
-              children: [
-                TarjetaEstadoCuenta(cuenta: c, abreDetalle: false),
-                if (c.muebles.length > 1 || c.conIva) ...[
-                  const TituloSeccion('Por mueble'),
-                  for (final m in c.muebles) _Mueble(m: m),
-                ],
-                const TituloSeccion('Pagos'),
-                if (c.pagos.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-                    child: Text(
-                      'Todavía no hay pagos registrados.',
-                      style: TextStyle(color: MoblarColors.textMuted),
-                    ),
-                  )
-                else
-                  Card(
-                    child: Column(
-                      children: [
-                        for (var i = 0; i < c.pagos.length; i++) ...[
-                          if (i > 0) const Divider(height: 1, indent: 16, endIndent: 16),
-                          _Pago(p: c.pagos[i]),
-                        ],
-                      ],
-                    ),
-                  ),
-                const SizedBox(height: 8),
-                BotonPreguntar(
-                  key: const Key('preguntarPagos'),
-                  texto: '¿Dudas sobre tus pagos?',
-                  contacto: datos.contacto,
-                  mensaje: mensajeContacto(
-                    etiqueta: MotivoContacto.pagos,
-                    nombre: datos.nombre,
-                    texto: 'Tengo una duda sobre mi estado de cuenta.',
-                  ),
-                ),
-              ],
-            ),
-    );
-  }
-}
-
-class _Mueble extends StatelessWidget {
-  const _Mueble({required this.m});
-
-  final CuentaMueble m;
-
-  @override
-  Widget build(BuildContext context) {
+    final c = cuenta;
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                m.mueble ?? 'Tu mueble',
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+      padding: const EdgeInsets.only(top: 10),
+      child: Text.rich(
+        key: const Key('saldoCompra'),
+        c.saldo <= 0
+            ? TextSpan(
+                text: 'Liquidado · ${dinero(c.total)}',
+                style: const TextStyle(color: Color(0xFF065F46), fontWeight: FontWeight.w600),
+              )
+            : TextSpan(
+                children: [
+                  const TextSpan(text: 'Saldo '),
+                  TextSpan(
+                    text: dinero(c.saldo),
+                    style: const TextStyle(fontWeight: FontWeight.w700, color: MoblarColors.textPrimary),
+                  ),
+                  TextSpan(text: ' de ${dinero(c.total)}'),
+                ],
+                style: const TextStyle(color: MoblarColors.textSecondary),
               ),
-              if (m.codigo != null)
-                Text('Pedido ${m.codigo}', style: const TextStyle(fontSize: 12, color: MoblarColors.textMuted)),
-              const SizedBox(height: 8),
-              if (m.conFactura) ...[
-                _Renglon('Subtotal', dinero(m.subtotal)),
-                _Renglon('IVA (16%)', dinero(m.iva)),
-              ],
-              _Renglon('Total', dinero(m.total), fuerte: true),
-              _Renglon('Pagado', dinero(m.pagado)),
-              _Renglon('Saldo', dinero(m.saldo), fuerte: true),
-            ],
-          ),
-        ),
       ),
     );
   }
 }
 
 class _Renglon extends StatelessWidget {
-  const _Renglon(this.etiqueta, this.valor, {this.fuerte = false});
+  const _Renglon(this.etiqueta, this.valor, {this.fuerte = false, this.sutil = false, this.clave});
 
   final String etiqueta;
   final String valor;
   final bool fuerte;
+  final bool sutil;
+  final Key? clave;
 
   @override
   Widget build(BuildContext context) {
     final estilo = TextStyle(
+      fontSize: sutil ? 13 : 14,
       fontWeight: fuerte ? FontWeight.w700 : FontWeight.w400,
-      color: fuerte ? MoblarColors.textPrimary : MoblarColors.textSecondary,
+      color: fuerte
+          ? MoblarColors.textPrimary
+          : sutil
+              ? MoblarColors.textMuted
+              : MoblarColors.textSecondary,
     );
     return Padding(
-      padding: const EdgeInsets.only(top: 4),
+      key: clave,
+      padding: EdgeInsets.only(top: 4, left: sutil ? 12 : 0),
       child: Row(
         children: [
           Expanded(child: Text(etiqueta, style: estilo)),
@@ -261,10 +178,9 @@ class _Pago extends StatelessWidget {
     final linea2 = [
       if (fecha != null) fechaCorta(fecha),
       ?p.metodo,
-      if (p.mueble != null) p.mueble!,
     ].join(' · ');
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      padding: const EdgeInsets.symmetric(vertical: 10),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -275,6 +191,11 @@ class _Pago extends StatelessWidget {
                 Text(p.concepto, style: const TextStyle(fontWeight: FontWeight.w600)),
                 if (linea2.isNotEmpty)
                   Text(linea2, style: const TextStyle(fontSize: 12, color: MoblarColors.textMuted)),
+                if (p.visitaIncluida != null)
+                  Text(
+                    'Incluye costo de la visita (${dinero(p.visitaIncluida!)})',
+                    style: const TextStyle(fontSize: 12, color: MoblarColors.textSecondary),
+                  ),
               ],
             ),
           ),

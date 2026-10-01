@@ -30,7 +30,6 @@ class ComprasTab extends StatelessWidget {
             titulo: 'Aún no tienes compras',
             texto: 'Cuando confirmes tu pedido podrás seguir aquí cada etapa de tu mueble.',
           ),
-        if (datos.estadoCuenta != null) TarjetaEstadoCuenta(cuenta: datos.estadoCuenta!),
         if (enCurso.isNotEmpty) ...[
           const TituloSeccion('En proceso'),
           for (final c in enCurso)
@@ -107,6 +106,7 @@ class TarjetaCompra extends StatelessWidget {
                       const SizedBox(height: 10),
                       Text(lt.mensaje, style: const TextStyle(color: MoblarColors.textSecondary)),
                     ],
+                    if (compra.cuenta != null) SaldoCompra(cuenta: compra.cuenta!),
                     if (!lt.entregado && fechaInst != null)
                       Dato(
                         icono: Icons.event_available_outlined,
