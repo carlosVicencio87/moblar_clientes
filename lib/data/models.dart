@@ -157,6 +157,7 @@ class Cotizacion {
     required this.precio,
     required this.comprado,
     required this.marca,
+    this.comercial,
   });
 
   final String id;
@@ -167,6 +168,9 @@ class Cotizacion {
   final bool comprado;
   final Marca marca;
 
+  /// Cotización comercial (null si el servidor aún no la manda).
+  final CotizacionComercial? comercial;
+
   factory Cotizacion.fromJson(Map<String, dynamic> j) => Cotizacion(
         id: _s(j['id']),
         codigo: _sn(j['codigo']),
@@ -175,6 +179,153 @@ class Cotizacion {
         precio: _n(j['precio']),
         comprado: j['comprado'] == true,
         marca: Marca.fromJson(_mapa(j['marca'])),
+        comercial: j['comercial'] is Map<String, dynamic>
+            ? CotizacionComercial.fromJson(j['comercial'] as Map<String, dynamic>)
+            : null,
+      );
+}
+
+/// Cotización comercial: resumen sencillo con imagen, precio, vigencia de 15
+/// días, arquitecto y qué incluye (clienteEstadoCuenta.ts del ERP).
+class CotizacionComercial {
+  const CotizacionComercial({
+    this.imagenDiseno,
+    this.precio,
+    this.conIva = false,
+    this.arquitecto,
+    required this.emitida,
+    required this.vigenteHasta,
+    required this.vigente,
+    this.incluye = const [],
+  });
+
+  /// URL firmada temporal (≈1 h).
+  final String? imagenDiseno;
+  final num? precio;
+  final bool conIva;
+  final String? arquitecto;
+  final String emitida;
+  final String vigenteHasta;
+  final bool vigente;
+  final List<String> incluye;
+
+  factory CotizacionComercial.fromJson(Map<String, dynamic> j) => CotizacionComercial(
+        imagenDiseno: _sn(j['imagenDiseno']),
+        precio: _n(j['precio']),
+        conIva: j['conIva'] == true,
+        arquitecto: _sn(j['arquitecto']),
+        emitida: _s(j['emitida']),
+        vigenteHasta: _s(j['vigenteHasta']),
+        vigente: j['vigente'] != false,
+        incluye: j['incluye'] is List
+            ? (j['incluye'] as List).whereType<String>().where((t) => t.trim().isNotEmpty).toList()
+            : const [],
+      );
+}
+
+// ---------------------------------------------------------------------------
+// Estado de cuenta (clienteEstadoCuenta.ts del ERP)
+// ---------------------------------------------------------------------------
+
+class CuentaMueble {
+  const CuentaMueble({
+    required this.id,
+    this.codigo,
+    this.mueble,
+    required this.subtotal,
+    required this.iva,
+    required this.total,
+    required this.pagado,
+    required this.saldo,
+    required this.conFactura,
+  });
+
+  final String id;
+  final String? codigo;
+  final String? mueble;
+  final num subtotal;
+  final num iva;
+  final num total;
+  final num pagado;
+  final num saldo;
+  final bool conFactura;
+
+  factory CuentaMueble.fromJson(Map<String, dynamic> j) => CuentaMueble(
+        id: _s(j['id']),
+        codigo: _sn(j['codigo']),
+        mueble: _sn(j['mueble']),
+        subtotal: _n(j['subtotal']) ?? 0,
+        iva: _n(j['iva']) ?? 0,
+        total: _n(j['total']) ?? 0,
+        pagado: _n(j['pagado']) ?? 0,
+        saldo: _n(j['saldo']) ?? 0,
+        conFactura: j['conFactura'] == true,
+      );
+}
+
+class PagoCliente {
+  const PagoCliente({
+    required this.fecha,
+    required this.monto,
+    required this.concepto,
+    this.metodo,
+    required this.validado,
+    this.mueble,
+    this.codigo,
+  });
+
+  /// "2026-09-01" (fecha del pago).
+  final String fecha;
+  final num monto;
+  final String concepto;
+  final String? metodo;
+
+  /// false = Pagos todavía lo revisa (no suma al pagado).
+  final bool validado;
+  final String? mueble;
+  final String? codigo;
+
+  factory PagoCliente.fromJson(Map<String, dynamic> j) => PagoCliente(
+        fecha: _s(j['fecha']),
+        monto: _n(j['monto']) ?? 0,
+        concepto: _s(j['concepto']).isEmpty ? 'Pago' : _s(j['concepto']),
+        metodo: _sn(j['metodo']),
+        validado: j['estado'] == 'validado',
+        mueble: _sn(j['mueble']),
+        codigo: _sn(j['codigo']),
+      );
+}
+
+class EstadoCuenta {
+  const EstadoCuenta({
+    required this.total,
+    required this.pagado,
+    required this.enRevision,
+    required this.saldo,
+    required this.conIva,
+    this.muebles = const [],
+    this.pagos = const [],
+  });
+
+  final num total;
+  final num pagado;
+  final num enRevision;
+  final num saldo;
+  final bool conIva;
+  final List<CuentaMueble> muebles;
+  final List<PagoCliente> pagos;
+
+  /// 0–1 para la barra (pagado / total).
+  double get avance => total <= 0 ? 0 : (pagado / total).clamp(0, 1).toDouble();
+
+  factory EstadoCuenta.fromJson(Map<String, dynamic> j) => EstadoCuenta(
+        total: _n(j['total']) ?? 0,
+        pagado: _n(j['pagado']) ?? 0,
+        enRevision: _n(j['enRevision']) ?? 0,
+        saldo: _n(j['saldo']) ?? 0,
+        conIva: j['conIva'] == true,
+        muebles: _lista(j['muebles']).map(CuentaMueble.fromJson).toList(),
+        pagos: _lista(j['pagos']).map(PagoCliente.fromJson).toList(),
       );
 }
 
@@ -349,6 +500,7 @@ class Inicio {
     required this.citas,
     required this.cotizaciones,
     required this.compras,
+    this.estadoCuenta,
   });
 
   final String? nombre;
@@ -356,6 +508,9 @@ class Inicio {
   final List<Cita> citas;
   final List<Cotizacion> cotizaciones;
   final List<Compra> compras;
+
+  /// null con montos apagados en el servidor o sin compras ni pagos.
+  final EstadoCuenta? estadoCuenta;
 
   /// Compras en curso primero (lo que el cliente quiere ver), luego las
   /// entregadas; dentro de cada grupo, en el orden del servidor.
@@ -370,6 +525,9 @@ class Inicio {
         citas: _lista(j['citas']).map(Cita.fromJson).toList(),
         cotizaciones: _lista(j['cotizaciones']).map(Cotizacion.fromJson).toList(),
         compras: _lista(j['compras']).map(Compra.fromJson).toList(),
+        estadoCuenta: j['estadoCuenta'] is Map<String, dynamic>
+            ? EstadoCuenta.fromJson(j['estadoCuenta'] as Map<String, dynamic>)
+            : null,
       );
 }
 

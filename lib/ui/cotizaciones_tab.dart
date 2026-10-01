@@ -81,15 +81,21 @@ class _TarjetaCotizacionState extends State<_TarjetaCotizacion> {
   @override
   Widget build(BuildContext context) {
     final c = widget.cotizacion;
+    final com = c.comercial;
+    final hasta = parseFecha(com?.vigenteHasta);
+    final vencida = com != null && !com.vigente && !c.comprado;
+    final precio = com?.precio ?? c.precio;
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              MarcaEncabezado(
+        key: Key('cotizacion-${c.id}'),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+              child: MarcaEncabezado(
                 marca: c.marca,
                 trailing: c.comprado
                     ? const EstadoChip(
@@ -97,59 +103,159 @@ class _TarjetaCotizacionState extends State<_TarjetaCotizacion> {
                         color: Color(0xFF065F46),
                         fondo: Color(0xFFD1FAE5),
                       )
-                    : null,
+                    : vencida
+                        ? const EstadoChip(
+                            texto: 'Vencida',
+                            color: Color(0xFF991B1B),
+                            fondo: Color(0xFFFEE2E2),
+                          )
+                        : null,
               ),
+            ),
+            // Imagen de Moblo: lo primero que ve el cliente.
+            if (com?.imagenDiseno != null) ...[
               const SizedBox(height: 12),
-              Text(
-                c.mueble ?? 'Mueble a la medida',
-                style: const TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w600,
-                  color: MoblarColors.textPrimary,
-                ),
-              ),
-              if (c.codigo != null) Dato(icono: Icons.tag, texto: 'Cotización ${c.codigo}'),
-              if (c.precio != null) Dato(icono: Icons.payments_outlined, texto: dinero(c.precio!)),
-              const SizedBox(height: 12),
-              if (c.tienePdf)
-                OutlinedButton.icon(
-                  onPressed: _abriendo ? null : _verPdf,
-                  icon: _abriendo
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.picture_as_pdf_outlined),
-                  label: const Text('Ver cotización'),
-                )
-              else
-                const Text(
-                  'El documento estará disponible pronto.',
-                  style: TextStyle(color: MoblarColors.textMuted, fontSize: 13),
-                ),
-              // Pregunta sobre ESTA cotización: el mensaje lleva su código.
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton.icon(
-                  key: Key('verDetalle-${c.id}'),
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => DetalleMueblePage(proyectoId: c.id, titulo: c.mueble),
+              InkWell(
+                key: Key('imagenCotizacion-${c.id}'),
+                onTap: () => ampliarImagen(context, com!.imagenDiseno!, titulo: c.mueble),
+                child: AspectRatio(
+                  aspectRatio: 16 / 10,
+                  child: Container(
+                    color: MoblarColors.surfaceSubtle,
+                    child: Image.network(
+                      com!.imagenDiseno!,
+                      fit: BoxFit.contain,
+                      semanticLabel: 'Diseño de tu mueble',
+                      errorBuilder: (_, _, _) => const Center(
+                        child: Icon(Icons.image_not_supported_outlined, color: MoblarColors.textMuted),
+                      ),
                     ),
                   ),
-                  icon: const Icon(Icons.chair_outlined, size: 18),
-                  label: const Text('Ver diseño y lo que incluye'),
                 ),
               ),
-              BotonPreguntar(
-                key: Key('preguntarCotizacion-${c.id}'),
-                texto: 'Preguntar por esta cotización',
-                contacto: widget.contacto,
-                mensaje: mensajeCotizacion(c, widget.nombre),
-              ),
             ],
-          ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    c.mueble ?? 'Mueble a la medida',
+                    style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w600,
+                      color: MoblarColors.textPrimary,
+                    ),
+                  ),
+                  if (c.codigo != null)
+                    Text(
+                      'Cotización ${c.codigo}',
+                      style: const TextStyle(fontSize: 12, color: MoblarColors.textMuted),
+                    ),
+                  if (precio != null) ...[
+                    const SizedBox(height: 10),
+                    Text(
+                      dinero(precio),
+                      key: Key('precioCotizacion-${c.id}'),
+                      style: const TextStyle(
+                        fontSize: 26,
+                        height: 1.1,
+                        fontWeight: FontWeight.w700,
+                        color: MoblarColors.primaryDark,
+                      ),
+                    ),
+                    if (com?.conIva == true)
+                      const Text(
+                        'IVA incluido',
+                        style: TextStyle(fontSize: 12, color: MoblarColors.textMuted),
+                      ),
+                  ],
+                  if (hasta != null && !c.comprado)
+                    Dato(
+                      icono: vencida ? Icons.event_busy_outlined : Icons.event_available_outlined,
+                      texto: vencida
+                          ? 'Venció el ${fechaLarga(hasta)}. Pídenos una actualización.'
+                          : 'Válida hasta el ${fechaLarga(hasta)}',
+                    ),
+                  if (com?.arquitecto != null)
+                    Dato(icono: Icons.person_outline, texto: 'Tu arquitecto: ${com!.arquitecto}'),
+                  if (com != null && com.incluye.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    const Text(
+                      'INCLUYE',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.8,
+                        color: MoblarColors.textMuted,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        for (final t in com.incluye)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: MoblarColors.primarySoft,
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.check, size: 14, color: MoblarColors.primary),
+                                const SizedBox(width: 4),
+                                Text(t, style: const TextStyle(fontSize: 12, color: MoblarColors.primaryDark)),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                  const SizedBox(height: 14),
+                  if (c.tienePdf)
+                    OutlinedButton.icon(
+                      onPressed: _abriendo ? null : _verPdf,
+                      icon: _abriendo
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.picture_as_pdf_outlined),
+                      label: const Text('Ver cotización formal'),
+                    )
+                  else
+                    const Text(
+                      'La cotización formal estará disponible pronto.',
+                      style: TextStyle(color: MoblarColors.textMuted, fontSize: 13),
+                    ),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      key: Key('verDetalle-${c.id}'),
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => DetalleMueblePage(proyectoId: c.id, titulo: c.mueble),
+                        ),
+                      ),
+                      icon: const Icon(Icons.chair_outlined, size: 18),
+                      label: const Text('Ver diseño y lo que incluye'),
+                    ),
+                  ),
+                  // Pregunta sobre ESTA cotización: el mensaje lleva su código.
+                  BotonPreguntar(
+                    key: Key('preguntarCotizacion-${c.id}'),
+                    texto: vencida ? 'Pedir cotización actualizada' : 'Preguntar por esta cotización',
+                    contacto: widget.contacto,
+                    mensaje: mensajeCotizacion(c, widget.nombre),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );

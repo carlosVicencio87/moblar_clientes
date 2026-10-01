@@ -39,9 +39,15 @@ const inicioJson = r'''
     }
   ],
   "cotizaciones": [
-    {"id": "q1", "codigo": "000135", "mueble": "Cocina", "citaId": "c-pasada", "tienePdf": true, "precio": null, "comprado": true,
+    {"id": "q1", "codigo": "000135", "mueble": "Cocina", "citaId": "c-pasada", "tienePdf": true, "precio": 250000, "comprado": true,
+     "comercial": {"imagenDiseno": null, "precio": 250000, "conIva": false, "arquitecto": "Ana López",
+       "emitida": "2026-09-28T15:00:00.000Z", "vigenteHasta": "2026-10-13T15:00:00.000Z", "vigente": true,
+       "incluye": ["Proceso de fabricación", "Materiales", "Transporte", "Instalación"]},
      "marca": {"clave": "voreal", "nombre": "VOREAL", "logo": "logo-voreal.jpeg"}},
     {"id": "q2", "codigo": null, "mueble": null, "citaId": null, "tienePdf": false, "precio": null, "comprado": false,
+     "comercial": {"imagenDiseno": null, "precio": null, "conIva": false, "arquitecto": null,
+       "emitida": "2026-08-01T15:00:00.000Z", "vigenteHasta": "2026-08-16T15:00:00.000Z", "vigente": false,
+       "incluye": ["Proceso de fabricación", "Materiales", "Transporte", "Instalación"]},
      "marca": {"clave": "desconocida", "nombre": "", "logo": "logo-nueva.png"}}
   ],
   "compras": [
@@ -87,7 +93,18 @@ const inicioJson = r'''
       "pagos": {"total": null, "pagado": null, "saldo": null},
       "marca": {"clave": "voreal", "nombre": "VOREAL", "logo": "logo-voreal.jpeg"}
     }
-  ]
+  ],
+  "estadoCuenta": {
+    "total": 250000, "pagado": 100000, "enRevision": 20000, "saldo": 150000, "conIva": false,
+    "muebles": [
+      {"id": "p-fabricacion", "codigo": "P-0002", "mueble": "Cocina", "subtotal": 250000, "iva": 0,
+       "total": 250000, "pagado": 100000, "saldo": 150000, "conFactura": false}
+    ],
+    "pagos": [
+      {"fecha": "2026-09-20", "monto": 20000, "concepto": "Abono", "metodo": "Transferencia", "estado": "en_revision", "mueble": "Cocina", "codigo": "P-0002"},
+      {"fecha": "2026-09-01", "monto": 100000, "concepto": "Anticipo", "metodo": "Transferencia", "estado": "validado", "mueble": "Cocina", "codigo": "P-0002"}
+    ]
+  }
 }
 ''';
 

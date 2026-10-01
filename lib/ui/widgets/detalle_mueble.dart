@@ -105,27 +105,6 @@ class _Diseno extends StatelessWidget {
   final String url;
   final String? titulo;
 
-  void _ampliar(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => Scaffold(
-          backgroundColor: Colors.black,
-          appBar: AppBar(
-            backgroundColor: Colors.black,
-            foregroundColor: Colors.white,
-            title: Text(titulo ?? 'Tu diseño'),
-          ),
-          body: Center(
-            child: InteractiveViewer(
-              maxScale: 5,
-              child: Image.network(url, fit: BoxFit.contain),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Card(
@@ -139,7 +118,7 @@ class _Diseno extends StatelessWidget {
             child: _Titulo('Tu diseño'),
           ),
           InkWell(
-            onTap: () => _ampliar(context),
+            onTap: () => ampliarImagen(context, url, titulo: titulo),
             child: AspectRatio(
               aspectRatio: 4 / 3,
               child: Image.network(
@@ -170,6 +149,28 @@ class _Diseno extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Abre la imagen a pantalla completa con zoom.
+void ampliarImagen(BuildContext context, String url, {String? titulo}) {
+  Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) => Scaffold(
+        backgroundColor: Colors.black,
+        appBar: AppBar(
+          backgroundColor: Colors.black,
+          foregroundColor: Colors.white,
+          title: Text(titulo ?? 'Tu diseño'),
+        ),
+        body: Center(
+          child: InteractiveViewer(
+            maxScale: 5,
+            child: Image.network(url, fit: BoxFit.contain),
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
 /// "#8B5A2B" → Color; null si no es válido.

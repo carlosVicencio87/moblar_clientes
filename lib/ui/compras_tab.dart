@@ -5,6 +5,7 @@ import '../state/app_scope.dart';
 import '../theme.dart';
 import '../util/formato.dart';
 import 'compra_detalle_page.dart';
+import 'estado_cuenta.dart';
 import 'widgets/comunes.dart';
 import 'widgets/contacto.dart';
 
@@ -29,6 +30,7 @@ class ComprasTab extends StatelessWidget {
             titulo: 'Aún no tienes compras',
             texto: 'Cuando confirmes tu pedido podrás seguir aquí cada etapa de tu mueble.',
           ),
+        if (datos.estadoCuenta != null) TarjetaEstadoCuenta(cuenta: datos.estadoCuenta!),
         if (enCurso.isNotEmpty) ...[
           const TituloSeccion('En proceso'),
           for (final c in enCurso)

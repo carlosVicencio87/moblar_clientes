@@ -9,6 +9,7 @@ import 'package:moblar_clientes/state/app_state.dart';
 import 'package:moblar_clientes/ui/cita_detalle_page.dart';
 import 'package:moblar_clientes/ui/compra_detalle_page.dart';
 import 'package:moblar_clientes/ui/compras_tab.dart';
+import 'package:moblar_clientes/ui/estado_cuenta.dart';
 import 'package:moblar_clientes/ui/login_page.dart';
 import 'package:moblar_clientes/ui/widgets/detalle_mueble.dart';
 
@@ -92,7 +93,13 @@ void main() {
     expect(find.text('100%'), findsOneWidget);
     // La barra lisa se cambió por el seguimiento en miniatura.
     expect(find.byKey(const Key('seguimientoMini')), findsNWidgets(2));
-    expect(find.byType(LinearProgressIndicator), findsNothing);
+    expect(
+      find.descendant(of: find.byType(TarjetaCompra), matching: find.byType(LinearProgressIndicator)),
+      findsNothing,
+    );
+    // Estado de cuenta arriba de las compras.
+    expect(find.byKey(const Key('tarjetaEstadoCuenta')), findsOneWidget);
+    expect(find.text('\$150,000.00'), findsOneWidget);
     expect(
       find.descendant(
         of: find.byType(TarjetaCompra).first,
@@ -209,10 +216,46 @@ void main() {
     expect(find.text('Mi compra'), findsOneWidget);
   });
 
+  testWidgets('estado de cuenta: saldo, pagos validados y en revisión', (tester) async {
+    store.token = 'tok-1';
+    await abrirApp(tester);
+    await tester.tap(find.byKey(const Key('tarjetaEstadoCuenta')));
+    await tester.pumpAndSettle();
+    expect(find.byType(EstadoCuentaPage), findsOneWidget);
+    expect(find.text('Saldo pendiente'), findsOneWidget);
+    final lista = find
+        .descendant(of: find.byType(EstadoCuentaPage), matching: find.byType(Scrollable))
+        .first;
+    await tester.scrollUntilVisible(find.text('Anticipo'), 200, scrollable: lista);
+    expect(find.text('Validado'), findsOneWidget);
+    expect(find.text('En revisión'), findsOneWidget);
+    expect(find.textContaining('en revisión: se sumará'), findsOneWidget);
+    await tester.scrollUntilVisible(find.byKey(const Key('preguntarPagos')), 200, scrollable: lista);
+  });
+
+  testWidgets('cotización comercial: precio, vigencia, arquitecto e incluye', (tester) async {
+    store.token = 'tok-1';
+    await abrirApp(tester);
+    await tester.tap(find.text('Cotizaciones'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('precioCotizacion-q1')), findsOneWidget);
+    expect(find.text('\$250,000.00'), findsOneWidget);
+    expect(find.text('Tu arquitecto: Ana López'), findsOneWidget);
+    expect(find.text('Transporte'), findsWidgets);
+    expect(find.text('Ver cotización formal'), findsOneWidget);
+    // q1 ya está comprada: no muestra vigencia. q2 venció.
+    final lista = find.byType(Scrollable).first;
+    await tester.scrollUntilVisible(find.text('Vencida'), 200, scrollable: lista);
+    expect(find.textContaining('Venció el'), findsOneWidget);
+    expect(find.text('Pedir cotización actualizada'), findsOneWidget);
+  });
+
   testWidgets('desde una cotización se abre el diseño y lo que incluye', (tester) async {
     store.token = 'tok-1';
     await abrirApp(tester);
     await tester.tap(find.text('Cotizaciones'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const Key('verDetalle-q1')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('verDetalle-q1')));
     await tester.pumpAndSettle();

@@ -121,6 +121,24 @@ void main() {
     expect(EtapaLineaTiempo.fromJson({'clave': 'otra'}).meta, isNull);
   });
 
+  test('cotización comercial y estado de cuenta', () {
+    final q1 = inicio.cotizaciones.first.comercial!;
+    expect(q1.precio, 250000);
+    expect(q1.vigente, isTrue);
+    expect(q1.arquitecto, 'Ana López');
+    expect(q1.incluye, hasLength(4));
+    expect(inicio.cotizaciones.last.comercial!.vigente, isFalse);
+    expect(Cotizacion.fromJson(const {'id': 'x'}).comercial, isNull);
+
+    final e = inicio.estadoCuenta!;
+    expect(e.saldo, 150000);
+    expect(e.avance, closeTo(0.4, 1e-9));
+    expect(e.pagos.first.validado, isFalse);
+    expect(e.pagos.last.validado, isTrue);
+    expect(Inicio.fromJson(const {}).estadoCuenta, isNull);
+    expect(const EstadoCuenta(total: 0, pagado: 0, enRevision: 0, saldo: 0, conIva: false).avance, 0);
+  });
+
   test('compras en curso primero', () {
     expect(inicio.comprasOrdenadas.map((c) => c.id), ['p-fabricacion', 'p-entregado']);
   });

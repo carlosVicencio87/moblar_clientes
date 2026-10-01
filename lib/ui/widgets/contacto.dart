@@ -20,6 +20,7 @@ abstract final class MotivoContacto {
   static const proyecto = 'PROYECTO';
   static const compras = 'COMPRAS';
   static const nuevaCita = 'NUEVA CITA';
+  static const pagos = 'PAGOS';
 }
 
 /// `[ETIQUETA referencia] Hola, soy Nombre. texto`
