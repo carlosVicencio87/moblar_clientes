@@ -72,6 +72,7 @@ class Cita {
     this.agendoPor,
     this.direccion,
     this.mapsUrl,
+    this.pagoVisita,
   });
 
   final String id;
@@ -98,6 +99,10 @@ class Cita {
   final num? costoVisita;
   final Marca marca;
 
+  /// Pago de la visita; null = la sección no se muestra (por ahora solo
+  /// llega en el deployment de prueba, modo demostración).
+  final PagoVisita? pagoVisita;
+
   factory Cita.fromJson(Map<String, dynamic> j) => Cita(
         id: _s(j['id']),
         fecha: _s(j['fecha']),
@@ -115,10 +120,89 @@ class Cita {
             : const [],
         costoVisita: _n(j['costoVisita']),
         marca: Marca.fromJson(_mapa(j['marca'])),
+        pagoVisita: j['pagoVisita'] is Map<String, dynamic>
+            ? PagoVisita.fromJson(j['pagoVisita'] as Map<String, dynamic>)
+            : null,
       );
 
   /// Todavía puede pasar algo (no realizada ni cancelada).
   bool get vigente => estado.clave != 'realizada' && estado.clave != 'cancelada';
+}
+
+/// Pago de la visita (clientePagoVisita.ts del ERP). Monto fijo; solo
+/// transferencia o efectivo.
+class PagoVisita {
+  const PagoVisita({
+    required this.demo,
+    required this.monto,
+    required this.estado,
+    required this.promesaRegistrada,
+    required this.metodos,
+    this.transferencia,
+  });
+
+  /// Modo demostración: nada se guarda todavía.
+  final bool demo;
+  final num monto;
+
+  /// pendiente (por ahora el servidor no manda otro).
+  final String estado;
+
+  /// Contact center registró la promesa de pago al agendar.
+  final bool promesaRegistrada;
+
+  /// "transferencia" | "efectivo" (los que el servidor permite).
+  final List<String> metodos;
+  final DatosTransferencia? transferencia;
+
+  bool get aceptaTransferencia => metodos.contains('transferencia') && transferencia != null;
+  bool get aceptaEfectivo => metodos.contains('efectivo');
+
+  factory PagoVisita.fromJson(Map<String, dynamic> j) => PagoVisita(
+        demo: j['demo'] == true,
+        monto: _n(j['monto']) ?? 0,
+        estado: _s(j['estado']).isEmpty ? 'pendiente' : _s(j['estado']),
+        promesaRegistrada: j['promesaRegistrada'] == true,
+        metodos: j['metodos'] is List
+            ? (j['metodos'] as List).whereType<String>().toList()
+            : const [],
+        transferencia: j['transferencia'] is Map<String, dynamic>
+            ? DatosTransferencia.fromJson(j['transferencia'] as Map<String, dynamic>)
+            : null,
+      );
+}
+
+class DatosTransferencia {
+  const DatosTransferencia({
+    required this.banco,
+    required this.beneficiario,
+    required this.clabe,
+    required this.concepto,
+    this.ejemplo = false,
+  });
+
+  final String banco;
+  final String beneficiario;
+
+  /// 18 dígitos sin espacios.
+  final String clabe;
+  final String concepto;
+
+  /// Datos de ejemplo (faltan los reales en el servidor).
+  final bool ejemplo;
+
+  /// "012 180 00123456789 1" → grupos 3-3-11-1 como en el estado de cuenta.
+  String get clabeLegible => clabe.length == 18
+      ? '${clabe.substring(0, 3)} ${clabe.substring(3, 6)} ${clabe.substring(6, 17)} ${clabe.substring(17)}'
+      : clabe;
+
+  factory DatosTransferencia.fromJson(Map<String, dynamic> j) => DatosTransferencia(
+        banco: _s(j['banco']),
+        beneficiario: _s(j['beneficiario']),
+        clabe: _s(j['clabe']),
+        concepto: _s(j['concepto']),
+        ejemplo: j['ejemplo'] == true,
+      );
 }
 
 /// Habilidad del arquitecto (arquitectoHabilidades.ts del ERP).

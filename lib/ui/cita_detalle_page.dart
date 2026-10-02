@@ -9,6 +9,7 @@ import 'widgets/avatar_arquitecto.dart';
 import 'widgets/comunes.dart';
 import 'widgets/contacto.dart';
 import 'widgets/estrellas.dart';
+import 'widgets/pago_visita.dart';
 
 /// Detalle de una cita: cuándo, dónde, con quién y en qué va.
 ///
@@ -44,12 +45,16 @@ class CitaDetallePage extends StatelessWidget {
                   _Avance(clave: cita.estado.clave),
                   const SizedBox(height: 16),
                 ],
+                if (cita.pagoVisita != null) ...[
+                  TarjetaPagoVisita(cita: cita, pago: cita.pagoVisita!),
+                  const SizedBox(height: 16),
+                ],
                 _Arquitecto(cita: cita, nombreCliente: datos.nombre),
                 if (cita.direccion != null || cita.mapsUrl != null) ...[
                   const SizedBox(height: 16),
                   _Lugar(cita: cita),
                 ],
-                if (cita.muebles.isNotEmpty || cita.costoVisita != null) ...[
+                if (cita.muebles.isNotEmpty || (cita.costoVisita != null && cita.pagoVisita == null)) ...[
                   const SizedBox(height: 16),
                   _QueSeRevisa(cita: cita),
                 ],
@@ -342,7 +347,8 @@ class _QueSeRevisa extends StatelessWidget {
                 children: [for (final m in cita.muebles) EstadoChip(texto: m)],
               ),
             ],
-            if (cita.costoVisita != null)
+            // Con la tarjeta de pago a la vista, el costo no se repite aquí.
+            if (cita.costoVisita != null && cita.pagoVisita == null)
               Dato(
                 icono: Icons.payments_outlined,
                 texto: 'Costo de la visita: ${dinero(cita.costoVisita!)}',
