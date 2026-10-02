@@ -73,6 +73,7 @@ class Cita {
     this.direccion,
     this.mapsUrl,
     this.pagoVisita,
+    this.ofertaVisita,
   });
 
   final String id;
@@ -103,6 +104,10 @@ class Cita {
   /// llega en el deployment de prueba, modo demostración).
   final PagoVisita? pagoVisita;
 
+  /// Oferta que dejó el arquitecto al terminar la visita; null = no se
+  /// muestra (por ahora solo llega en el deployment de prueba).
+  final OfertaVisita? ofertaVisita;
+
   factory Cita.fromJson(Map<String, dynamic> j) => Cita(
         id: _s(j['id']),
         fecha: _s(j['fecha']),
@@ -122,6 +127,9 @@ class Cita {
         marca: Marca.fromJson(_mapa(j['marca'])),
         pagoVisita: j['pagoVisita'] is Map<String, dynamic>
             ? PagoVisita.fromJson(j['pagoVisita'] as Map<String, dynamic>)
+            : null,
+        ofertaVisita: j['ofertaVisita'] is Map<String, dynamic>
+            ? OfertaVisita.fromJson(j['ofertaVisita'] as Map<String, dynamic>)
             : null,
       );
 
@@ -169,6 +177,64 @@ class PagoVisita {
         transferencia: j['transferencia'] is Map<String, dynamic>
             ? DatosTransferencia.fromJson(j['transferencia'] as Map<String, dynamic>)
             : null,
+      );
+}
+
+/// Oferta de la visita (clienteOfertaVisita.ts del ERP). El arquitecto captura
+/// el precio de contado; el servidor calcula el precio de lista (18 MSI en
+/// Clip) con la única fórmula aprobada. Aquí solo se lee: nunca se recalcula.
+class OfertaVisita {
+  const OfertaVisita({
+    required this.demo,
+    required this.precioLista,
+    required this.mensualidad,
+    required this.meses,
+    required this.descuento,
+    required this.descuentoPct,
+    required this.precioContado,
+    required this.emitida,
+    required this.vigenteHasta,
+    required this.vigente,
+    this.imagenDiseno,
+    this.arquitecto,
+    this.incluye = const [],
+  });
+
+  final bool demo;
+  final num precioLista;
+  final num mensualidad;
+  final int meses;
+  final num descuento;
+  final num descuentoPct;
+  final num precioContado;
+
+  /// URL firmada temporal de la foto del diseño; null en la demo.
+  final String? imagenDiseno;
+  final String? arquitecto;
+  final String emitida;
+  final String vigenteHasta;
+  final bool vigente;
+  final List<String> incluye;
+
+  /// Solo se muestra si el servidor mandó los tres precios.
+  bool get completa => precioLista > 0 && precioContado > 0 && meses > 0;
+
+  factory OfertaVisita.fromJson(Map<String, dynamic> j) => OfertaVisita(
+        demo: j['demo'] == true,
+        precioLista: _n(j['precioLista']) ?? 0,
+        mensualidad: _n(j['mensualidad']) ?? 0,
+        meses: (_n(j['meses']) ?? 0).toInt(),
+        descuento: _n(j['descuento']) ?? 0,
+        descuentoPct: _n(j['descuentoPct']) ?? 0,
+        precioContado: _n(j['precioContado']) ?? 0,
+        imagenDiseno: _sn(j['imagenDiseno']),
+        arquitecto: _sn(j['arquitecto']),
+        emitida: _s(j['emitida']),
+        vigenteHasta: _s(j['vigenteHasta']),
+        vigente: j['vigente'] != false,
+        incluye: j['incluye'] is List
+            ? (j['incluye'] as List).whereType<String>().where((t) => t.trim().isNotEmpty).toList()
+            : const [],
       );
 }
 

@@ -68,6 +68,20 @@ String mensajeProyecto(Compra c, String? nombre) => mensajeContacto(
           '${c.codigo == null ? '' : ' (pedido ${c.codigo})'}.',
     );
 
+/// Duda sobre la oferta que dejó el arquitecto al terminar la visita. Aún no
+/// hay código de cotización: la referencia es la fecha de la visita.
+String mensajeOfertaVisita(Cita cita, String? nombre) {
+  final fecha = parseFecha(cita.fecha);
+  return mensajeContacto(
+    etiqueta: MotivoContacto.cotizacion,
+    referencia: fecha == null ? null : fechaCorta(fecha),
+    nombre: nombre,
+    texto: fecha == null
+        ? 'Tengo una duda sobre la cotización que me dejó mi arquitecto en la visita.'
+        : 'Tengo una duda sobre la cotización que me dejó mi arquitecto en la visita del ${fechaLarga(fecha)}.',
+  );
+}
+
 /// Pedir otra visita: contact center agenda por WhatsApp.
 String mensajeNuevaCita(String? nombre) => mensajeContacto(
       etiqueta: MotivoContacto.nuevaCita,
