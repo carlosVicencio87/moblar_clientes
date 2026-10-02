@@ -350,4 +350,56 @@ void main() {
     expect(find.text('Todavía no tienes citas'), findsOneWidget);
     expect(find.text('¿Dudas sobre tus citas?'), findsOneWidget);
   });
+
+  testWidgets('Cotizaciones: la oferta de la visita va primero y la comprada lleva a su compra', (tester) async {
+    final datos = jsonDecode(inicioJson) as Map<String, dynamic>;
+    // q1 está comprada: su compra es el proyecto p-fabricacion (mismo id).
+    ((datos['cotizaciones'] as List).first as Map<String, dynamic>)['id'] = 'p-fabricacion';
+    datos['ofertasVisita'] = [
+      {
+        'citaId': 'c-pasada',
+        'fechaVisita': '2026-09-20T16:00:00.000Z',
+        'muebles': ['Clóset'],
+        'marca': {'clave': 'moblar', 'nombre': 'MOBLAR', 'logo': 'logo-moblar.png'},
+        'demo': true,
+        'precioContado': 10000,
+        'precioLista': 13482.58,
+        'mensualidad': 749.04,
+        'meses': 18,
+        'descuento': 3482.58,
+        'descuentoPct': 25.83,
+        'imagenDiseno': null,
+        'arquitecto': 'Ana López',
+        'emitida': '2026-09-20T16:00:00.000Z',
+        'vigenteHasta': '2099-10-05T16:00:00.000Z',
+        'vigente': true,
+        'incluye': ['Materiales'],
+      },
+    ];
+    servidor = ServidorFalso(inicio: jsonEncode(datos));
+    state = AppState(
+      api: ClienteApi(client: servidor.client, base: 'https://ejemplo.test', bypass: ''),
+      store: store,
+    );
+    store.token = 'tok-1';
+    await abrirApp(tester);
+    await tester.tap(find.text('Cotizaciones'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('ofertaVisita-c-pasada')), findsOneWidget);
+    expect(find.text('Clóset'), findsOneWidget);
+    expect(find.text(r'$13,482.58'), findsOneWidget);
+    final lista = find.byType(Scrollable).first;
+    await tester.scrollUntilVisible(find.byKey(const Key('verCompra-p-fabricacion')), 200, scrollable: lista);
+    // scrollUntilVisible se detiene en cuanto el botón se construye (puede
+    // quedar debajo del borde): lo traemos a la vista antes de tocarlo.
+    await tester.ensureVisible(find.byKey(const Key('verCompra-p-fabricacion')));
+    await tester.pumpAndSettle();
+    // q2 no está comprada: sin botón de compra.
+    expect(find.byKey(const Key('verCompra-q2')), findsNothing);
+
+    await tester.tap(find.byKey(const Key('verCompra-p-fabricacion')));
+    await tester.pumpAndSettle();
+    expect(find.byType(CompraDetallePage), findsOneWidget);
+  });
 }

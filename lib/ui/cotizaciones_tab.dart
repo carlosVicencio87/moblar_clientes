@@ -7,7 +7,9 @@ import '../theme.dart';
 import '../util/formato.dart';
 import 'widgets/comunes.dart';
 import 'widgets/contacto.dart';
+import 'compra_detalle_page.dart';
 import 'widgets/detalle_mueble.dart';
+import 'widgets/oferta_visita.dart';
 
 /// Cotizaciones del cliente con su PDF.
 class CotizacionesTab extends StatelessWidget {
@@ -17,10 +19,11 @@ class CotizacionesTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final vacia = datos.cotizaciones.isEmpty && datos.ofertasVisita.isEmpty;
     return ListaRefrescable(
       onRefrescar: AppScope.read(context).refrescar,
       children: [
-        if (datos.cotizaciones.isEmpty)
+        if (vacia)
           const VistaVacia(
             icono: Icons.request_quote_outlined,
             titulo: 'Aún no hay cotizaciones',
@@ -28,10 +31,22 @@ class CotizacionesTab extends StatelessWidget {
           )
         else ...[
           const TituloSeccion('Tus cotizaciones'),
+          // La propuesta que dejó el arquitecto al terminar la visita: es la
+          // cotización comercial más reciente, va primero.
+          for (final o in datos.ofertasVisita)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: TarjetaOfertaVisita(oferta: o, contacto: datos.contacto, nombre: datos.nombre),
+            ),
           for (final c in datos.cotizaciones)
-            _TarjetaCotizacion(cotizacion: c, contacto: datos.contacto, nombre: datos.nombre),
+            _TarjetaCotizacion(
+              cotizacion: c,
+              contacto: datos.contacto,
+              nombre: datos.nombre,
+              tieneCompra: datos.compras.any((k) => k.id == c.id),
+            ),
         ],
-        if (datos.cotizaciones.isEmpty)
+        if (vacia)
           TarjetaAyuda(
             titulo: '¿Dudas sobre tus cotizaciones?',
             contacto: datos.contacto,
@@ -47,11 +62,19 @@ class CotizacionesTab extends StatelessWidget {
 }
 
 class _TarjetaCotizacion extends StatefulWidget {
-  const _TarjetaCotizacion({required this.cotizacion, required this.contacto, this.nombre});
+  const _TarjetaCotizacion({
+    required this.cotizacion,
+    required this.contacto,
+    this.nombre,
+    this.tieneCompra = false,
+  });
 
   final Cotizacion cotizacion;
   final Contacto contacto;
   final String? nombre;
+
+  /// La compra de esta cotización está en "Mi compra" (mismo id de proyecto).
+  final bool tieneCompra;
 
   @override
   State<_TarjetaCotizacion> createState() => _TarjetaCotizacionState();
@@ -232,6 +255,18 @@ class _TarjetaCotizacionState extends State<_TarjetaCotizacion> {
                     ),
                   ],
                   const SizedBox(height: 14),
+                  // Ya la adquirió: lo primero es ir a ver su compra.
+                  if (c.comprado && widget.tieneCompra) ...[
+                    FilledButton.icon(
+                      key: Key('verCompra-${c.id}'),
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(builder: (_) => CompraDetallePage(compraId: c.id)),
+                      ),
+                      icon: const Icon(Icons.local_shipping_outlined),
+                      label: const Text('Ver mi compra'),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
                   if (c.tienePdf)
                     OutlinedButton.icon(
                       onPressed: _abriendo ? null : _verPdf,

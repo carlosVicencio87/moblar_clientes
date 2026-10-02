@@ -73,7 +73,6 @@ class Cita {
     this.direccion,
     this.mapsUrl,
     this.pagoVisita,
-    this.ofertaVisita,
   });
 
   final String id;
@@ -104,10 +103,6 @@ class Cita {
   /// llega en el deployment de prueba, modo demostración).
   final PagoVisita? pagoVisita;
 
-  /// Oferta que dejó el arquitecto al terminar la visita; null = no se
-  /// muestra (por ahora solo llega en el deployment de prueba).
-  final OfertaVisita? ofertaVisita;
-
   factory Cita.fromJson(Map<String, dynamic> j) => Cita(
         id: _s(j['id']),
         fecha: _s(j['fecha']),
@@ -127,9 +122,6 @@ class Cita {
         marca: Marca.fromJson(_mapa(j['marca'])),
         pagoVisita: j['pagoVisita'] is Map<String, dynamic>
             ? PagoVisita.fromJson(j['pagoVisita'] as Map<String, dynamic>)
-            : null,
-        ofertaVisita: j['ofertaVisita'] is Map<String, dynamic>
-            ? OfertaVisita.fromJson(j['ofertaVisita'] as Map<String, dynamic>)
             : null,
       );
 
@@ -183,8 +175,13 @@ class PagoVisita {
 /// Oferta de la visita (clienteOfertaVisita.ts del ERP). El arquitecto captura
 /// el precio de contado; el servidor calcula el precio de lista (18 MSI en
 /// Clip) con la única fórmula aprobada. Aquí solo se lee: nunca se recalcula.
+/// Es una cotización comercial temprana: va en la pestaña Cotizaciones.
 class OfertaVisita {
   const OfertaVisita({
+    this.citaId = '',
+    this.fechaVisita = '',
+    this.muebles = const [],
+    this.marca = Marca.moblar,
     required this.demo,
     required this.precioLista,
     required this.mensualidad,
@@ -200,6 +197,13 @@ class OfertaVisita {
     this.incluye = const [],
   });
 
+  /// Cita de la que salió (id de appointments).
+  final String citaId;
+
+  /// Fecha de la visita (ISO).
+  final String fechaVisita;
+  final List<String> muebles;
+  final Marca marca;
   final bool demo;
   final num precioLista;
   final num mensualidad;
@@ -220,6 +224,12 @@ class OfertaVisita {
   bool get completa => precioLista > 0 && precioContado > 0 && meses > 0;
 
   factory OfertaVisita.fromJson(Map<String, dynamic> j) => OfertaVisita(
+        citaId: _s(j['citaId']),
+        fechaVisita: _s(j['fechaVisita']),
+        muebles: j['muebles'] is List
+            ? (j['muebles'] as List).whereType<String>().toList()
+            : const [],
+        marca: Marca.fromJson(_mapa(j['marca'])),
         demo: j['demo'] == true,
         precioLista: _n(j['precioLista']) ?? 0,
         mensualidad: _n(j['mensualidad']) ?? 0,
@@ -645,6 +655,7 @@ class Inicio {
     required this.citas,
     required this.cotizaciones,
     required this.compras,
+    this.ofertasVisita = const [],
   });
 
   final String? nombre;
@@ -652,6 +663,10 @@ class Inicio {
   final List<Cita> citas;
   final List<Cotizacion> cotizaciones;
   final List<Compra> compras;
+
+  /// Ofertas que dejó el arquitecto al terminar cada visita (solo las
+  /// completas). Por ahora solo llegan en el deployment de prueba.
+  final List<OfertaVisita> ofertasVisita;
 
   /// Compras en curso primero (lo que el cliente quiere ver), luego las
   /// entregadas; dentro de cada grupo, en el orden del servidor.
@@ -666,6 +681,10 @@ class Inicio {
         citas: _lista(j['citas']).map(Cita.fromJson).toList(),
         cotizaciones: _lista(j['cotizaciones']).map(Cotizacion.fromJson).toList(),
         compras: _lista(j['compras']).map(Compra.fromJson).toList(),
+        ofertasVisita: _lista(j['ofertasVisita'])
+            .map(OfertaVisita.fromJson)
+            .where((o) => o.completa)
+            .toList(),
       );
 }
 

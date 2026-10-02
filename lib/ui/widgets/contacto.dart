@@ -70,8 +70,8 @@ String mensajeProyecto(Compra c, String? nombre) => mensajeContacto(
 
 /// Duda sobre la oferta que dejó el arquitecto al terminar la visita. Aún no
 /// hay código de cotización: la referencia es la fecha de la visita.
-String mensajeOfertaVisita(Cita cita, String? nombre) {
-  final fecha = parseFecha(cita.fecha);
+String mensajeOfertaVisita(OfertaVisita oferta, String? nombre) {
+  final fecha = parseFecha(oferta.fechaVisita);
   return mensajeContacto(
     etiqueta: MotivoContacto.cotizacion,
     referencia: fecha == null ? null : fechaCorta(fecha),

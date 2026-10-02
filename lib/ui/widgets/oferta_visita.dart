@@ -12,8 +12,9 @@ import 'pago_visita.dart' show AvisoDemo;
 // Oferta de la visita — ESQUELETO DE DEMOSTRACIÓN (paso C, 2026-10-02).
 //
 // Es la versión temprana de la "cotización comercial" (misma etiqueta,
-// imagen, vigencia, arquitecto e "incluye" que la tarjeta de Cotizaciones),
-// ligada a la CITA: la deja el arquitecto al terminar la visita. Agrega el
+// imagen, vigencia, arquitecto e "incluye" que la tarjeta de Cotizaciones):
+// la deja el arquitecto al terminar la visita y vive en la pestaña
+// Cotizaciones (decisión de Carlos, 2026-10-02). Agrega el
 // precio en el mismo orden que la pantalla del arquitecto ("Así lo verá el
 // cliente"): precio de lista, 18 MSI, descuento por contado y precio de
 // contado. Los números vienen del servidor; aquí no se recalcula nada.
@@ -22,13 +23,11 @@ import 'pago_visita.dart' show AvisoDemo;
 class TarjetaOfertaVisita extends StatelessWidget {
   const TarjetaOfertaVisita({
     super.key,
-    required this.cita,
     required this.oferta,
     required this.contacto,
     this.nombre,
   });
 
-  final Cita cita;
   final OfertaVisita oferta;
   final Contacto contacto;
   final String? nombre;
@@ -39,15 +38,29 @@ class TarjetaOfertaVisita extends StatelessWidget {
     final hasta = parseFecha(o.vigenteHasta);
     final vencida = !o.vigente;
     final imagen = o.imagenDiseno;
+    final visita = parseFecha(o.fechaVisita);
     return Card(
-      key: const Key('tarjetaOfertaVisita'),
+      key: Key('ofertaVisita-${o.citaId}'),
       clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+            child: MarcaEncabezado(
+              marca: o.marca,
+              trailing: vencida
+                  ? const EstadoChip(
+                      texto: 'Vencida',
+                      color: Color(0xFF991B1B),
+                      fondo: Color(0xFFFEE2E2),
+                    )
+                  : null,
+            ),
+          ),
           if (o.demo)
             const Padding(
-              padding: EdgeInsets.fromLTRB(16, 16, 16, 0),
+              padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
               child: AvisoDemo(),
             ),
           const SizedBox(height: 12),
@@ -78,34 +91,28 @@ class TarjetaOfertaVisita extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Row(
-                  children: [
-                    const Expanded(
-                      child: Text(
-                        'COTIZACIÓN COMERCIAL',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.8,
-                          color: MoblarColors.primary,
-                        ),
-                      ),
-                    ),
-                    if (vencida)
-                      const EstadoChip(
-                        texto: 'Vencida',
-                        color: Color(0xFF991B1B),
-                        fondo: Color(0xFFFEE2E2),
-                      ),
-                  ],
-                ),
                 const Text(
-                  'La propuesta de tu visita',
+                  'COTIZACIÓN COMERCIAL',
                   style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.8,
+                    color: MoblarColors.primary,
+                  ),
+                ),
+                Text(
+                  o.muebles.isEmpty ? 'Mueble a la medida' : o.muebles.join(', '),
+                  style: const TextStyle(
                     fontSize: 17,
                     fontWeight: FontWeight.w600,
                     color: MoblarColors.textPrimary,
                   ),
+                ),
+                Text(
+                  visita == null
+                      ? 'Propuesta de tu visita'
+                      : 'Propuesta de tu visita del ${fechaLarga(visita)}',
+                  style: const TextStyle(fontSize: 12, color: MoblarColors.textMuted),
                 ),
                 const SizedBox(height: 12),
                 _Precios(oferta: o),
@@ -138,10 +145,10 @@ class TarjetaOfertaVisita extends StatelessWidget {
                 ],
                 const SizedBox(height: 8),
                 BotonPreguntar(
-                  key: const Key('preguntarOfertaVisita'),
+                  key: Key('preguntarOfertaVisita-${o.citaId}'),
                   texto: vencida ? 'Pedir cotización actualizada' : 'Preguntar por esta cotización',
                   contacto: contacto,
-                  mensaje: mensajeOfertaVisita(cita, nombre),
+                  mensaje: mensajeOfertaVisita(o, nombre),
                 ),
               ],
             ),

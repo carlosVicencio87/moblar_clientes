@@ -9,6 +9,9 @@ import 'package:moblar_clientes/ui/widgets/oferta_visita.dart';
 /// muestra, no los recalcula.
 void main() {
   const json = {
+    'citaId': 'cita-1',
+    'fechaVisita': '2026-10-02T16:00:00.000Z',
+    'muebles': ['Clóset'],
     'demo': true,
     'precioContado': 10000,
     'precioLista': 13482.58,
@@ -26,16 +29,6 @@ void main() {
 
   final oferta = OfertaVisita.fromJson(json);
   const contacto = Contacto(empresa: 'MOBLAR', telefono: '5512345678', whatsapp: 'https://wa.me/525512345678');
-  const cita = Cita(
-    id: 'cita-1',
-    fecha: '2026-10-02T16:00:00Z',
-    horario: null,
-    estado: EstadoCita(clave: 'realizada', titulo: 'Visita realizada'),
-    arquitecto: 'Ana López',
-    muebles: [],
-    costoVisita: 350,
-    marca: Marca.moblar,
-  );
 
   Future<void> abrir(WidgetTester tester, OfertaVisita o) async {
     tester.view.physicalSize = const Size(1080, 2340);
@@ -45,7 +38,7 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: ListView(
-            children: [TarjetaOfertaVisita(cita: cita, oferta: o, contacto: contacto, nombre: 'Carlos')],
+            children: [TarjetaOfertaVisita(oferta: o, contacto: contacto, nombre: 'Carlos')],
           ),
         ),
       ),
@@ -69,14 +62,22 @@ void main() {
       expect(OfertaVisita.fromJson(const {'demo': true}).completa, isFalse);
     });
 
-    test('la cita sin ofertaVisita la deja en null', () {
-      final c = Cita.fromJson({'id': 'x', 'fecha': '2026-10-03T16:00:00Z'});
-      expect(c.ofertaVisita, isNull);
+    test('ligada a su cita, con fecha y muebles', () {
+      expect(oferta.citaId, 'cita-1');
+      expect(oferta.fechaVisita, '2026-10-02T16:00:00.000Z');
+      expect(oferta.muebles, ['Clóset']);
+      expect(oferta.marca.clave, 'moblar');
     });
 
-    test('la cita lee su ofertaVisita', () {
-      final c = Cita.fromJson({'id': 'x', 'fecha': '2026-10-03T16:00:00Z', 'ofertaVisita': json});
-      expect(c.ofertaVisita?.precioLista, 13482.58);
+    test('Inicio: lista de ofertas (vacía si el servidor no la manda; descarta incompletas)', () {
+      final sin = Inicio.fromJson(const {'contacto': {}});
+      expect(sin.ofertasVisita, isEmpty);
+      final con = Inicio.fromJson({
+        'contacto': const {},
+        'ofertasVisita': [json, const {'demo': true}],
+      });
+      expect(con.ofertasVisita, hasLength(1));
+      expect(con.ofertasVisita.first.precioLista, 13482.58);
     });
   });
 
@@ -84,6 +85,8 @@ void main() {
     await abrir(tester, oferta);
     expect(find.byKey(const Key('avisoDemo')), findsOneWidget);
     expect(find.text('COTIZACIÓN COMERCIAL'), findsOneWidget);
+    expect(find.text('Clóset'), findsOneWidget);
+    expect(find.textContaining('Propuesta de tu visita del'), findsOneWidget);
     expect(find.byKey(const Key('fotoPendienteOferta')), findsOneWidget);
     expect(find.text(r'$13,482.58'), findsOneWidget);
     expect(find.text(r'o 18 meses sin intereses de $749.04'), findsOneWidget);
@@ -107,7 +110,7 @@ void main() {
   });
 
   test('mensaje de WhatsApp: etiqueta de cotización con la fecha de la visita', () {
-    final m = mensajeOfertaVisita(cita, 'Carlos');
+    final m = mensajeOfertaVisita(oferta, 'Carlos');
     expect(m, startsWith('[COTIZACIÓN '));
     expect(m, contains('Carlos'));
     expect(m, contains('que me dejó mi arquitecto en la visita'));

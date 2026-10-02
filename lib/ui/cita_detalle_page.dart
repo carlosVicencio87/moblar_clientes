@@ -9,7 +9,6 @@ import 'widgets/avatar_arquitecto.dart';
 import 'widgets/comunes.dart';
 import 'widgets/contacto.dart';
 import 'widgets/estrellas.dart';
-import 'widgets/oferta_visita.dart';
 import 'widgets/pago_visita.dart';
 
 /// Detalle de una cita: cuándo, dónde, con quién y en qué va.
@@ -44,16 +43,6 @@ class CitaDetallePage extends StatelessWidget {
                 const SizedBox(height: 16),
                 if (cita.estado.clave != 'cancelada') ...[
                   _Avance(clave: cita.estado.clave),
-                  const SizedBox(height: 16),
-                ],
-                // Visita terminada: lo primero es la propuesta del arquitecto.
-                if (cita.ofertaVisita != null && cita.ofertaVisita!.completa) ...[
-                  TarjetaOfertaVisita(
-                    cita: cita,
-                    oferta: cita.ofertaVisita!,
-                    contacto: datos.contacto,
-                    nombre: datos.nombre,
-                  ),
                   const SizedBox(height: 16),
                 ],
                 if (cita.pagoVisita != null) ...[
