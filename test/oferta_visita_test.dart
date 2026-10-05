@@ -5,9 +5,11 @@ import 'package:moblar_clientes/ui/widgets/adquirir_oferta.dart';
 import 'package:moblar_clientes/ui/widgets/contacto.dart';
 import 'package:moblar_clientes/ui/widgets/oferta_visita.dart';
 
-/// Esqueleto de la oferta de la visita (paso C). Los números son los de la
-/// tabla de referencia del ERP (clienteOfertaVisita.test.ts): la app solo los
-/// muestra, no los recalcula.
+/// Esqueleto de la oferta de la visita (paso C). La app solo muestra los
+/// números del servidor, no los recalcula.
+///  - `json`: servidor anterior, sin desglose de IVA (debe seguir funcionando).
+///  - `jsonIva`: servidor actual (clienteOfertaVisita.test.ts, $10,000 antes de
+///    IVA, tarifa real de Clip): con factura por omisión y `sinFactura`.
 void main() {
   const json = {
     'citaId': 'cita-1',
@@ -48,6 +50,50 @@ void main() {
   };
 
   final oferta = OfertaVisita.fromJson(json);
+
+  final jsonIva = <String, dynamic>{
+    ...json,
+    'subtotal': 10000,
+    'iva': 1600,
+    'ivaPct': 16,
+    'precioContado': 11600,
+    'precioLista': 15640.45,
+    'mensualidad': 868.92,
+    'descuento': 4040.45,
+    'descuentoPct': 25.83,
+    'anticipoContado': 4640,
+    'anticipoTarjeta': 4807.3,
+    'precioTarjeta': 12018.24,
+    'opcionesTarjeta': [
+      {'meses': 1, 'total': 12018.24, 'mensualidad': 12018.24, 'cobro': 4807.3, 'liquida': false},
+      {'meses': 3, 'total': 12716.7, 'mensualidad': 4238.9, 'cobro': 12716.7, 'liquida': true},
+      {'meses': 6, 'total': 13221.08, 'mensualidad': 2203.52, 'cobro': 13221.08, 'liquida': true},
+      {'meses': 9, 'total': 13862.55, 'mensualidad': 1540.29, 'cobro': 13862.55, 'liquida': true},
+      {'meses': 12, 'total': 14197.13, 'mensualidad': 1183.1, 'cobro': 14197.13, 'liquida': true},
+      {'meses': 18, 'total': 15640.45, 'mensualidad': 868.92, 'cobro': 15640.45, 'liquida': true},
+    ],
+    'sinFactura': {
+      'precioContado': 10000,
+      'precioLista': 13483.15,
+      'mensualidad': 749.07,
+      'meses': 18,
+      'descuento': 3483.15,
+      'descuentoPct': 25.83,
+      'anticipoPct': 40,
+      'anticipoContado': 4000,
+      'anticipoTarjeta': 4144.23,
+      'precioTarjeta': 10360.56,
+      'opcionesTarjeta': [
+        {'meses': 1, 'total': 10360.56, 'mensualidad': 10360.56, 'cobro': 4144.23, 'liquida': false},
+        {'meses': 3, 'total': 10962.68, 'mensualidad': 3654.23, 'cobro': 10962.68, 'liquida': true},
+        {'meses': 6, 'total': 11397.48, 'mensualidad': 1899.58, 'cobro': 11397.48, 'liquida': true},
+        {'meses': 9, 'total': 11950.48, 'mensualidad': 1327.84, 'cobro': 11950.48, 'liquida': true},
+        {'meses': 12, 'total': 12238.9, 'mensualidad': 1019.91, 'cobro': 12238.9, 'liquida': true},
+        {'meses': 18, 'total': 13483.15, 'mensualidad': 749.07, 'cobro': 13483.15, 'liquida': true},
+      ],
+    },
+  };
+  final ofertaIva = OfertaVisita.fromJson(jsonIva);
   const contacto = Contacto(empresa: 'MOBLAR', telefono: '5512345678', whatsapp: 'https://wa.me/525512345678');
 
   setUp(() => DemoAnticipos.resultados.value = const {});
@@ -280,5 +326,98 @@ void main() {
     expect(find.text(r'Total $10,962.54'), findsOneWidget);
     expect(find.text(r'18 × $749.04'), findsOneWidget);
     expect(find.text(r'Total $13,482.58'), findsOneWidget);
+  });
+
+  group('IVA y factura', () {
+    test('servidor anterior: sin desglose ni casilla de factura', () {
+      expect(oferta.iva, 0);
+      expect(oferta.eligeFactura, isFalse);
+      expect(identical(oferta.variante(factura: false), oferta), isTrue);
+    });
+
+    test('con factura por omisión; la variante sin factura conserva la cita y la transferencia', () {
+      expect(ofertaIva.subtotal, 10000);
+      expect(ofertaIva.iva, 1600);
+      expect(ofertaIva.precioContado, 11600);
+      expect(ofertaIva.conFactura, isTrue);
+      expect(ofertaIva.eligeFactura, isTrue);
+      final sin = ofertaIva.variante(factura: false);
+      expect(sin.conFactura, isFalse);
+      expect(sin.iva, 0);
+      expect(sin.subtotal, 10000);
+      expect(sin.precioContado, 10000);
+      expect(sin.precioLista, 13483.15);
+      expect(sin.anticipoContado, 4000);
+      expect(sin.opcionesTarjeta.last.total, 13483.15);
+      expect(sin.citaId, 'cita-1');
+      expect(sin.transferencia?.concepto, 'ANTICIPO-CITA1');
+      expect(sin.adquirible, isTrue);
+      expect(identical(ofertaIva.variante(factura: true), ofertaIva), isTrue);
+    });
+
+    testWidgets('la tarjeta desglosa el IVA en su propio renglón', (tester) async {
+      await abrir(tester, ofertaIva);
+      expect(find.text('Precio de lista (IVA incluido)'), findsOneWidget);
+      expect(find.text(r'$15,640.45'), findsOneWidget);
+      final subtotal = find.byKey(const Key('subtotalOferta'));
+      final iva = find.byKey(const Key('ivaOferta'));
+      expect(find.descendant(of: subtotal, matching: find.text(r'$10,000.00')), findsOneWidget);
+      expect(find.descendant(of: iva, matching: find.text('IVA (16%)')), findsOneWidget);
+      expect(find.descendant(of: iva, matching: find.text(r'$1,600.00')), findsOneWidget);
+      expect(find.text(r'$11,600.00'), findsOneWidget);
+      expect(find.byKey(const Key('avisoFacturaOferta')), findsOneWidget);
+      final y = tester.getTopLeft(iva).dy;
+      expect(tester.getTopLeft(subtotal).dy < y, isTrue);
+      expect(y < tester.getTopLeft(find.byKey(const Key('precioContadoOferta'))).dy, isTrue);
+    });
+
+    testWidgets('"Requiero factura" marcada: anticipo con IVA; desmarcada: sin IVA', (tester) async {
+      await abrir(tester, ofertaIva);
+      await tocar(tester, const Key('adquirirOferta-cita-1'));
+      final casilla = find.byKey(const Key('requiereFactura'));
+      expect(tester.widget<CheckboxListTile>(casilla).value, isTrue);
+      expect(find.text(r'Precio de tu mueble $10,000.00 + IVA (16%) $1,600.00.'), findsOneWidget);
+      // Con factura: 11,600 → anticipo 4,640, saldo 6,960.
+      expect(find.text(r'$4,640.00'), findsOneWidget);
+      expect(find.text(r'$6,960.00'), findsOneWidget);
+      expect(find.text(r'$12,018.24'), findsOneWidget);
+
+      await tocar(tester, const Key('requiereFactura'));
+      expect(tester.widget<CheckboxListTile>(casilla).value, isFalse);
+      expect(find.text(r'Sin factura no se cobra IVA: pagas $1,600.00 menos.'), findsOneWidget);
+      // Sin factura: 10,000 → anticipo 4,000, saldo 6,000; tarjeta 10,360.56.
+      expect(find.text(r'$4,000.00'), findsOneWidget);
+      expect(find.text(r'$6,000.00'), findsOneWidget);
+      expect(find.text(r'$10,360.56'), findsOneWidget);
+      expect(find.text(r'$4,640.00'), findsNothing);
+    });
+
+    testWidgets('sin factura y en efectivo: la compra queda sin IVA', (tester) async {
+      await abrir(tester, ofertaIva);
+      await tocar(tester, const Key('adquirirOferta-cita-1'));
+      await tocar(tester, const Key('requiereFactura'));
+      await tocar(tester, const Key('anticipoEfectivo'));
+      expect(find.text(r'Entrega $4,000.00 a Ana López'), findsOneWidget);
+      await tocar(tester, const Key('turnoArquitecto'));
+      for (final d in ['4', '8', '2', '7']) {
+        await tocar(tester, Key('pin-$d'));
+      }
+      await tocar(tester, const Key('pinConfirmar'));
+      expect(find.text('Adquirida'), findsOneWidget);
+      expect(find.text('Sin factura (sin IVA)'), findsOneWidget);
+      expect(find.text(r'Precio de contado: $10,000.00'), findsOneWidget);
+      expect(find.text(r'Saldo: $6,000.00'), findsOneWidget);
+    });
+
+    testWidgets('con factura a 18 MSI: paga el total con IVA', (tester) async {
+      await abrir(tester, ofertaIva);
+      await tocar(tester, const Key('adquirirOferta-cita-1'));
+      await tocar(tester, const Key('anticipoTarjeta'));
+      await tocar(tester, const Key('opcionAnticipo-18'));
+      await tocar(tester, const Key('pagarConClip'));
+      expect(find.text('Con factura (IVA incluido)'), findsOneWidget);
+      expect(find.text(r'Pagado completo: $15,640.45 · Tarjeta, 18 MSI · pagado con Clip'), findsOneWidget);
+      expect(find.text(r'Saldo: $0.00 · Liquidado'), findsOneWidget);
+    });
   });
 }

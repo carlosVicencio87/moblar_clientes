@@ -196,6 +196,11 @@ class OfertaVisita {
     this.precioTarjeta = 0,
     this.opcionesTarjeta = const [],
     this.transferencia,
+    this.subtotal = 0,
+    this.iva = 0,
+    this.ivaPct = 0,
+    this.conFactura = true,
+    this.sinFactura,
     required this.demo,
     required this.precioLista,
     required this.mensualidad,
@@ -235,6 +240,27 @@ class OfertaVisita {
 
   /// Datos para transferir el anticipo (concepto ANTICIPO-…).
   final DatosTransferencia? transferencia;
+
+  /// Precio del arquitecto antes de IVA (0 si el servidor no lo manda).
+  final num subtotal;
+
+  /// IVA del subtotal: con factura, el IVA; sin factura, 0.
+  final num iva;
+  final num ivaPct;
+
+  /// true: los precios de esta oferta llevan IVA (requiere factura).
+  final bool conFactura;
+
+  /// Los mismos precios SIN IVA, para cuando el cliente desmarca
+  /// "Requiero factura" al adquirir. null si el servidor no la manda.
+  final OfertaVisita? sinFactura;
+
+  /// La oferta con o sin factura (sin la variante, siempre esta).
+  OfertaVisita variante({required bool factura}) =>
+      factura || sinFactura == null ? this : sinFactura!;
+
+  /// Se puede elegir si se pide factura (el servidor mandó ambas variantes).
+  bool get eligeFactura => sinFactura != null && iva > 0;
   final bool demo;
   final num precioLista;
   final num mensualidad;
@@ -257,7 +283,30 @@ class OfertaVisita {
   /// Se puede adquirir desde la app: vigente y con el anticipo calculado.
   bool get adquirible => vigente && anticipoContado > 0 && anticipoTarjeta > 0 && precioTarjeta > 0;
 
-  factory OfertaVisita.fromJson(Map<String, dynamic> j) => OfertaVisita(
+  factory OfertaVisita.fromJson(Map<String, dynamic> j) {
+    final sin = j['sinFactura'];
+    return OfertaVisita._deJson(
+      j,
+      sinFactura: sin is Map<String, dynamic>
+          ? OfertaVisita._deJson(
+              {...j, ...sin, 'iva': 0},
+              conFactura: false,
+            )
+          : null,
+    );
+  }
+
+  factory OfertaVisita._deJson(
+    Map<String, dynamic> j, {
+    OfertaVisita? sinFactura,
+    bool conFactura = true,
+  }) =>
+      OfertaVisita(
+        subtotal: _n(j['subtotal']) ?? 0,
+        iva: _n(j['iva']) ?? 0,
+        ivaPct: _n(j['ivaPct']) ?? 0,
+        conFactura: conFactura,
+        sinFactura: sinFactura,
         citaId: _s(j['citaId']),
         fechaVisita: _s(j['fechaVisita']),
         muebles: j['muebles'] is List

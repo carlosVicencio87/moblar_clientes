@@ -18,6 +18,9 @@ import 'pago_visita.dart' show AvisoDemo, EfectivoPinPage, TransferenciaPagoPage
 //     solo la comisión base de Clip; Carlos, 2026-10-05). En la demo
 //     NO se abre ningún link: el link de Clip sigue apagado hasta que los
 //     stakeholders lo aprueben.
+// Factura (Carlos, 2026-10-05): "Requiero factura" viene marcada (precios con
+// IVA). Si el cliente la desmarca, todos los montos pasan a la variante sin
+// IVA que manda el servidor. SOLO DEMO: pendiente de validar con el contador.
 // Los montos vienen del servidor (clienteOfertaVisita.ts). Nada se guarda:
 // el resultado vive en memoria (DemoAnticipos) mientras la app está abierta.
 // ---------------------------------------------------------------------------
@@ -31,7 +34,11 @@ class ResultadoAnticipo {
     this.meses = 1,
     this.totalMueble,
     this.liquida = false,
+    this.factura = true,
   });
+
+  /// Pidió factura (precios con IVA).
+  final bool factura;
 
   /// "efectivo" | "transferencia" | "tarjeta"
   final String metodo;
@@ -77,10 +84,17 @@ class DemoAnticipos {
 String muebleDe(OfertaVisita o) => o.muebles.isEmpty ? 'tu mueble' : o.muebles.join(', ');
 
 /// Pantalla "Inicia tu proyecto": por qué el anticipo, cuánto y cómo pagarlo.
-class AdquirirOfertaPage extends StatelessWidget {
+class AdquirirOfertaPage extends StatefulWidget {
   const AdquirirOfertaPage({super.key, required this.oferta});
 
   final OfertaVisita oferta;
+
+  @override
+  State<AdquirirOfertaPage> createState() => _AdquirirOfertaPageState();
+}
+
+class _AdquirirOfertaPageState extends State<AdquirirOfertaPage> {
+  bool _factura = true;
 
   Future<void> _abrir(BuildContext context, Widget pagina) async {
     final listo = await Navigator.of(context).push<bool>(
@@ -91,11 +105,19 @@ class AdquirirOfertaPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final o = oferta;
+    final base = widget.oferta;
+    final factura = _factura || !base.eligeFactura;
+    final o = base.variante(factura: factura);
     final pct = o.anticipoPct.round();
     void registrar(String metodo, num monto, {String? arquitecto}) => DemoAnticipos.registrar(
           o.citaId,
-          ResultadoAnticipo(metodo: metodo, monto: monto, fecha: DateTime.now(), arquitecto: arquitecto),
+          ResultadoAnticipo(
+            metodo: metodo,
+            monto: monto,
+            fecha: DateTime.now(),
+            arquitecto: arquitecto,
+            factura: factura,
+          ),
         );
     return Scaffold(
       appBar: AppBar(title: const Text('Inicia tu proyecto')),
@@ -128,6 +150,25 @@ class AdquirirOfertaPage extends StatelessWidget {
               ),
             ),
           ),
+          if (base.eligeFactura) ...[
+            const SizedBox(height: 12),
+            Card(
+              child: CheckboxListTile(
+                key: const Key('requiereFactura'),
+                value: _factura,
+                onChanged: (v) => setState(() => _factura = v ?? true),
+                controlAffinity: ListTileControlAffinity.leading,
+                title: const Text('Requiero factura', style: TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: Text(
+                  _factura
+                      ? 'Precio de tu mueble ${dinero(base.subtotal)} + IVA '
+                          '(${base.ivaPct.round()}%) ${dinero(base.iva)}.'
+                      : 'Sin factura no se cobra IVA: pagas ${dinero(base.iva)} menos.',
+                  key: const Key('detalleFactura'),
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 12),
           _Resumen(
             clave: const Key('resumenContado'),
@@ -204,6 +245,7 @@ class AdquirirOfertaPage extends StatelessWidget {
                     meses: x.meses,
                     totalMueble: x.total,
                     liquida: x.liquida,
+                    factura: factura,
                   ),
                 ),
               ),
@@ -561,6 +603,11 @@ class ResumenCompraOferta extends StatelessWidget {
             ),
           ),
           Dato(icono: Icons.chair_outlined, texto: 'Adquiriste: ${muebleDe(o)}'),
+          if (o.subtotal > 0)
+            Dato(
+              icono: Icons.receipt_long_outlined,
+              texto: r.factura ? 'Con factura (IVA incluido)' : 'Sin factura (sin IVA)',
+            ),
           Dato(
             icono: Icons.sell_outlined,
             texto: r.conTarjeta

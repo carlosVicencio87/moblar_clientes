@@ -132,7 +132,7 @@ class TarjetaOfertaVisita extends StatelessWidget {
                 _Precios(oferta: o),
                 if (adquirida != null) ...[
                   const SizedBox(height: 12),
-                  ResumenCompraOferta(oferta: o, resultado: adquirida),
+                  ResumenCompraOferta(oferta: o.variante(factura: adquirida.factura), resultado: adquirida),
                 ] else if (o.adquirible) ...[
                   const SizedBox(height: 12),
                   FilledButton.icon(
@@ -200,7 +200,10 @@ class _Precios extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Text('Precio de lista', style: TextStyle(fontSize: 12, color: MoblarColors.textMuted)),
+        Text(
+          o.iva > 0 ? 'Precio de lista (IVA incluido)' : 'Precio de lista',
+          style: const TextStyle(fontSize: 12, color: MoblarColors.textMuted),
+        ),
         Text(
           dinero(o.precioLista),
           key: const Key('precioListaOferta'),
@@ -250,6 +253,19 @@ class _Precios extends StatelessWidget {
                   ),
                 ],
               ),
+              if (o.iva > 0) ...[
+                const SizedBox(height: 6),
+                _RenglonIva(
+                  clave: const Key('subtotalOferta'),
+                  etiqueta: 'Precio de tu mueble',
+                  valor: dinero(o.subtotal),
+                ),
+                _RenglonIva(
+                  clave: const Key('ivaOferta'),
+                  etiqueta: 'IVA (${o.ivaPct.round()}%)',
+                  valor: dinero(o.iva),
+                ),
+              ],
               const SizedBox(height: 6),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
@@ -276,10 +292,40 @@ class _Precios extends StatelessWidget {
                 'Pagando en efectivo o por transferencia.',
                 style: TextStyle(fontSize: 12, color: Color(0xFF065F46)),
               ),
+              if (o.eligeFactura)
+                Text(
+                  'Precios con factura. Si no la necesitas, al adquirir puedes quitar el IVA.',
+                  key: const Key('avisoFacturaOferta'),
+                  style: const TextStyle(fontSize: 12, color: Color(0xFF065F46)),
+                ),
             ],
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Renglón del desglose de IVA dentro del recuadro de contado.
+class _RenglonIva extends StatelessWidget {
+  const _RenglonIva({required this.clave, required this.etiqueta, required this.valor});
+
+  final Key clave;
+  final String etiqueta;
+  final String valor;
+
+  @override
+  Widget build(BuildContext context) {
+    const estilo = TextStyle(fontSize: 13, color: Color(0xFF065F46));
+    return Padding(
+      key: clave,
+      padding: const EdgeInsets.only(top: 2),
+      child: Row(
+        children: [
+          Expanded(child: Text(etiqueta, style: estilo)),
+          Text(valor, style: estilo),
+        ],
+      ),
     );
   }
 }
