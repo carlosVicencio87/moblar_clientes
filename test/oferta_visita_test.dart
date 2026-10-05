@@ -31,12 +31,12 @@ void main() {
     'anticipoTarjeta': 4144.21,
     'precioTarjeta': 10360.51,
     'opcionesTarjeta': [
-      {'meses': 1, 'total': 10360.51, 'mensualidad': 10360.51, 'anticipo': 4144.21, 'anticipoMensualidad': 4144.21},
-      {'meses': 3, 'total': 10962.54, 'mensualidad': 3654.18, 'anticipo': 4385.02, 'anticipoMensualidad': 1461.68},
-      {'meses': 6, 'total': 11397.29, 'mensualidad': 1899.55, 'anticipo': 4558.92, 'anticipoMensualidad': 759.82},
-      {'meses': 9, 'total': 11950.19, 'mensualidad': 1327.8, 'anticipo': 4780.08, 'anticipoMensualidad': 531.12},
-      {'meses': 12, 'total': 12238.57, 'mensualidad': 1019.89, 'anticipo': 4895.43, 'anticipoMensualidad': 407.96},
-      {'meses': 18, 'total': 13482.58, 'mensualidad': 749.04, 'anticipo': 5393.04, 'anticipoMensualidad': 299.62},
+      {'meses': 1, 'total': 10360.51, 'mensualidad': 10360.51, 'cobro': 4144.21, 'liquida': false},
+      {'meses': 3, 'total': 10962.54, 'mensualidad': 3654.18, 'cobro': 10962.54, 'liquida': true},
+      {'meses': 6, 'total': 11397.29, 'mensualidad': 1899.55, 'cobro': 11397.29, 'liquida': true},
+      {'meses': 9, 'total': 11950.19, 'mensualidad': 1327.8, 'cobro': 11950.19, 'liquida': true},
+      {'meses': 12, 'total': 12238.57, 'mensualidad': 1019.89, 'cobro': 12238.57, 'liquida': true},
+      {'meses': 18, 'total': 13482.58, 'mensualidad': 749.04, 'cobro': 13482.58, 'liquida': true},
     ],
     'transferencia': {
       'banco': 'BBVA',
@@ -245,7 +245,7 @@ void main() {
       expect(find.text(r'Saldo: $6,216.30'), findsOneWidget);
     });
 
-    testWidgets('tarjeta a 18 MSI: anticipo y precio de ese plazo', (tester) async {
+    testWidgets('tarjeta a 18 MSI: paga el mueble completo, sin anticipo ni saldo', (tester) async {
       await abrir(tester, oferta);
       await tocar(tester, const Key('adquirirOferta-cita-1'));
       await tocar(tester, const Key('anticipoTarjeta'));
@@ -255,15 +255,14 @@ void main() {
         200,
         scrollable: find.byType(Scrollable).last,
       );
-      expect(
-        find.descendant(of: find.byKey(const Key('resumenPlazo')), matching: find.text(r'18 × $299.62')),
-        findsOneWidget,
-      );
-      expect(find.text(r'Anticipo total $5,393.04'), findsOneWidget);
+      final resumen = find.byKey(const Key('resumenPlazo'));
+      expect(find.descendant(of: resumen, matching: find.text('Pagas tu mueble completo en')), findsOneWidget);
+      expect(find.descendant(of: resumen, matching: find.text(r'18 × $749.04')), findsOneWidget);
+      expect(find.textContaining('No hay anticipo ni saldo pendiente'), findsOneWidget);
       await tocar(tester, const Key('pagarConClip'));
       expect(find.text(r'Precio con tarjeta (18 MSI): $13,482.58'), findsOneWidget);
-      expect(find.text(r'Anticipo: $5,393.04 · Tarjeta, 18 MSI · pagado con Clip'), findsOneWidget);
-      expect(find.text(r'Saldo: $8,089.54'), findsOneWidget);
+      expect(find.text(r'Pagado completo: $13,482.58 · Tarjeta, 18 MSI · pagado con Clip'), findsOneWidget);
+      expect(find.text(r'Saldo: $0.00 · Liquidado'), findsOneWidget);
     });
 
     testWidgets('vencida: sin botón de adquirir', (tester) async {

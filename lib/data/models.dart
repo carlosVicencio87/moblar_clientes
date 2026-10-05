@@ -299,17 +299,20 @@ class OpcionTarjeta {
     required this.meses,
     required this.total,
     required this.mensualidad,
-    this.anticipo = 0,
-    this.anticipoMensualidad = 0,
+    this.cobro = 0,
+    this.liquida = false,
   });
 
   final int meses;
   final num total;
   final num mensualidad;
 
-  /// Anticipo (40%) de este total y, a meses, cuánto es cada mensualidad.
-  final num anticipo;
-  final num anticipoMensualidad;
+  /// Lo que se cobra al adquirir: en un solo pago, el anticipo (40%); a
+  /// meses, el total (Clip le paga el proyecto completo a Moblar).
+  final num cobro;
+
+  /// true: el cobro liquida el mueble (a meses).
+  final bool liquida;
 
   bool get unPago => meses == 1;
 
@@ -317,8 +320,8 @@ class OpcionTarjeta {
         meses: (_n(j['meses']) ?? 0).toInt(),
         total: _n(j['total']) ?? 0,
         mensualidad: _n(j['mensualidad']) ?? 0,
-        anticipo: _n(j['anticipo']) ?? 0,
-        anticipoMensualidad: _n(j['anticipoMensualidad']) ?? 0,
+        cobro: _n(j['cobro']) ?? 0,
+        liquida: j['liquida'] == true,
       );
 }
 
