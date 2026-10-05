@@ -295,11 +295,21 @@ class OfertaVisita {
 
 /// Pagar con tarjeta: un solo pago (meses = 1) o a meses sin intereses.
 class OpcionTarjeta {
-  const OpcionTarjeta({required this.meses, required this.total, required this.mensualidad});
+  const OpcionTarjeta({
+    required this.meses,
+    required this.total,
+    required this.mensualidad,
+    this.anticipo = 0,
+    this.anticipoMensualidad = 0,
+  });
 
   final int meses;
   final num total;
   final num mensualidad;
+
+  /// Anticipo (40%) de este total y, a meses, cuánto es cada mensualidad.
+  final num anticipo;
+  final num anticipoMensualidad;
 
   bool get unPago => meses == 1;
 
@@ -307,6 +317,8 @@ class OpcionTarjeta {
         meses: (_n(j['meses']) ?? 0).toInt(),
         total: _n(j['total']) ?? 0,
         mensualidad: _n(j['mensualidad']) ?? 0,
+        anticipo: _n(j['anticipo']) ?? 0,
+        anticipoMensualidad: _n(j['anticipoMensualidad']) ?? 0,
       );
 }
 

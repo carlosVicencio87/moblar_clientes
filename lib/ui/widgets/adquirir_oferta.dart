@@ -28,6 +28,8 @@ class ResultadoAnticipo {
     required this.monto,
     required this.fecha,
     this.arquitecto,
+    this.meses = 1,
+    this.totalMueble,
   });
 
   /// "efectivo" | "transferencia" | "tarjeta"
@@ -38,12 +40,18 @@ class ResultadoAnticipo {
   /// Quién confirmó con su PIN (efectivo).
   final String? arquitecto;
 
+  /// Con tarjeta: 1 = un solo pago; si no, meses sin intereses.
+  final int meses;
+
+  /// Con tarjeta: precio del mueble en el plazo elegido.
+  final num? totalMueble;
+
   bool get conTarjeta => metodo == 'tarjeta';
 
   String get metodoLegible => switch (metodo) {
         'efectivo' => 'Efectivo',
         'transferencia' => 'Transferencia',
-        _ => 'Tarjeta (Clip)',
+        _ => meses > 1 ? 'Tarjeta, $meses MSI' : 'Tarjeta, un solo pago',
       };
 }
 
@@ -176,14 +184,23 @@ class AdquirirOfertaPage extends StatelessWidget {
           _Opcion(
             clave: const Key('anticipoTarjeta'),
             icono: Icons.credit_card,
-            titulo: 'Tarjeta · ${dinero(o.anticipoTarjeta)}',
-            texto: 'Débito o crédito con Clip, en un solo pago. Aplica el precio con tarjeta '
-                '(incluye la comisión de Clip).',
+            titulo: 'Tarjeta · desde ${dinero(o.anticipoTarjeta)}',
+            texto: 'Débito o crédito con Clip: un solo pago o a meses sin intereses. '
+                'Cada plazo incluye la comisión que cobra Clip.',
             onTap: () => _abrir(
               context,
               _TarjetaClipPage(
                 oferta: o,
-                onPagado: () => registrar('tarjeta', o.anticipoTarjeta),
+                onPagado: (x) => DemoAnticipos.registrar(
+                  o.citaId,
+                  ResultadoAnticipo(
+                    metodo: 'tarjeta',
+                    monto: x.anticipo,
+                    fecha: DateTime.now(),
+                    meses: x.meses,
+                    totalMueble: x.total,
+                  ),
+                ),
               ),
             ),
           ),
@@ -314,28 +331,67 @@ class _Opcion extends StatelessWidget {
   }
 }
 
-/// Tarjeta con Clip. En la demo solo explica y simula: el link real (por
-/// cobro, con el monto exacto) se habilita cuando lo aprueben.
-class _TarjetaClipPage extends StatelessWidget {
+/// Tarjeta con Clip: se despliegan el pago único y nuestros MSI, cada uno con
+/// su precio (Clip cobra menos comisión entre menos meses) y su anticipo. En la
+/// demo solo simula: el link real (por cobro, con el monto exacto) se habilita
+/// cuando lo aprueben.
+class _TarjetaClipPage extends StatefulWidget {
   const _TarjetaClipPage({required this.oferta, required this.onPagado});
 
   final OfertaVisita oferta;
-  final VoidCallback onPagado;
+  final void Function(OpcionTarjeta opcion) onPagado;
+
+  @override
+  State<_TarjetaClipPage> createState() => _TarjetaClipPageState();
+}
+
+class _TarjetaClipPageState extends State<_TarjetaClipPage> {
+  late final List<OpcionTarjeta> _opciones = widget.oferta.opcionesTarjeta.isNotEmpty
+      ? widget.oferta.opcionesTarjeta
+      : [
+          // Servidor viejo sin plazos: solo el pago único.
+          OpcionTarjeta(
+            meses: 1,
+            total: widget.oferta.precioTarjeta,
+            mensualidad: widget.oferta.precioTarjeta,
+            anticipo: widget.oferta.anticipoTarjeta,
+            anticipoMensualidad: widget.oferta.anticipoTarjeta,
+          ),
+        ];
+  late OpcionTarjeta _elegida = _opciones.first;
 
   @override
   Widget build(BuildContext context) {
-    final o = oferta;
+    final o = widget.oferta;
+    final x = _elegida;
     return Scaffold(
       appBar: AppBar(title: const Text('Anticipo con tarjeta')),
       body: ListView(
+        key: const Key('detalleTarjeta'),
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: [
           if (o.demo) ...[
             const AvisoDemo(),
             const SizedBox(height: 16),
           ],
+          const Text(
+            '¿Cómo quieres pagar?',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Entre menos meses, menor precio: cada plazo incluye la comisión que cobra Clip.',
+            style: TextStyle(fontSize: 12, color: MoblarColors.textMuted),
+          ),
+          const SizedBox(height: 10),
+          for (final op in _opciones) _FilaPlazo(
+            opcion: op,
+            elegida: identical(op, _elegida),
+            onTap: () => setState(() => _elegida = op),
+          ),
+          const SizedBox(height: 12),
           Card(
-            key: const Key('detalleTarjeta'),
+            key: const Key('resumenPlazo'),
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -343,27 +399,29 @@ class _TarjetaClipPage extends StatelessWidget {
                 children: [
                   const Text('Pagarás tu anticipo de', style: TextStyle(color: MoblarColors.textMuted)),
                   Text(
-                    dinero(o.anticipoTarjeta),
+                    x.meses > 1 ? '${x.meses} × ${dinero(x.anticipoMensualidad)}' : dinero(x.anticipo),
                     style: const TextStyle(
-                      fontSize: 30,
+                      fontSize: 28,
                       height: 1.1,
                       fontWeight: FontWeight.w700,
                       color: MoblarColors.primaryDark,
                     ),
                   ),
+                  if (x.meses > 1)
+                    Text(
+                      'Anticipo total ${dinero(x.anticipo)}',
+                      style: const TextStyle(color: MoblarColors.textSecondary),
+                    ),
                   const SizedBox(height: 10),
+                  Dato(
+                    icono: Icons.sell_outlined,
+                    texto: 'Precio de tu mueble con esta forma de pago: ${dinero(x.total)}. '
+                        'De contado pagarías ${dinero(o.precioContado)}.',
+                  ),
                   const Dato(
                     icono: Icons.lock_outline,
-                    texto: 'En la página segura de Clip, con tarjeta de débito o crédito.',
-                  ),
-                  const Dato(
-                    icono: Icons.looks_one_outlined,
-                    texto: 'El anticipo se paga en una sola exhibición.',
-                  ),
-                  Dato(
-                    icono: Icons.info_outline,
-                    texto: 'Con tarjeta aplica el precio con tarjeta (${dinero(o.precioTarjeta)}), '
-                        'que incluye la comisión de Clip. De contado pagarías ${dinero(o.precioContado)}.',
+                    texto: 'En la página segura de Clip, con tarjeta de débito o crédito '
+                        '(los meses sin intereses, solo con crédito).',
                   ),
                 ],
               ),
@@ -373,7 +431,7 @@ class _TarjetaClipPage extends StatelessWidget {
           FilledButton.icon(
             key: const Key('pagarConClip'),
             onPressed: () {
-              onPagado();
+              widget.onPagado(_elegida);
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text('Demostración: aquí se abriría el pago seguro de Clip.'),
@@ -390,6 +448,70 @@ class _TarjetaClipPage extends StatelessWidget {
   }
 }
 
+class _FilaPlazo extends StatelessWidget {
+  const _FilaPlazo({required this.opcion, required this.elegida, required this.onTap});
+
+  final OpcionTarjeta opcion;
+  final bool elegida;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final x = opcion;
+    return Card(
+      key: Key('opcionAnticipo-${x.meses}'),
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: elegida ? MoblarColors.primary : MoblarColors.border,
+          width: elegida ? 2 : 1,
+        ),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Row(
+            children: [
+              Icon(
+                elegida ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                color: elegida ? MoblarColors.primary : MoblarColors.textMuted,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      x.meses > 1 ? '${x.meses} meses sin intereses' : 'Un solo pago',
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    Text(
+                      'Precio del mueble ${dinero(x.total)}',
+                      style: const TextStyle(fontSize: 12, color: MoblarColors.textMuted),
+                    ),
+                  ],
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    x.meses > 1 ? '${x.meses} × ${dinero(x.anticipoMensualidad)}' : dinero(x.anticipo),
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  const Text('anticipo', style: TextStyle(fontSize: 12, color: MoblarColors.textMuted)),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Bloque "Tu compra" en la tarjeta de la oferta, ya con el anticipo.
 class ResumenCompraOferta extends StatelessWidget {
   const ResumenCompraOferta({super.key, required this.oferta, required this.resultado});
@@ -401,7 +523,7 @@ class ResumenCompraOferta extends StatelessWidget {
   Widget build(BuildContext context) {
     final o = oferta;
     final r = resultado;
-    final total = r.conTarjeta ? o.precioTarjeta : o.precioContado;
+    final total = r.conTarjeta ? (r.totalMueble ?? o.precioTarjeta) : o.precioContado;
     final estado = r.metodo == 'efectivo'
         ? 'recibido por ${r.arquitecto ?? 'tu arquitecto'}'
         : r.metodo == 'transferencia'
@@ -430,7 +552,9 @@ class ResumenCompraOferta extends StatelessWidget {
           Dato(
             icono: Icons.sell_outlined,
             texto: r.conTarjeta
-                ? 'Precio con tarjeta: ${dinero(total)}'
+                ? (r.meses > 1
+                    ? 'Precio con tarjeta (${r.meses} MSI): ${dinero(total)}'
+                    : 'Precio con tarjeta: ${dinero(total)}')
                 : 'Precio de contado: ${dinero(total)}',
           ),
           Dato(

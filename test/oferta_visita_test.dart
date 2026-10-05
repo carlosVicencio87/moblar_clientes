@@ -31,12 +31,12 @@ void main() {
     'anticipoTarjeta': 4144.21,
     'precioTarjeta': 10360.51,
     'opcionesTarjeta': [
-      {'meses': 1, 'total': 10360.51, 'mensualidad': 10360.51},
-      {'meses': 3, 'total': 10962.54, 'mensualidad': 3654.18},
-      {'meses': 6, 'total': 11397.29, 'mensualidad': 1899.55},
-      {'meses': 9, 'total': 11950.19, 'mensualidad': 1327.8},
-      {'meses': 12, 'total': 12238.57, 'mensualidad': 1019.89},
-      {'meses': 18, 'total': 13482.58, 'mensualidad': 749.04},
+      {'meses': 1, 'total': 10360.51, 'mensualidad': 10360.51, 'anticipo': 4144.21, 'anticipoMensualidad': 4144.21},
+      {'meses': 3, 'total': 10962.54, 'mensualidad': 3654.18, 'anticipo': 4385.02, 'anticipoMensualidad': 1461.68},
+      {'meses': 6, 'total': 11397.29, 'mensualidad': 1899.55, 'anticipo': 4558.92, 'anticipoMensualidad': 759.82},
+      {'meses': 9, 'total': 11950.19, 'mensualidad': 1327.8, 'anticipo': 4780.08, 'anticipoMensualidad': 531.12},
+      {'meses': 12, 'total': 12238.57, 'mensualidad': 1019.89, 'anticipo': 4895.43, 'anticipoMensualidad': 407.96},
+      {'meses': 18, 'total': 13482.58, 'mensualidad': 749.04, 'anticipo': 5393.04, 'anticipoMensualidad': 299.62},
     ],
     'transferencia': {
       'banco': 'BBVA',
@@ -225,16 +225,45 @@ void main() {
       expect(find.text(r'Anticipo: $4,000.00 · Transferencia · en revisión'), findsOneWidget);
     });
 
-    testWidgets('tarjeta: anticipo sobre el precio con tarjeta (un pago), sin abrir ningún link en la demo', (tester) async {
+    testWidgets('tarjeta: un solo pago por omisión, sin abrir ningún link en la demo', (tester) async {
       await abrir(tester, oferta);
       await tocar(tester, const Key('adquirirOferta-cita-1'));
       await tocar(tester, const Key('anticipoTarjeta'));
       expect(find.byKey(const Key('detalleTarjeta')), findsOneWidget);
-      expect(find.textContaining('incluye la comisión de Clip'), findsOneWidget);
+      // Se despliegan el pago único y nuestros MSI.
+      for (final m in [1, 3, 6, 9, 12, 18]) {
+        await tester.scrollUntilVisible(
+          find.byKey(Key('opcionAnticipo-$m')),
+          200,
+          scrollable: find.byType(Scrollable).last,
+        );
+        expect(find.byKey(Key('opcionAnticipo-$m')), findsOneWidget);
+      }
       await tocar(tester, const Key('pagarConClip'));
       expect(find.text(r'Precio con tarjeta: $10,360.51'), findsOneWidget);
-      expect(find.text(r'Anticipo: $4,144.21 · Tarjeta (Clip) · pagado con Clip'), findsOneWidget);
+      expect(find.text(r'Anticipo: $4,144.21 · Tarjeta, un solo pago · pagado con Clip'), findsOneWidget);
       expect(find.text(r'Saldo: $6,216.30'), findsOneWidget);
+    });
+
+    testWidgets('tarjeta a 18 MSI: anticipo y precio de ese plazo', (tester) async {
+      await abrir(tester, oferta);
+      await tocar(tester, const Key('adquirirOferta-cita-1'));
+      await tocar(tester, const Key('anticipoTarjeta'));
+      await tocar(tester, const Key('opcionAnticipo-18'));
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('resumenPlazo')),
+        200,
+        scrollable: find.byType(Scrollable).last,
+      );
+      expect(
+        find.descendant(of: find.byKey(const Key('resumenPlazo')), matching: find.text(r'18 × $299.62')),
+        findsOneWidget,
+      );
+      expect(find.text(r'Anticipo total $5,393.04'), findsOneWidget);
+      await tocar(tester, const Key('pagarConClip'));
+      expect(find.text(r'Precio con tarjeta (18 MSI): $13,482.58'), findsOneWidget);
+      expect(find.text(r'Anticipo: $5,393.04 · Tarjeta, 18 MSI · pagado con Clip'), findsOneWidget);
+      expect(find.text(r'Saldo: $8,089.54'), findsOneWidget);
     });
 
     testWidgets('vencida: sin botón de adquirir', (tester) async {
