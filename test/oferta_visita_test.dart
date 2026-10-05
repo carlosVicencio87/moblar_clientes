@@ -377,10 +377,19 @@ void main() {
       final casilla = find.byKey(const Key('requiereFactura'));
       expect(tester.widget<CheckboxListTile>(casilla).value, isTrue);
       expect(find.text(r'Precio de tu mueble $10,000.00 + IVA (16%) $1,600.00.'), findsOneWidget);
-      // Con factura: 11,600 → anticipo 4,640, saldo 6,960.
+      // Con factura: 11,600 → anticipo 4,640, saldo 6,960; tarjeta 12,018.24.
+      Future<void> verTarjeta(String precio) async {
+        // La lista es perezosa: bajar hasta el resumen con tarjeta y volver arriba.
+        final tarjeta = find.byKey(const Key('resumenTarjeta'));
+        await tester.scrollUntilVisible(tarjeta, 200, scrollable: find.byType(Scrollable).last);
+        expect(find.descendant(of: tarjeta, matching: find.text(precio)), findsOneWidget);
+        await tester.scrollUntilVisible(casilla, -200, scrollable: find.byType(Scrollable).last);
+        await tester.pumpAndSettle();
+      }
+
       expect(find.text(r'$4,640.00'), findsOneWidget);
       expect(find.text(r'$6,960.00'), findsOneWidget);
-      expect(find.text(r'$12,018.24'), findsOneWidget);
+      await verTarjeta(r'$12,018.24');
 
       await tocar(tester, const Key('requiereFactura'));
       expect(tester.widget<CheckboxListTile>(casilla).value, isFalse);
@@ -388,8 +397,8 @@ void main() {
       // Sin factura: 10,000 → anticipo 4,000, saldo 6,000; tarjeta 10,360.56.
       expect(find.text(r'$4,000.00'), findsOneWidget);
       expect(find.text(r'$6,000.00'), findsOneWidget);
-      expect(find.text(r'$10,360.56'), findsOneWidget);
       expect(find.text(r'$4,640.00'), findsNothing);
+      await verTarjeta(r'$10,360.56');
     });
 
     testWidgets('sin factura y en efectivo: la compra queda sin IVA', (tester) async {
