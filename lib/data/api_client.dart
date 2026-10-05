@@ -61,6 +61,13 @@ class ClienteApi {
 
   static const _timeout = Duration(seconds: 20);
 
+  /// Ruta de un archivo público del ERP ("/tonos/oporto-mini.webp") → URL
+  /// completa. Las URL que ya traen esquema se dejan igual.
+  String recurso(String ruta) {
+    if (ruta.startsWith('http://') || ruta.startsWith('https://')) return ruta;
+    return '$_base${ruta.startsWith('/') ? '' : '/'}$ruta';
+  }
+
   Map<String, String> _headers({String? token, bool json = false}) => {
         'Accept': 'application/json',
         if (json) 'Content-Type': 'application/json',

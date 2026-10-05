@@ -256,11 +256,20 @@ class PagarVisitaPage extends StatelessWidget {
               clave: const Key('metodoTransferencia'),
               icono: Icons.account_balance_outlined,
               titulo: 'Transferencia',
-              texto: 'Te damos los datos y subes tu comprobante.',
+              texto: 'A la cuenta de tu arquitecto: te damos sus datos y subes tu comprobante.',
               onTap: () => _abrir(
                 context,
                 TransferenciaVisitaPage(cita: cita, pago: pago, datos: pago.transferencia!),
               ),
+            )
+          else if (pago.transferenciaAlLlegar)
+            // La visita se transfiere a la cuenta propia del arquitecto; sus
+            // datos aparecen cuando llega y escanea el QR.
+            const _MetodoPendiente(
+              clave: Key('metodoTransferenciaAlLlegar'),
+              icono: Icons.account_balance_outlined,
+              titulo: 'Transferencia',
+              texto: 'A la cuenta de tu arquitecto. Sus datos aparecerán aquí cuando llegue y escanee el QR.',
             ),
           if (pago.aceptaEfectivo)
             _OpcionMetodo(
@@ -271,6 +280,60 @@ class PagarVisitaPage extends StatelessWidget {
               onTap: () => _abrir(context, EfectivoVisitaPage(cita: cita, pago: pago)),
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// Forma de pago que todavía no se puede usar (se muestra, sin tocar).
+class _MetodoPendiente extends StatelessWidget {
+  const _MetodoPendiente({
+    required this.clave,
+    required this.icono,
+    required this.titulo,
+    required this.texto,
+  });
+
+  final Key clave;
+  final IconData icono;
+  final String titulo;
+  final String texto;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      key: clave,
+      color: MoblarColors.surfaceSubtle,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 22,
+              backgroundColor: MoblarColors.border,
+              child: Icon(icono, color: MoblarColors.textMuted),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    titulo,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: MoblarColors.textMuted,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(texto, style: const TextStyle(color: MoblarColors.textSecondary)),
+                ],
+              ),
+            ),
+            const Icon(Icons.qr_code_2, color: MoblarColors.textMuted),
+          ],
+        ),
       ),
     );
   }
@@ -331,7 +394,8 @@ class _OpcionMetodo extends StatelessWidget {
 // Transferencia
 // ---------------------------------------------------------------------------
 
-class TransferenciaVisitaPage extends StatefulWidget {
+/// Transferencia de la visita: la pantalla genérica con el registro de la demo.
+class TransferenciaVisitaPage extends StatelessWidget {
   const TransferenciaVisitaPage({
     super.key,
     required this.cita,
@@ -344,10 +408,47 @@ class TransferenciaVisitaPage extends StatefulWidget {
   final DatosTransferencia datos;
 
   @override
-  State<TransferenciaVisitaPage> createState() => _TransferenciaVisitaPageState();
+  Widget build(BuildContext context) => TransferenciaPagoPage(
+        monto: pago.monto,
+        datos: datos,
+        demo: pago.demo,
+        paraQue: 'de tu visita',
+        onEnviado: (archivo) => DemoPagosVisita.registrar(
+          cita.id,
+          ResultadoPagoVisita(metodo: 'transferencia', fecha: DateTime.now(), archivo: archivo),
+        ),
+      );
 }
 
-class _TransferenciaVisitaPageState extends State<TransferenciaVisitaPage> {
+/// Pantalla de transferencia reutilizable (visita, anticipo): datos para
+/// transferir con botón de copiar y subir comprobante. Queda "En revisión".
+class TransferenciaPagoPage extends StatefulWidget {
+  const TransferenciaPagoPage({
+    super.key,
+    required this.monto,
+    required this.datos,
+    required this.demo,
+    required this.paraQue,
+    required this.onEnviado,
+    this.titulo = 'Pagar por transferencia',
+  });
+
+  final num monto;
+  final DatosTransferencia datos;
+  final bool demo;
+
+  /// "de tu visita", "del anticipo de tu mueble": completa la frase del concepto.
+  final String paraQue;
+  final String titulo;
+
+  /// Recibe el nombre del comprobante elegido.
+  final void Function(String? archivo) onEnviado;
+
+  @override
+  State<TransferenciaPagoPage> createState() => _TransferenciaPagoPageState();
+}
+
+class _TransferenciaPagoPageState extends State<TransferenciaPagoPage> {
   /// En la demo no se abre la galería: se simula el archivo elegido.
   String? _archivo;
 
@@ -356,10 +457,7 @@ class _TransferenciaVisitaPageState extends State<TransferenciaVisitaPage> {
   }
 
   void _enviar() {
-    DemoPagosVisita.registrar(
-      widget.cita.id,
-      ResultadoPagoVisita(metodo: 'transferencia', fecha: DateTime.now(), archivo: _archivo),
-    );
+    widget.onEnviado(_archivo);
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Comprobante enviado. Lo revisamos y te confirmamos.')),
     );
@@ -370,11 +468,11 @@ class _TransferenciaVisitaPageState extends State<TransferenciaVisitaPage> {
   Widget build(BuildContext context) {
     final d = widget.datos;
     return Scaffold(
-      appBar: AppBar(title: const Text('Pagar por transferencia')),
+      appBar: AppBar(title: Text(widget.titulo)),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: [
-          if (widget.pago.demo) ...[
+          if (widget.demo) ...[
             const AvisoDemo(),
             const SizedBox(height: 16),
           ],
@@ -398,7 +496,7 @@ class _TransferenciaVisitaPageState extends State<TransferenciaVisitaPage> {
                       ),
                     ),
                   const SizedBox(height: 8),
-                  _DatoCopiable(etiqueta: 'Monto', valor: dinero(widget.pago.monto), copiar: widget.pago.monto.toStringAsFixed(2)),
+                  _DatoCopiable(etiqueta: 'Monto', valor: dinero(widget.monto), copiar: widget.monto.toStringAsFixed(2)),
                   _DatoCopiable(etiqueta: 'Banco', valor: d.banco),
                   _DatoCopiable(etiqueta: 'Beneficiario', valor: d.beneficiario),
                   _DatoCopiable(
@@ -414,9 +512,9 @@ class _TransferenciaVisitaPageState extends State<TransferenciaVisitaPage> {
                     destacado: true,
                   ),
                   const SizedBox(height: 8),
-                  const Text(
-                    'Escribe el concepto tal cual: así sabemos que el pago es de tu visita.',
-                    style: TextStyle(fontSize: 12, color: MoblarColors.textMuted),
+                  Text(
+                    'Escribe el concepto tal cual: así sabemos que el pago es ${widget.paraQue}.',
+                    style: const TextStyle(fontSize: 12, color: MoblarColors.textMuted),
                   ),
                 ],
               ),
@@ -552,23 +650,54 @@ class _DatoCopiable extends StatelessWidget {
 // Efectivo: el arquitecto confirma con su PIN personal
 // ---------------------------------------------------------------------------
 
-class EfectivoVisitaPage extends StatefulWidget {
+/// Efectivo de la visita: la pantalla genérica con el registro de la demo.
+class EfectivoVisitaPage extends StatelessWidget {
   const EfectivoVisitaPage({super.key, required this.cita, required this.pago});
 
   final Cita cita;
   final PagoVisita pago;
 
   @override
-  State<EfectivoVisitaPage> createState() => _EfectivoVisitaPageState();
+  Widget build(BuildContext context) => EfectivoPinPage(
+        monto: pago.monto,
+        arquitecto: cita.arquitecto,
+        demo: pago.demo,
+        onConfirmado: () => DemoPagosVisita.registrar(
+          cita.id,
+          ResultadoPagoVisita(metodo: 'efectivo', fecha: DateTime.now(), arquitecto: cita.arquitecto),
+        ),
+      );
 }
 
-class _EfectivoVisitaPageState extends State<EfectivoVisitaPage> {
+/// Pantalla de efectivo reutilizable (visita, anticipo): el cliente entrega el
+/// dinero y el arquitecto escribe SU PIN personal en esta pantalla.
+class EfectivoPinPage extends StatefulWidget {
+  const EfectivoPinPage({
+    super.key,
+    required this.monto,
+    required this.arquitecto,
+    required this.demo,
+    required this.onConfirmado,
+    this.titulo = 'Pagar en efectivo',
+  });
+
+  final num monto;
+  final String? arquitecto;
+  final bool demo;
+  final String titulo;
+  final VoidCallback onConfirmado;
+
+  @override
+  State<EfectivoPinPage> createState() => _EfectivoPinPageState();
+}
+
+class _EfectivoPinPageState extends State<EfectivoPinPage> {
   /// false: instrucciones para el cliente. true: teclado para el arquitecto.
   bool _turnoArquitecto = false;
   String _pin = '';
   String? _error;
 
-  String get _arquitecto => widget.cita.arquitecto ?? 'tu arquitecto';
+  String get _arquitecto => widget.arquitecto ?? 'tu arquitecto';
 
   void _tecla(String d) {
     if (_pin.length >= largoPin) return;
@@ -594,10 +723,7 @@ class _EfectivoVisitaPageState extends State<EfectivoVisitaPage> {
       });
       return;
     }
-    DemoPagosVisita.registrar(
-      widget.cita.id,
-      ResultadoPagoVisita(metodo: 'efectivo', fecha: DateTime.now(), arquitecto: widget.cita.arquitecto),
-    );
+    widget.onConfirmado();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Pago en efectivo confirmado por $_arquitecto.')),
     );
@@ -607,11 +733,11 @@ class _EfectivoVisitaPageState extends State<EfectivoVisitaPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Pagar en efectivo')),
+      appBar: AppBar(title: Text(widget.titulo)),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: [
-          if (widget.pago.demo) ...[
+          if (widget.demo) ...[
             const AvisoDemo(),
             const SizedBox(height: 16),
           ],
@@ -630,7 +756,7 @@ class _EfectivoVisitaPageState extends State<EfectivoVisitaPage> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  'Entrega ${dinero(widget.pago.monto)} a $_arquitecto',
+                  'Entrega ${dinero(widget.monto)} a $_arquitecto',
                   style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 10),
@@ -667,7 +793,7 @@ class _EfectivoVisitaPageState extends State<EfectivoVisitaPage> {
         ),
         const SizedBox(height: 4),
         Text(
-          'Confirma que recibiste ${dinero(widget.pago.monto)} en efectivo',
+          'Confirma que recibiste ${dinero(widget.monto)} en efectivo',
           textAlign: TextAlign.center,
           style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
         ),

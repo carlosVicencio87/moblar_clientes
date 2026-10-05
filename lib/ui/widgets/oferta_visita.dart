@@ -6,6 +6,7 @@ import '../../util/formato.dart';
 import 'comunes.dart';
 import 'contacto.dart';
 import 'detalle_mueble.dart' show ampliarImagen;
+import 'adquirir_oferta.dart';
 import 'pago_visita.dart' show AvisoDemo;
 
 // ---------------------------------------------------------------------------
@@ -34,9 +35,16 @@ class TarjetaOfertaVisita extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return ValueListenableBuilder<Map<String, ResultadoAnticipo>>(
+      valueListenable: DemoAnticipos.resultados,
+      builder: (context, anticipos, _) => _tarjeta(context, anticipos[oferta.citaId]),
+    );
+  }
+
+  Widget _tarjeta(BuildContext context, ResultadoAnticipo? adquirida) {
     final o = oferta;
     final hasta = parseFecha(o.vigenteHasta);
-    final vencida = !o.vigente;
+    final vencida = !o.vigente && adquirida == null;
     final imagen = o.imagenDiseno;
     final visita = parseFecha(o.fechaVisita);
     return Card(
@@ -49,13 +57,19 @@ class TarjetaOfertaVisita extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
             child: MarcaEncabezado(
               marca: o.marca,
-              trailing: vencida
+              trailing: adquirida != null
                   ? const EstadoChip(
-                      texto: 'Vencida',
-                      color: Color(0xFF991B1B),
-                      fondo: Color(0xFFFEE2E2),
+                      texto: 'Adquirida',
+                      color: Color(0xFF065F46),
+                      fondo: Color(0xFFD1FAE5),
                     )
-                  : null,
+                  : vencida
+                      ? const EstadoChip(
+                          texto: 'Vencida',
+                          color: Color(0xFF991B1B),
+                          fondo: Color(0xFFFEE2E2),
+                        )
+                      : null,
             ),
           ),
           if (o.demo)
@@ -116,7 +130,21 @@ class TarjetaOfertaVisita extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 _Precios(oferta: o),
-                if (hasta != null)
+                if (adquirida != null) ...[
+                  const SizedBox(height: 12),
+                  ResumenCompraOferta(oferta: o, resultado: adquirida),
+                ] else if (o.adquirible) ...[
+                  const SizedBox(height: 12),
+                  FilledButton.icon(
+                    key: Key('adquirirOferta-${o.citaId}'),
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(builder: (_) => AdquirirOfertaPage(oferta: o)),
+                    ),
+                    icon: const Icon(Icons.shopping_bag_outlined),
+                    label: const Text('Adquirir esta cotización'),
+                  ),
+                ],
+                if (hasta != null && adquirida == null)
                   Dato(
                     icono: vencida ? Icons.event_busy_outlined : Icons.event_available_outlined,
                     texto: vencida
@@ -189,6 +217,10 @@ class _Precios extends StatelessWidget {
           key: const Key('mensualidadOferta'),
           style: const TextStyle(color: MoblarColors.textSecondary),
         ),
+        if (o.opcionesTarjeta.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          _OpcionesTarjeta(opciones: o.opcionesTarjeta),
+        ],
         const SizedBox(height: 12),
         Container(
           key: const Key('contadoOferta'),
@@ -248,6 +280,66 @@ class _Precios extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Con tarjeta: un solo pago y cada plazo con su total. Clip cobra menos
+/// comisión entre menos meses, así que cada plazo tiene su propio precio.
+class _OpcionesTarjeta extends StatelessWidget {
+  const _OpcionesTarjeta({required this.opciones});
+
+  final List<OpcionTarjeta> opciones;
+
+  @override
+  Widget build(BuildContext context) {
+    return Theme(
+      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+      child: ExpansionTile(
+        key: const Key('opcionesTarjeta'),
+        tilePadding: EdgeInsets.zero,
+        childrenPadding: const EdgeInsets.only(bottom: 4),
+        leading: const Icon(Icons.credit_card, color: MoblarColors.primary),
+        title: const Text(
+          'Opciones con tarjeta',
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+        ),
+        subtitle: const Text(
+          'Entre menos meses, menor precio.',
+          style: TextStyle(fontSize: 12, color: MoblarColors.textMuted),
+        ),
+        children: [
+          for (final x in opciones)
+            Padding(
+              key: Key('opcionTarjeta-${x.meses}'),
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      x.unPago ? 'Un solo pago' : '${x.meses} meses sin intereses',
+                      style: const TextStyle(color: MoblarColors.textPrimary),
+                    ),
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        x.unPago ? dinero(x.total) : '${x.meses} × ${dinero(x.mensualidad)}',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      if (!x.unPago)
+                        Text(
+                          'Total ${dinero(x.total)}',
+                          style: const TextStyle(fontSize: 12, color: MoblarColors.textMuted),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

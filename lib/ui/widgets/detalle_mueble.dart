@@ -187,6 +187,8 @@ class _Tonos extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final conFotos = tonos.where((t) => t.tieneFotos).toList();
+    final sinFotos = tonos.where((t) => !t.tieneFotos).toList();
     return Card(
       key: const Key('tonosMueble'),
       child: Padding(
@@ -195,43 +197,207 @@ class _Tonos extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const _Titulo('Tonos'),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final t in tonos)
-                  Container(
-                    padding: const EdgeInsets.fromLTRB(6, 6, 12, 6),
-                    decoration: BoxDecoration(
-                      color: MoblarColors.surfaceSubtle,
-                      borderRadius: BorderRadius.circular(999),
-                      border: Border.all(color: MoblarColors.border),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 22,
-                          height: 22,
-                          decoration: BoxDecoration(
-                            color: colorDeHex(t.hex) ?? MoblarColors.primaryTint,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: MoblarColors.border),
-                          ),
-                          child: colorDeHex(t.hex) == null
-                              ? const Icon(Icons.palette_outlined, size: 14, color: MoblarColors.primaryDark)
-                              : null,
-                        ),
-                        const SizedBox(width: 8),
-                        Flexible(child: Text(t.nombre, style: const TextStyle(fontSize: 13))),
-                      ],
-                    ),
-                  ),
-              ],
+            if (conFotos.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              const Text(
+                'Toca un tono para verlo en grande.',
+                style: TextStyle(fontSize: 12, color: MoblarColors.textMuted),
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [for (final t in conFotos) _MuestraTono(tono: t)],
+              ),
+            ],
+            if (sinFotos.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [for (final t in sinFotos) _ChipTono(tono: t)],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Miniatura (300×300) con el nombre debajo; abre la galería.
+class _MuestraTono extends StatelessWidget {
+  const _MuestraTono({required this.tono});
+
+  final Tono tono;
+
+  @override
+  Widget build(BuildContext context) {
+    final api = AppScope.read(context).api;
+    final t = tono;
+    final fotos = [for (final r in (t.galeria.isNotEmpty ? t.galeria : [t.miniatura!])) api.recurso(r)];
+    return SizedBox(
+      width: 88,
+      child: InkWell(
+        key: Key('muestraTono-${t.nombre}'),
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => GaleriaTonoPage(nombre: t.nombre, imagenes: fotos),
+          ),
+        ),
+        child: Column(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                width: 88,
+                height: 88,
+                color: colorDeHex(t.hex) ?? MoblarColors.surfaceSubtle,
+                child: t.miniatura == null
+                    ? null
+                    : Image.network(
+                        api.recurso(t.miniatura!),
+                        fit: BoxFit.cover,
+                        semanticLabel: 'Muestra del tono ${t.nombre}',
+                        errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                      ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              t.nombre,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 12, color: MoblarColors.textPrimary),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Tono sin fotos: el círculo de color de siempre.
+class _ChipTono extends StatelessWidget {
+  const _ChipTono({required this.tono});
+
+  final Tono tono;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = tono;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(6, 6, 12, 6),
+      decoration: BoxDecoration(
+        color: MoblarColors.surfaceSubtle,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: MoblarColors.border),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 22,
+            height: 22,
+            decoration: BoxDecoration(
+              color: colorDeHex(t.hex) ?? MoblarColors.primaryTint,
+              shape: BoxShape.circle,
+              border: Border.all(color: MoblarColors.border),
+            ),
+            child: colorDeHex(t.hex) == null
+                ? const Icon(Icons.palette_outlined, size: 14, color: MoblarColors.primaryDark)
+                : null,
+          ),
+          const SizedBox(width: 8),
+          Flexible(child: Text(t.nombre, style: const TextStyle(fontSize: 13))),
+        ],
+      ),
+    );
+  }
+}
+
+/// Galería a pantalla completa de un tono (1600×1200), con zoom y deslizar.
+class GaleriaTonoPage extends StatefulWidget {
+  const GaleriaTonoPage({super.key, required this.nombre, required this.imagenes});
+
+  final String nombre;
+
+  /// URL completas.
+  final List<String> imagenes;
+
+  @override
+  State<GaleriaTonoPage> createState() => _GaleriaTonoPageState();
+}
+
+class _GaleriaTonoPageState extends State<GaleriaTonoPage> {
+  int _actual = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final n = widget.imagenes.length;
+    return Scaffold(
+      key: const Key('galeriaTono'),
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        title: Text(widget.nombre),
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: PageView.builder(
+              itemCount: n,
+              onPageChanged: (i) => setState(() => _actual = i),
+              itemBuilder: (_, i) => InteractiveViewer(
+                maxScale: 5,
+                child: Center(
+                  child: Image.network(
+                    widget.imagenes[i],
+                    fit: BoxFit.contain,
+                    semanticLabel: '${widget.nombre}, foto ${i + 1} de $n',
+                    loadingBuilder: (_, hijo, progreso) => progreso == null
+                        ? hijo
+                        : const CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    errorBuilder: (_, _, _) => const Text(
+                      'No pudimos cargar la imagen.',
+                      style: TextStyle(color: Colors.white70),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          if (n > 1)
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  for (var i = 0; i < n; i++)
+                    Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: i == _actual ? Colors.white : Colors.white38,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(24, 12, 24, 24),
+            child: Text(
+              'Foto de referencia: el tono real puede variar un poco con la luz y la pantalla.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 12, color: Colors.white70),
+            ),
+          ),
+        ],
       ),
     );
   }

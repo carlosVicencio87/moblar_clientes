@@ -155,4 +155,26 @@ void main() {
     await tocar(tester, const Key('reiniciarDemoVisita'));
     expect(find.text('Pendiente'), findsOneWidget);
   });
+
+  testWidgets('antes de llegar el arquitecto: transferencia a su cuenta hasta el QR', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2340);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    final antes = PagoVisita.fromJson({...json, 'transferencia': null, 'transferenciaAlLlegar': true});
+    expect(antes.aceptaTransferencia, isFalse);
+    expect(antes.transferenciaAlLlegar, isTrue);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ListView(children: [TarjetaPagoVisita(cita: cita, pago: antes)]),
+        ),
+      ),
+    );
+    await tocar(tester, const Key('pagarVisita'));
+    expect(find.byKey(const Key('metodoTransferencia')), findsNothing);
+    expect(find.byKey(const Key('metodoTransferenciaAlLlegar')), findsOneWidget);
+    expect(find.textContaining('cuando llegue y escanee el QR'), findsOneWidget);
+    // El efectivo sigue disponible.
+    expect(find.byKey(const Key('metodoEfectivo')), findsOneWidget);
+  });
 }

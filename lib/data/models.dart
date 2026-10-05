@@ -139,6 +139,7 @@ class PagoVisita {
     required this.promesaRegistrada,
     required this.metodos,
     this.transferencia,
+    this.transferenciaAlLlegar = false,
   });
 
   /// Modo demostración: nada se guarda todavía.
@@ -153,7 +154,13 @@ class PagoVisita {
 
   /// "transferencia" | "efectivo" (los que el servidor permite).
   final List<String> metodos;
+
+  /// Cuenta PROPIA del arquitecto (la visita se le paga a él). Llega cuando el
+  /// arquitecto ya está en sitio (escaneó el QR).
   final DatosTransferencia? transferencia;
+
+  /// Todavía no llega: la transferencia se habilita al escanear el QR.
+  final bool transferenciaAlLlegar;
 
   bool get aceptaTransferencia => metodos.contains('transferencia') && transferencia != null;
   bool get aceptaEfectivo => metodos.contains('efectivo');
@@ -169,6 +176,7 @@ class PagoVisita {
         transferencia: j['transferencia'] is Map<String, dynamic>
             ? DatosTransferencia.fromJson(j['transferencia'] as Map<String, dynamic>)
             : null,
+        transferenciaAlLlegar: j['transferenciaAlLlegar'] == true,
       );
 }
 
@@ -182,6 +190,12 @@ class OfertaVisita {
     this.fechaVisita = '',
     this.muebles = const [],
     this.marca = Marca.moblar,
+    this.anticipoPct = 0,
+    this.anticipoContado = 0,
+    this.anticipoTarjeta = 0,
+    this.precioTarjeta = 0,
+    this.opcionesTarjeta = const [],
+    this.transferencia,
     required this.demo,
     required this.precioLista,
     required this.mensualidad,
@@ -204,6 +218,23 @@ class OfertaVisita {
   final String fechaVisita;
   final List<String> muebles;
   final Marca marca;
+
+  /// Anticipo para iniciar el proyecto (40%): de contado y con tarjeta.
+  final num anticipoPct;
+  final num anticipoContado;
+
+  /// Con tarjeta en un solo pago (sobre [precioTarjeta]).
+  final num anticipoTarjeta;
+
+  /// Con tarjeta en un solo pago: solo la comisión base de Clip.
+  final num precioTarjeta;
+
+  /// Un solo pago y cada plazo de MSI con su propio total (Clip cobra menos
+  /// comisión entre menos meses).
+  final List<OpcionTarjeta> opcionesTarjeta;
+
+  /// Datos para transferir el anticipo (concepto ANTICIPO-…).
+  final DatosTransferencia? transferencia;
   final bool demo;
   final num precioLista;
   final num mensualidad;
@@ -223,6 +254,9 @@ class OfertaVisita {
   /// Solo se muestra si el servidor mandó los tres precios.
   bool get completa => precioLista > 0 && precioContado > 0 && meses > 0;
 
+  /// Se puede adquirir desde la app: vigente y con el anticipo calculado.
+  bool get adquirible => vigente && anticipoContado > 0 && anticipoTarjeta > 0 && precioTarjeta > 0;
+
   factory OfertaVisita.fromJson(Map<String, dynamic> j) => OfertaVisita(
         citaId: _s(j['citaId']),
         fechaVisita: _s(j['fechaVisita']),
@@ -230,6 +264,17 @@ class OfertaVisita {
             ? (j['muebles'] as List).whereType<String>().toList()
             : const [],
         marca: Marca.fromJson(_mapa(j['marca'])),
+        anticipoPct: _n(j['anticipoPct']) ?? 0,
+        anticipoContado: _n(j['anticipoContado']) ?? 0,
+        anticipoTarjeta: _n(j['anticipoTarjeta']) ?? 0,
+        precioTarjeta: _n(j['precioTarjeta']) ?? 0,
+        opcionesTarjeta: _lista(j['opcionesTarjeta'])
+            .map(OpcionTarjeta.fromJson)
+            .where((x) => x.meses > 0 && x.total > 0)
+            .toList(),
+        transferencia: j['transferencia'] is Map<String, dynamic>
+            ? DatosTransferencia.fromJson(j['transferencia'] as Map<String, dynamic>)
+            : null,
         demo: j['demo'] == true,
         precioLista: _n(j['precioLista']) ?? 0,
         mensualidad: _n(j['mensualidad']) ?? 0,
@@ -245,6 +290,23 @@ class OfertaVisita {
         incluye: j['incluye'] is List
             ? (j['incluye'] as List).whereType<String>().where((t) => t.trim().isNotEmpty).toList()
             : const [],
+      );
+}
+
+/// Pagar con tarjeta: un solo pago (meses = 1) o a meses sin intereses.
+class OpcionTarjeta {
+  const OpcionTarjeta({required this.meses, required this.total, required this.mensualidad});
+
+  final int meses;
+  final num total;
+  final num mensualidad;
+
+  bool get unPago => meses == 1;
+
+  factory OpcionTarjeta.fromJson(Map<String, dynamic> j) => OpcionTarjeta(
+        meses: (_n(j['meses']) ?? 0).toInt(),
+        total: _n(j['total']) ?? 0,
+        mensualidad: _n(j['mensualidad']) ?? 0,
       );
 }
 
@@ -694,15 +756,29 @@ class Inicio {
 // ---------------------------------------------------------------------------
 
 class Tono {
-  const Tono({required this.nombre, this.hex});
+  const Tono({required this.nombre, this.hex, this.miniatura, this.galeria = const []});
 
   final String nombre;
 
   /// "#RRGGBB" o null si el catálogo no trae muestra.
   final String? hex;
 
-  factory Tono.fromJson(Map<String, dynamic> j) =>
-      Tono(nombre: _s(j['nombre']), hex: _sn(j['hex']));
+  /// Ruta de la foto de la muestra (300×300) en el ERP; null = solo color.
+  final String? miniatura;
+
+  /// Rutas de la galería a pantalla completa (1600×1200).
+  final List<String> galeria;
+
+  bool get tieneFotos => miniatura != null || galeria.isNotEmpty;
+
+  factory Tono.fromJson(Map<String, dynamic> j) => Tono(
+        nombre: _s(j['nombre']),
+        hex: _sn(j['hex']),
+        miniatura: _sn(j['miniatura']),
+        galeria: j['galeria'] is List
+            ? (j['galeria'] as List).whereType<String>().where((t) => t.trim().isNotEmpty).toList()
+            : const [],
+      );
 }
 
 class PiezaPedido {
