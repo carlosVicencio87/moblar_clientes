@@ -9,6 +9,7 @@ import 'widgets/avatar_arquitecto.dart';
 import 'widgets/comunes.dart';
 import 'widgets/contacto.dart';
 import 'widgets/estrellas.dart';
+import 'widgets/llegada_qr.dart';
 import 'widgets/pago_visita.dart';
 
 /// Detalle de una cita: cuándo, dónde, con quién y en qué va.
@@ -45,6 +46,8 @@ class CitaDetallePage extends StatelessWidget {
                   _Avance(clave: cita.estado.clave),
                   const SizedBox(height: 16),
                 ],
+                // QR de llegada: aparece cuando el arquitecto ya está en el domicilio.
+                if (cita.estado.clave == 'en_camino') TarjetaLlegada(key: ValueKey('llegada-${cita.id}'), citaId: cita.id),
                 if (cita.pagoVisita != null) ...[
                   TarjetaPagoVisita(cita: cita, pago: cita.pagoVisita!),
                   const SizedBox(height: 16),

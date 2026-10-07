@@ -91,6 +91,18 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  /// QR de llegada del arquitecto para esta cita (ver [LlegadaCita]).
+  Future<LlegadaCita> llegada(String citaId) async {
+    final token = _token;
+    if (token == null) throw const SesionTerminada();
+    try {
+      return await api.llegada(token, citaId);
+    } on SesionTerminada catch (e) {
+      await _cerrar(aviso: e.mensaje);
+      rethrow;
+    }
+  }
+
   Future<Uri> urlPdf(String cotizacionId) async {
     final token = _token;
     if (token == null) throw const SesionTerminada();

@@ -177,6 +177,23 @@ class ClienteApi {
     return DetalleProyecto.fromJson(cuerpo);
   }
 
+  /// GET /api/cliente/citas/:id/llegada — se consulta seguido mientras el
+  /// arquitecto va en camino; nunca se guarda.
+  Future<LlegadaCita> llegada(String token, String citaId) async {
+    final r = await _enviar(() => _http.get(
+          Uri.parse('$_base/api/cliente/citas/$citaId/llegada'),
+          headers: _headers(token: token),
+        ));
+    if (r.statusCode == 401) throw const SesionTerminada();
+    final cuerpo = _cuerpo(r);
+    // 404: servidor sin la ruta todavía o cita ajena → simplemente no se muestra nada.
+    if (r.statusCode == 404) return const LlegadaCita(estado: 'no_aplica', texto: '');
+    if (r.statusCode != 200) {
+      throw ErrorServidor(_errorDe(cuerpo) ?? const ErrorServidor().mensaje);
+    }
+    return LlegadaCita.fromJson(cuerpo);
+  }
+
   Future<Uri> urlPdf(String token, String cotizacionId) async {
     final r = await _enviar(() => _http.get(
           Uri.parse('$_base/api/cliente/cotizaciones/$cotizacionId/pdf'),

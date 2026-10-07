@@ -922,3 +922,26 @@ class Comprobante {
   final Uri url;
   final bool esPdf;
 }
+
+/// QR de llegada del arquitecto (GET /api/cliente/citas/:id/llegada).
+///
+/// El QR solo existe cuando el arquitecto ya está a menos de 300 m del
+/// domicilio (lo decide el servidor). `estado`: no_aplica | esperando | listo |
+/// renovar | llego.
+class LlegadaCita {
+  const LlegadaCita({required this.estado, required this.texto, this.qr, this.codigo});
+
+  final String estado;
+  final String texto;
+  final String? qr;
+  final String? codigo;
+
+  bool get listo => estado == 'listo' && qr != null && codigo != null;
+
+  factory LlegadaCita.fromJson(Map<String, dynamic> j) => LlegadaCita(
+        estado: j['estado'] is String ? j['estado'] as String : 'no_aplica',
+        texto: j['texto'] is String ? j['texto'] as String : '',
+        qr: j['qr'] is String ? j['qr'] as String : null,
+        codigo: j['codigo'] is String ? j['codigo'] as String : null,
+      );
+}
