@@ -5,6 +5,7 @@ import '../theme.dart';
 import 'citas_tab.dart';
 import 'compras_tab.dart';
 import 'cotizaciones_tab.dart';
+import 'widgets/llegada_qr.dart';
 
 /// Pantalla principal con la barra inferior: Citas · Cotizaciones · Mi compra.
 ///
@@ -96,7 +97,9 @@ class _HomeShellState extends State<HomeShell> {
       );
     }
 
-    return Scaffold(
+    // Cuando el arquitecto llega, alerta con el QR esté donde esté el cliente.
+    return VigilanteLlegada(
+      child: Scaffold(
       appBar: AppBar(
         titleSpacing: 16,
         title: Image.asset('assets/brand/logo-moblar.png', height: 30),
@@ -135,6 +138,7 @@ class _HomeShellState extends State<HomeShell> {
                   },
               ],
             ),
+      ),
     );
   }
 }

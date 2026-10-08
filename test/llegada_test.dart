@@ -1,11 +1,13 @@
 // QR de llegada del arquitecto: la llamada al ERP y la tarjeta en la cita.
 import 'dart:convert';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:moblar_clientes/data/api_client.dart';
 import 'package:moblar_clientes/data/models.dart';
+import 'package:moblar_clientes/ui/widgets/llegada_qr.dart';
 
 http.Response _json(Object cuerpo, int status) => http.Response(
       jsonEncode(cuerpo),
@@ -62,5 +64,12 @@ void main() {
       expect(l.listo, isFalse, reason: 'sin QR ni código no se muestra un QR vacío');
       expect(LlegadaCita.fromJson(const {}).estado, 'no_aplica');
     });
+  });
+
+  testWidgets('el QR y el código se ven (código partido en 3 + 3)', (tester) async {
+    const l = LlegadaCita(estado: 'listo', texto: 'Tu arquitecto llegó.', qr: _qr, codigo: '123456');
+    await tester.pumpWidget(const MaterialApp(home: Scaffold(body: Center(child: VistaQrLlegada(llegada: l)))));
+    expect(find.byKey(const Key('qrLlegada')), findsOneWidget);
+    expect(find.text('123 456'), findsOneWidget);
   });
 }
