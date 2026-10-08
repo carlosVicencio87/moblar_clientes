@@ -10,6 +10,7 @@ import 'widgets/contacto.dart';
 import 'compra_detalle_page.dart';
 import 'widgets/detalle_mueble.dart';
 import 'widgets/oferta_visita.dart';
+import 'widgets/visita_terminada.dart' show montoVisitaDe;
 
 /// Cotizaciones del cliente con su PDF.
 class CotizacionesTab extends StatelessWidget {
@@ -36,7 +37,12 @@ class CotizacionesTab extends StatelessWidget {
           for (final o in datos.ofertasVisita)
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
-              child: TarjetaOfertaVisita(oferta: o, contacto: datos.contacto, nombre: datos.nombre),
+              child: TarjetaOfertaVisita(
+                oferta: o,
+                contacto: datos.contacto,
+                nombre: datos.nombre,
+                montoVisita: montoVisitaDe(datos, o.citaId),
+              ),
             ),
           for (final c in datos.cotizaciones)
             _TarjetaCotizacion(

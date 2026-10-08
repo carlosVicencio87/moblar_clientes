@@ -6,6 +6,7 @@ import 'citas_tab.dart';
 import 'compras_tab.dart';
 import 'cotizaciones_tab.dart';
 import 'widgets/llegada_qr.dart';
+import 'widgets/visita_terminada.dart';
 
 /// Pantalla principal con la barra inferior: Citas · Cotizaciones · Mi compra.
 ///
@@ -97,8 +98,10 @@ class _HomeShellState extends State<HomeShell> {
       );
     }
 
-    // Cuando el arquitecto llega, alerta con el QR esté donde esté el cliente.
-    return VigilanteLlegada(
+    // Cuando el arquitecto llega, alerta con el QR esté donde esté el cliente;
+    // cuando termina, la pantalla para cubrir la visita.
+    return VigilanteFinVisita(
+      child: VigilanteLlegada(
       child: Scaffold(
       appBar: AppBar(
         titleSpacing: 16,
@@ -138,6 +141,7 @@ class _HomeShellState extends State<HomeShell> {
                   },
               ],
             ),
+      ),
       ),
     );
   }

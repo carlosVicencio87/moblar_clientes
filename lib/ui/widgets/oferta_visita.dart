@@ -27,11 +27,15 @@ class TarjetaOfertaVisita extends StatelessWidget {
     required this.oferta,
     required this.contacto,
     this.nombre,
+    this.montoVisita = 0,
   });
 
   final OfertaVisita oferta;
   final Contacto contacto;
   final String? nombre;
+
+  /// Costo de la visita de la que salió la oferta (no se cobra si la adquiere).
+  final num montoVisita;
 
   @override
   Widget build(BuildContext context) {
@@ -138,7 +142,7 @@ class TarjetaOfertaVisita extends StatelessWidget {
                   FilledButton.icon(
                     key: Key('adquirirOferta-${o.citaId}'),
                     onPressed: () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(builder: (_) => AdquirirOfertaPage(oferta: o)),
+                      MaterialPageRoute<void>(builder: (_) => AdquirirOfertaPage(oferta: o, montoVisita: montoVisita)),
                     ),
                     icon: const Icon(Icons.shopping_bag_outlined),
                     label: const Text('Adquirir esta cotización'),

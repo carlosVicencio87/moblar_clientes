@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../../data/models.dart';
 import '../../theme.dart';
 import '../../util/formato.dart';
+import 'adquirir_oferta.dart' show DemoAnticipos, ResultadoAnticipo;
 import 'comunes.dart';
 
 // ---------------------------------------------------------------------------
@@ -18,6 +19,9 @@ import 'comunes.dart';
 // Todavía no hay nada en el servidor: el resultado vive solo en memoria
 // mientras la app está abierta (DemoPagosVisita) para poder mostrar el flujo
 // completo a gerencia. Cuando se apruebe, este estado lo dará /inicio.
+//
+// Si el cliente inicia su proyecto (Carlos, 2026-10-08), la visita no se
+// cobra: sin pagar → "Sin costo"; ya pagada → se abonó a su anticipo.
 // ---------------------------------------------------------------------------
 
 /// Resultado de un pago hecho en la demostración.
@@ -73,12 +77,18 @@ class TarjetaPagoVisita extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<Map<String, ResultadoPagoVisita>>(
+    return ValueListenableBuilder<Map<String, ResultadoAnticipo>>(
+      valueListenable: DemoAnticipos.resultados,
+      builder: (context, anticipos, _) => ValueListenableBuilder<Map<String, ResultadoPagoVisita>>(
       valueListenable: DemoPagosVisita.resultados,
       builder: (context, resultados, _) {
         final r = resultados[cita.id];
+        // Inició su proyecto: la visita ya no se cobra.
+        final compro = anticipos.containsKey(cita.id);
         final (chip, color, fondo) = r == null
-            ? ('Pendiente', const Color(0xFF92400E), MoblarColors.amberSoft)
+            ? (compro
+                ? ('Sin costo', const Color(0xFF065F46), const Color(0xFFD1FAE5))
+                : ('Pendiente', const Color(0xFF92400E), MoblarColors.amberSoft))
             : r.esEfectivo
                 ? ('Pagada', const Color(0xFF065F46), const Color(0xFFD1FAE5))
                 : ('En revisión', const Color(0xFF92400E), MoblarColors.amberSoft);
@@ -118,11 +128,19 @@ class TarjetaPagoVisita extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 6),
-                if (r == null) ...[
+                if (r == null && compro)
+                  const Dato(
+                    key: Key('visitaSinCosto'),
+                    icono: Icons.verified_outlined,
+                    texto: 'Tu visita no tiene costo porque iniciaste tu proyecto.',
+                  )
+                else if (r == null) ...[
                   Text(
-                    pago.promesaRegistrada
-                        ? 'Al agendar te informamos el costo de la visita. Lo pagas el día de tu visita, por transferencia o en efectivo.'
-                        : 'Se paga el día de tu visita, por transferencia o en efectivo.',
+                    cita.estado.clave == 'realizada'
+                        ? 'Si inicias tu proyecto, tu visita no tiene costo. Si no, págala por transferencia o en efectivo.'
+                        : pago.promesaRegistrada
+                            ? 'Al agendar te informamos el costo de la visita. Lo pagas el día de tu visita, por transferencia o en efectivo.'
+                            : 'Se paga el día de tu visita, por transferencia o en efectivo.',
                     key: const Key('textoPromesaVisita'),
                     style: const TextStyle(color: MoblarColors.textSecondary),
                   ),
@@ -149,9 +167,12 @@ class TarjetaPagoVisita extends StatelessWidget {
                     texto: '${capitalizar(fechaLarga(r.fecha))}, ${_hora(r.fecha)}',
                   ),
                   const SizedBox(height: 4),
-                  const Text(
-                    'Este pago se abonará a tu compra si contratas tu mueble.',
-                    style: TextStyle(fontSize: 12, color: MoblarColors.textMuted),
+                  Text(
+                    compro
+                        ? 'Este pago se abonó al anticipo de tu proyecto.'
+                        : 'Este pago se abonará a tu compra si contratas tu mueble.',
+                    key: const Key('notaAbonoVisita'),
+                    style: const TextStyle(fontSize: 12, color: MoblarColors.textMuted),
                   ),
                   if (pago.demo)
                     Align(
@@ -168,6 +189,7 @@ class TarjetaPagoVisita extends StatelessWidget {
           ),
         );
       },
+      ),
     );
   }
 }

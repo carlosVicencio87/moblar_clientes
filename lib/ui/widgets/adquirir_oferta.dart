@@ -4,7 +4,7 @@ import '../../data/models.dart';
 import '../../theme.dart';
 import '../../util/formato.dart';
 import 'comunes.dart';
-import 'pago_visita.dart' show AvisoDemo, EfectivoPinPage, TransferenciaPagoPage;
+import 'pago_visita.dart' show AvisoDemo, DemoPagosVisita, EfectivoPinPage, TransferenciaPagoPage;
 
 // ---------------------------------------------------------------------------
 // Adquirir la cotización de la visita — ESQUELETO DE DEMOSTRACIÓN
@@ -23,6 +23,13 @@ import 'pago_visita.dart' show AvisoDemo, EfectivoPinPage, TransferenciaPagoPage
 // IVA que manda el servidor. SOLO DEMO: pendiente de validar con el contador.
 // Los montos vienen del servidor (clienteOfertaVisita.ts). Nada se guarda:
 // el resultado vive en memoria (DemoAnticipos) mientras la app está abierta.
+//
+// La visita al comprar (Carlos, 2026-10-08): si el cliente inicia su
+// proyecto, la visita NO se cobra. Si ya la había pagado, ese monto se le
+// abona a lo que paga hoy (el anticipo o, a meses, el cobro completo). En
+// cualquier caso termina pagando el precio del mueble: ni más ni menos.
+// En la demo el pago de la visita vive en memoria (DemoPagosVisita), por eso
+// el abono se resta aquí; con el registro real lo calculará el servidor.
 // ---------------------------------------------------------------------------
 
 class ResultadoAnticipo {
@@ -35,7 +42,11 @@ class ResultadoAnticipo {
     this.totalMueble,
     this.liquida = false,
     this.factura = true,
+    this.abonoVisita = 0,
   });
+
+  /// Lo que ya había pagado de su visita y se abonó a este pago.
+  final num abonoVisita;
 
   /// Pidió factura (precios con IVA).
   final bool factura;
@@ -81,13 +92,43 @@ class DemoAnticipos {
   }
 }
 
+int _centavos(num x) => (x * 100).round();
+
+/// [monto] menos [abono], al centavo y nunca negativo.
+num menosAbono(num monto, num abono) {
+  final c = _centavos(monto) - _centavos(abono);
+  return c <= 0 ? 0 : c / 100;
+}
+
+/// Lo que se abona de la visita al iniciar el proyecto: su monto si ya la
+/// pagó (efectivo o transferencia); 0 si no (entonces simplemente no se cobra).
+num abonoVisita(String citaId, num montoVisita) =>
+    montoVisita > 0 && DemoPagosVisita.resultados.value.containsKey(citaId) ? montoVisita : 0;
+
+/// Una forma de pago con tarjeta con el abono de la visita ya descontado del
+/// cobro. El precio del mueble ([OpcionTarjeta.total]) no cambia.
+OpcionTarjeta conAbono(OpcionTarjeta x, num abono) {
+  if (abono <= 0) return x;
+  final cobro = menosAbono(x.cobro, abono);
+  return OpcionTarjeta(
+    meses: x.meses,
+    total: x.total,
+    mensualidad: x.liquida ? (_centavos(cobro) / x.meses).ceil() / 100 : x.mensualidad,
+    cobro: cobro,
+    liquida: x.liquida,
+  );
+}
+
 String muebleDe(OfertaVisita o) => o.muebles.isEmpty ? 'tu mueble' : o.muebles.join(', ');
 
 /// Pantalla "Inicia tu proyecto": por qué el anticipo, cuánto y cómo pagarlo.
 class AdquirirOfertaPage extends StatefulWidget {
-  const AdquirirOfertaPage({super.key, required this.oferta});
+  const AdquirirOfertaPage({super.key, required this.oferta, this.montoVisita = 0});
 
   final OfertaVisita oferta;
+
+  /// Costo de la visita de esta cita (0 si no aplica).
+  final num montoVisita;
 
   @override
   State<AdquirirOfertaPage> createState() => _AdquirirOfertaPageState();
@@ -109,6 +150,9 @@ class _AdquirirOfertaPageState extends State<AdquirirOfertaPage> {
     final factura = _factura || !base.eligeFactura;
     final o = base.variante(factura: factura);
     final pct = o.anticipoPct.round();
+    final abono = abonoVisita(o.citaId, widget.montoVisita);
+    final hoyContado = menosAbono(o.anticipoContado, abono);
+    final hoyTarjeta = menosAbono(o.anticipoTarjeta, abono);
     void registrar(String metodo, num monto, {String? arquitecto}) => DemoAnticipos.registrar(
           o.citaId,
           ResultadoAnticipo(
@@ -117,6 +161,7 @@ class _AdquirirOfertaPageState extends State<AdquirirOfertaPage> {
             fecha: DateTime.now(),
             arquitecto: arquitecto,
             factura: factura,
+            abonoVisita: abono,
           ),
         );
     return Scaffold(
@@ -146,6 +191,16 @@ class _AdquirirOfertaPageState extends State<AdquirirOfertaPage> {
                     'final. El saldo lo verás en el estado de cuenta de tu compra.',
                     style: TextStyle(color: MoblarColors.textSecondary),
                   ),
+                  if (widget.montoVisita > 0) ...[
+                    const SizedBox(height: 8),
+                    Dato(
+                      key: const Key('avisoVisitaAnticipo'),
+                      icono: Icons.home_work_outlined,
+                      texto: abono > 0
+                          ? 'Ya pagaste tu visita (${dinero(abono)}): se descuenta de lo que pagas hoy.'
+                          : 'Tu visita (${dinero(widget.montoVisita)}) no tiene costo al iniciar tu proyecto.',
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -175,6 +230,7 @@ class _AdquirirOfertaPageState extends State<AdquirirOfertaPage> {
             titulo: 'De contado (efectivo o transferencia)',
             precio: o.precioContado,
             anticipo: o.anticipoContado,
+            abono: abono,
             pct: pct,
             destacado: true,
           ),
@@ -184,6 +240,7 @@ class _AdquirirOfertaPageState extends State<AdquirirOfertaPage> {
             titulo: 'Con tarjeta, en un solo pago',
             precio: o.precioTarjeta,
             anticipo: o.anticipoTarjeta,
+            abono: abono,
             pct: pct,
           ),
           const SizedBox(height: 20),
@@ -195,16 +252,16 @@ class _AdquirirOfertaPageState extends State<AdquirirOfertaPage> {
           _Opcion(
             clave: const Key('anticipoEfectivo'),
             icono: Icons.payments_outlined,
-            titulo: 'Efectivo · ${dinero(o.anticipoContado)}',
+            titulo: 'Efectivo · ${dinero(hoyContado)}',
             texto: 'Se lo entregas a tu arquitecto y él lo confirma con su PIN en tu pantalla.',
             onTap: () => _abrir(
               context,
               EfectivoPinPage(
                 titulo: 'Anticipo en efectivo',
-                monto: o.anticipoContado,
+                monto: hoyContado,
                 arquitecto: o.arquitecto,
                 demo: o.demo,
-                onConfirmado: () => registrar('efectivo', o.anticipoContado, arquitecto: o.arquitecto),
+                onConfirmado: () => registrar('efectivo', hoyContado, arquitecto: o.arquitecto),
               ),
             ),
           ),
@@ -212,30 +269,31 @@ class _AdquirirOfertaPageState extends State<AdquirirOfertaPage> {
             _Opcion(
               clave: const Key('anticipoTransferencia'),
               icono: Icons.account_balance_outlined,
-              titulo: 'Transferencia · ${dinero(o.anticipoContado)}',
+              titulo: 'Transferencia · ${dinero(hoyContado)}',
               texto: 'Te damos los datos de la cuenta y subes tu comprobante.',
               onTap: () => _abrir(
                 context,
                 TransferenciaPagoPage(
                   titulo: 'Anticipo por transferencia',
-                  monto: o.anticipoContado,
+                  monto: hoyContado,
                   datos: o.transferencia!,
                   demo: o.demo,
                   paraQue: 'del anticipo de tu mueble',
-                  onEnviado: (_) => registrar('transferencia', o.anticipoContado),
+                  onEnviado: (_) => registrar('transferencia', hoyContado),
                 ),
               ),
             ),
           _Opcion(
             clave: const Key('anticipoTarjeta'),
             icono: Icons.credit_card,
-            titulo: 'Tarjeta · desde ${dinero(o.anticipoTarjeta)}',
+            titulo: 'Tarjeta · desde ${dinero(hoyTarjeta)}',
             texto: 'Un solo pago (anticipo) o a meses sin intereses (pagas tu mueble completo '
                 'y lo difieres). Cada plazo incluye la comisión que cobra Clip.',
             onTap: () => _abrir(
               context,
               _TarjetaClipPage(
                 oferta: o,
+                abono: abono,
                 onPagado: (x) => DemoAnticipos.registrar(
                   o.citaId,
                   ResultadoAnticipo(
@@ -246,6 +304,7 @@ class _AdquirirOfertaPageState extends State<AdquirirOfertaPage> {
                     totalMueble: x.total,
                     liquida: x.liquida,
                     factura: factura,
+                    abonoVisita: abono,
                   ),
                 ),
               ),
@@ -264,6 +323,7 @@ class _Resumen extends StatelessWidget {
     required this.precio,
     required this.anticipo,
     required this.pct,
+    this.abono = 0,
     this.destacado = false,
   });
 
@@ -271,6 +331,9 @@ class _Resumen extends StatelessWidget {
   final String titulo;
   final num precio;
   final num anticipo;
+
+  /// Visita ya pagada que se descuenta de lo que paga hoy.
+  final num abono;
   final int pct;
   final bool destacado;
 
@@ -292,7 +355,11 @@ class _Resumen extends StatelessWidget {
           Text(titulo, style: TextStyle(fontWeight: FontWeight.w600, color: color)),
           const SizedBox(height: 8),
           _Fila('Precio total', dinero(precio), color: color),
-          _Fila('Anticipo ($pct%)', dinero(anticipo), color: color, fuerte: true),
+          _Fila('Anticipo ($pct%)', dinero(anticipo), color: color, fuerte: abono <= 0),
+          if (abono > 0) ...[
+            _Fila('Ya pagaste tu visita', '−${dinero(abono)}', color: color),
+            _Fila('Pagas hoy', dinero(menosAbono(anticipo, abono)), color: color, fuerte: true),
+          ],
           _Fila('Saldo después del anticipo', dinero(precio - anticipo), color: color),
         ],
       ),
@@ -383,9 +450,12 @@ class _Opcion extends StatelessWidget {
 /// demo solo simula: el link real (por cobro, con el monto exacto) se habilita
 /// cuando lo aprueben.
 class _TarjetaClipPage extends StatefulWidget {
-  const _TarjetaClipPage({required this.oferta, required this.onPagado});
+  const _TarjetaClipPage({required this.oferta, required this.onPagado, this.abono = 0});
 
   final OfertaVisita oferta;
+
+  /// Visita ya pagada: se descuenta del cobro de cada opción.
+  final num abono;
   final void Function(OpcionTarjeta opcion) onPagado;
 
   @override
@@ -393,9 +463,9 @@ class _TarjetaClipPage extends StatefulWidget {
 }
 
 class _TarjetaClipPageState extends State<_TarjetaClipPage> {
-  late final List<OpcionTarjeta> _opciones = widget.oferta.opcionesTarjeta.isNotEmpty
-      ? widget.oferta.opcionesTarjeta
-      : [
+  late final List<OpcionTarjeta> _opciones = (widget.oferta.opcionesTarjeta.isNotEmpty
+          ? widget.oferta.opcionesTarjeta
+          : [
           // Servidor viejo sin plazos: solo el pago único.
           OpcionTarjeta(
             meses: 1,
@@ -403,7 +473,9 @@ class _TarjetaClipPageState extends State<_TarjetaClipPage> {
             mensualidad: widget.oferta.precioTarjeta,
             cobro: widget.oferta.anticipoTarjeta,
           ),
-        ];
+        ])
+      .map((x) => conAbono(x, widget.abono))
+      .toList();
   late OpcionTarjeta _elegida = _opciones.first;
 
   @override
@@ -469,6 +541,12 @@ class _TarjetaClipPageState extends State<_TarjetaClipPage> {
                     texto: 'Precio de tu mueble con esta forma de pago: ${dinero(x.total)}. '
                         'De contado pagarías ${dinero(o.precioContado)}.',
                   ),
+                  if (widget.abono > 0)
+                    Dato(
+                      key: const Key('abonoVisitaTarjeta'),
+                      icono: Icons.home_work_outlined,
+                      texto: 'Ya pagaste tu visita: se descontaron ${dinero(widget.abono)} de este cobro.',
+                    ),
                   const Dato(
                     icono: Icons.lock_outline,
                     texto: 'En la página segura de Clip, con tarjeta de débito o crédito '
@@ -619,12 +697,19 @@ class ResumenCompraOferta extends StatelessWidget {
           Dato(
             icono: Icons.payments_outlined,
             texto: r.liquida
-                ? 'Pagado completo: ${dinero(r.monto)} · ${r.metodoLegible} · $estado'
-                : 'Anticipo: ${dinero(r.monto)} · ${r.metodoLegible} · $estado',
+                ? 'Pagado completo: ${dinero(r.monto + r.abonoVisita)} · ${r.metodoLegible} · $estado'
+                : 'Anticipo: ${dinero(r.monto + r.abonoVisita)} · ${r.metodoLegible} · $estado',
           ),
+          if (r.abonoVisita > 0)
+            Dato(
+              icono: Icons.home_work_outlined,
+              texto: 'Incluye ${dinero(r.abonoVisita)} que ya habías pagado de tu visita.',
+            ),
           Dato(
             icono: Icons.account_balance_wallet_outlined,
-            texto: r.liquida ? 'Saldo: ${dinero(0)} · Liquidado' : 'Saldo: ${dinero(total - r.monto)}',
+            texto: r.liquida
+                ? 'Saldo: ${dinero(0)} · Liquidado'
+                : 'Saldo: ${dinero(menosAbono(total - r.monto, r.abonoVisita))}',
           ),
           const SizedBox(height: 10),
           FilledButton.icon(
