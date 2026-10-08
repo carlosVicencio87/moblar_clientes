@@ -17,7 +17,7 @@ import 'pago_visita.dart' show AvisoDemo;
 // la deja el arquitecto al terminar la visita y vive en la pestaña
 // Cotizaciones (decisión de Carlos, 2026-10-02). Agrega el
 // precio en el mismo orden que la pantalla del arquitecto ("Así lo verá el
-// cliente"): precio de lista, 18 MSI, descuento por contado y precio de
+// cliente"): precio de lista, 24 MSI, descuento por contado y precio de
 // contado. Los números vienen del servidor; aquí no se recalcula nada.
 // ---------------------------------------------------------------------------
 

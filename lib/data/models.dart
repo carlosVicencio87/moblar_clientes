@@ -181,7 +181,7 @@ class PagoVisita {
 }
 
 /// Oferta de la visita (clienteOfertaVisita.ts del ERP). El arquitecto captura
-/// el precio de contado; el servidor calcula el precio de lista (18 MSI en
+/// el precio de contado; el servidor calcula el precio de lista (24 MSI en
 /// Clip) con la única fórmula aprobada. Aquí solo se lee: nunca se recalcula.
 /// Es una cotización comercial temprana: va en la pestaña Cotizaciones.
 class OfertaVisita {
