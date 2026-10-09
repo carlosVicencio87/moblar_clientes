@@ -4,7 +4,7 @@ import '../data/models.dart';
 import '../state/app_scope.dart';
 import '../theme.dart';
 import '../util/formato.dart';
-import 'abono_tarjeta_page.dart';
+import 'abonar_proyecto_page.dart';
 import 'estado_cuenta.dart';
 import 'widgets/comunes.dart';
 import 'widgets/contacto.dart';
@@ -47,15 +47,22 @@ class CompraDetallePage extends StatelessWidget {
                 if (compra.cuenta != null) ...[
                   const SizedBox(height: 16),
                   EstadoCuentaCompra(cuenta: compra.cuenta!),
+                  // Solo con pago con tarjeta disponible: efectivo y transferencia de
+                  // una compra real se registran en Pagos (con aprobación de gerencia).
                   if (compra.pagoTarjeta != null && compra.cuenta!.saldo > 0) ...[
                     const SizedBox(height: 8),
                     OutlinedButton.icon(
-                      key: const Key('abonarTarjeta'),
+                      key: const Key('abonarProyecto'),
                       onPressed: () => Navigator.of(context).push(
-                        MaterialPageRoute<void>(builder: (_) => AbonoTarjetaPage(destino: DestinoAbono.compra(compra))),
+                        MaterialPageRoute<void>(
+                          builder: (_) => AbonarProyectoPage(
+                            destino: DestinoAbono.compra(compra),
+                            tarjeta: compra.pagoTarjeta != null,
+                          ),
+                        ),
                       ),
-                      icon: const Icon(Icons.credit_card),
-                      label: const Text('Abonar con tarjeta'),
+                      icon: const Icon(Icons.add_card_outlined),
+                      label: const Text('Abonar a mi proyecto'),
                     ),
                   ],
                 ],

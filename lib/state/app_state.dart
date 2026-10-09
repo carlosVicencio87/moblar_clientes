@@ -125,9 +125,16 @@ class AppState extends ChangeNotifier {
 
   // ---- Abonar con tarjeta (link de Clip) ----
 
-  /// Demostración: lo abonado con tarjeta a cada oferta adquirida (por cita),
-  /// solo en memoria, igual que el anticipo de la demo.
-  final Map<String, num> abonosDemo = {};
+  /// Demostración: abonos a cada oferta adquirida (por cita), solo en
+  /// memoria, igual que el anticipo de la demo.
+  final Map<String, List<AbonoDemo>> abonosDemo = {};
+
+  List<AbonoDemo> abonosDe(String citaId) => List.unmodifiable(abonosDemo[citaId] ?? const []);
+
+  void registrarAbonoDemo(String citaId, AbonoDemo a) {
+    abonosDemo[citaId] = [...?abonosDemo[citaId], a];
+    notifyListeners();
+  }
 
   /// Links ya cerrados en esta sesión (el aviso y el abono se cuentan una vez).
   final Set<String> _linksCerrados = {};
@@ -180,7 +187,12 @@ class AppState extends ChangeNotifier {
     if ((await pagos.leer())?.id == p.id) await pagos.borrar();
     if (!_linksCerrados.add(p.id)) return e;
     if (e.pagado) {
-      if (p.oferta) abonosDemo[p.compraId] = (abonosDemo[p.compraId] ?? 0) + p.neto;
+      if (p.oferta) {
+        abonosDemo[p.compraId] = [
+          ...?abonosDemo[p.compraId],
+          AbonoDemo(fecha: DateTime.now(), monto: p.neto, metodo: 'Tarjeta', validado: true),
+        ];
+      }
       avisoPago = e.registrado
           ? 'Recibimos tu pago de ${dinero(p.neto)} con tarjeta. Ya está en tu estado de cuenta.'
           : 'Recibimos tu pago con tarjeta: ${dinero(p.neto)} para tu mueble'

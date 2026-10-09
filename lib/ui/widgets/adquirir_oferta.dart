@@ -4,7 +4,8 @@ import '../../data/models.dart';
 import '../../state/app_scope.dart';
 import '../../theme.dart';
 import '../../util/formato.dart';
-import '../abono_tarjeta_page.dart';
+import '../abonar_proyecto_page.dart';
+import '../estado_cuenta.dart';
 import 'comunes.dart';
 import 'pago_visita.dart' show AvisoDemo, DemoPagosVisita, EfectivoPinPage, TransferenciaPagoPage;
 
@@ -658,9 +659,11 @@ class ResumenCompraOferta extends StatelessWidget {
     final o = oferta;
     final r = resultado;
     final total = r.conTarjeta ? (r.totalMueble ?? o.precioTarjeta) : o.precioContado;
-    // Demo: lo abonado con tarjeta después del anticipo (en memoria).
-    final abonado = AppScope.maybeOf(context)?.abonosDemo[o.citaId] ?? 0;
-    final saldo = r.liquida ? 0 : menosAbono(menosAbono(total - r.monto, r.abonoVisita), abonado);
+    // Demo: los abonos después del anticipo (en memoria).
+    final abonos = AppScope.maybeOf(context)?.abonosDe(o.citaId) ?? const <AbonoDemo>[];
+    final cuenta = cuentaDemo(o, r, abonos);
+    final abonado = abonos.where((a) => a.validado).fold<num>(0, (s, a) => s + a.monto);
+    final saldo = cuenta.saldo;
     final estado = r.metodo == 'efectivo'
         ? 'recibido por ${r.arquitecto ?? 'tu arquitecto'}'
         : r.metodo == 'transferencia'
@@ -712,33 +715,61 @@ class ResumenCompraOferta extends StatelessWidget {
             ),
           if (abonado > 0)
             Dato(
-              icono: Icons.credit_card,
-              texto: 'Abonado con tarjeta: ${dinero(abonado)}',
+              icono: Icons.add_card_outlined,
+              texto: 'Abonos: ${dinero(abonado)}',
             ),
           Dato(
             icono: Icons.account_balance_wallet_outlined,
             texto: r.liquida || saldo <= 0 ? 'Saldo: ${dinero(0)} · Liquidado' : 'Saldo: ${dinero(saldo)}',
           ),
-          if (o.pagoTarjeta != null && saldo > 0) ...[
+          if (o.demo && saldo > 0) ...[
             const SizedBox(height: 10),
             OutlinedButton.icon(
-              key: Key('abonarTarjetaOferta-${o.citaId}'),
+              key: Key('abonarProyectoOferta-${o.citaId}'),
               onPressed: () => Navigator.of(context).push(
                 MaterialPageRoute<void>(
-                  builder: (_) => AbonoTarjetaPage(
+                  builder: (_) => AbonarProyectoPage(
                     destino: DestinoAbono.oferta(
                       citaId: o.citaId,
                       saldo: saldo,
-                      abonoMinimo: o.pagoTarjeta!.abonoMinimo,
+                      abonoMinimo: o.pagoTarjeta?.abonoMinimo ?? 1000,
                       factura: r.factura,
                     ),
+                    tarjeta: o.pagoTarjeta != null,
+                    transferencia: o.transferencia,
+                    arquitecto: o.arquitecto,
+                    demo: true,
                   ),
                 ),
               ),
-              icon: const Icon(Icons.credit_card),
-              label: const Text('Abonar con tarjeta'),
+              icon: const Icon(Icons.add_card_outlined),
+              label: const Text('Abonar a mi proyecto'),
             ),
           ],
+          TextButton.icon(
+            key: Key('estadoCuentaOferta-${o.citaId}'),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => Scaffold(
+                  appBar: AppBar(title: const Text('Estado de cuenta')),
+                  body: ListView(
+                    padding: const EdgeInsets.all(16),
+                    children: [
+                      if (o.demo) ...[const AvisoDemo(), const SizedBox(height: 12)],
+                      // Se reconstruye al abonar (AppScope) para ver el pago al regresar.
+                      Builder(
+                        builder: (ctx) => EstadoCuentaCompra(
+                          cuenta: cuentaDemo(o, r, AppScope.maybeOf(ctx)?.abonosDe(o.citaId) ?? const []),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            icon: const Icon(Icons.account_balance_wallet_outlined),
+            label: const Text('Ver estado de cuenta'),
+          ),
           const SizedBox(height: 10),
           FilledButton.icon(
             key: Key('verCompraOferta-${o.citaId}'),
@@ -773,4 +804,55 @@ class ResumenCompraOferta extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Estado de cuenta de la DEMOSTRACIÓN para una oferta adquirida: el mismo
+/// formato que una compra real ([CuentaCompra]), armado con el anticipo y los
+/// abonos que viven en memoria. Igual que en el ERP, lo que está en revisión
+/// (transferencias) se lista pero no resta del saldo.
+CuentaCompra cuentaDemo(OfertaVisita o, ResultadoAnticipo r, List<AbonoDemo> abonos) {
+  final total = r.conTarjeta ? (r.totalMueble ?? o.precioTarjeta) : o.precioContado;
+  final conFactura = r.factura && o.subtotal > 0;
+  final subtotal = conFactura ? ((total / 1.16) * 100).round() / 100 : total;
+  final anticipoValidado = r.metodo != 'transferencia';
+  final pagos = <PagoCliente>[
+    for (final a in abonos.reversed)
+      PagoCliente(
+        fecha: a.fecha.toIso8601String(),
+        monto: a.monto,
+        concepto: 'Abono',
+        metodo: a.metodo,
+        validado: a.validado,
+      ),
+    PagoCliente(
+      fecha: r.fecha.toIso8601String(),
+      monto: r.monto + r.abonoVisita,
+      concepto: r.liquida ? 'Pago completo' : 'Anticipo',
+      metodo: r.metodoLegible,
+      validado: anticipoValidado,
+      visitaIncluida: r.abonoVisita > 0 ? r.abonoVisita : null,
+    ),
+  ];
+  num pagado = 0;
+  num enRevision = 0;
+  for (final p in pagos) {
+    if (p.validado) {
+      pagado += p.monto;
+    } else {
+      enRevision += p.monto;
+    }
+  }
+  pagado = (pagado * 100).round() / 100;
+  final saldo = r.liquida && anticipoValidado ? 0 : menosAbono(total, pagado);
+  return CuentaCompra(
+    subtotal: subtotal,
+    iva: menosAbono(total, subtotal),
+    total: total,
+    pagado: pagado,
+    enRevision: (enRevision * 100).round() / 100,
+    saldo: saldo,
+    conFactura: conFactura,
+    visitaAbonada: r.abonoVisita > 0 ? r.abonoVisita : null,
+    pagos: pagos,
+  );
 }

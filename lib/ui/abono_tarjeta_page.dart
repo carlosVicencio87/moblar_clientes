@@ -33,11 +33,17 @@ class AbonoTarjetaPage extends StatefulWidget {
   const AbonoTarjetaPage({
     super.key,
     required this.destino,
+    this.montoInicial,
+    this.liquidarInicial = false,
     this.espera = const Duration(milliseconds: 450),
     this.intervalo = const Duration(seconds: 5),
   });
 
   final DestinoAbono destino;
+
+  /// Viene de "Abonar a mi proyecto" con el monto ya escrito.
+  final int? montoInicial;
+  final bool liquidarInicial;
 
   /// Pausa tras teclear antes de pedir el desglose.
   final Duration espera;
@@ -64,6 +70,18 @@ class _AbonoTarjetaPageState extends State<AbonoTarjetaPage> {
   EstadoPagoTarjeta? _estado;
   Timer? _sondeo;
   bool _revisando = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _liquidar = widget.liquidarInicial;
+    if (widget.montoInicial != null) _monto.text = '${widget.montoInicial}';
+    if (_liquidar || widget.montoInicial != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _cotizar();
+      });
+    }
+  }
 
   num get _saldo => widget.destino.saldo;
   num get _minimo {
@@ -346,7 +364,7 @@ class _AbonoTarjetaPageState extends State<AbonoTarjetaPage> {
               ] else
                 FilledButton(
                   key: const Key('listoPago'),
-                  onPressed: () => Navigator.of(context).pop(),
+                  onPressed: () => Navigator.of(context).pop(true),
                   child: const Text('Listo'),
                 ),
             ],

@@ -11,6 +11,7 @@ import 'package:moblar_clientes/data/models.dart';
 import 'package:moblar_clientes/data/session_store.dart';
 import 'package:moblar_clientes/state/app_scope.dart';
 import 'package:moblar_clientes/state/app_state.dart';
+import 'package:moblar_clientes/ui/abonar_proyecto_page.dart';
 import 'package:moblar_clientes/ui/abono_tarjeta_page.dart';
 import 'package:moblar_clientes/ui/widgets/adquirir_oferta.dart';
 
@@ -267,12 +268,12 @@ void main() {
       await state.revisarPago(p);
       await state.revisarPago(p);
       await state.revisarPagoPendiente();
-      expect(state.abonosDemo['cita-1'], 5000);
+      expect(state.abonosDe('cita-1').map((a) => (a.monto, a.metodo, a.validado)), [(5000, 'Tarjeta', true)]);
       expect(pagos.pago, isNull);
     });
 
     testWidgets('tras adquirir: saldo con lo abonado y botón para abonar con tarjeta', (tester) async {
-      state.abonosDemo['cita-1'] = 100;
+      state.registrarAbonoDemo('cita-1', AbonoDemo(fecha: DateTime(2026, 10, 9), monto: 100, metodo: 'Tarjeta', validado: true));
       final oferta = OfertaVisita.fromJson(const {
         'citaId': 'cita-1',
         'demo': true,
@@ -300,15 +301,23 @@ void main() {
           ),
         ),
       ));
-      expect(find.text(r'Abonado con tarjeta: $100.00'), findsOneWidget);
+      expect(find.text(r'Abonos: $100.00'), findsOneWidget);
       expect(find.text(r'Saldo: $596.00'), findsOneWidget);
-      await tester.tap(find.byKey(const Key('abonarTarjetaOferta-cita-1')));
+      await tester.tap(find.byKey(const Key('abonarProyectoOferta-cita-1')));
+      await tester.pumpAndSettle();
+      expect(find.byType(AbonarProyectoPage), findsOneWidget);
+      expect(tester.widget<Text>(find.byKey(const Key('saldoProyecto'))).data, r'$596.00');
+      // Mismas formas que al adquirir; la tarjeta lleva al link con el monto ya escrito.
+      expect(find.byKey(const Key('abonoEfectivo')), findsOneWidget);
+      await tester.enterText(find.byKey(const Key('montoProyecto')), '10');
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('abonoTarjeta')));
       await tester.pumpAndSettle();
       expect(find.byType(AbonoTarjetaPage), findsOneWidget);
-      expect(tester.widget<Text>(find.byKey(const Key('saldoAbono'))).data, r'$596.00');
+      expect(find.text(r'Pagar $5,180.28 con tarjeta'), findsOneWidget); // desglose del servidor falso
     });
 
-    testWidgets('sin Clip (pagoTarjeta null) no hay botón', (tester) async {
+    testWidgets('sin Clip (pagoTarjeta null): abonar sin la opción de tarjeta', (tester) async {
       final oferta = OfertaVisita.fromJson(const {
         'citaId': 'cita-1',
         'demo': true,
@@ -330,7 +339,77 @@ void main() {
         ),
       ));
       expect(find.text(r'Saldo: $696.00'), findsOneWidget);
-      expect(find.byKey(const Key('abonarTarjetaOferta-cita-1')), findsNothing);
+      await tester.tap(find.byKey(const Key('abonarProyectoOferta-cita-1')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('abonoEfectivo')), findsOneWidget);
+      expect(find.byKey(const Key('abonoTarjeta')), findsNothing);
+    });
+
+    test('estado de cuenta de la demo: transferencias en revisión no restan', () {
+      final o = OfertaVisita.fromJson(const {
+        'citaId': 'cita-1', 'demo': true, 'precioContado': 1160, 'precioLista': 1784.54, 'mensualidad': 74.36,
+        'meses': 24, 'descuento': 624.54, 'descuentoPct': 35, 'emitida': 'x', 'vigenteHasta': 'y',
+      });
+      final r = ResultadoAnticipo(metodo: 'efectivo', monto: 464, fecha: DateTime(2026, 10, 9));
+      final c = cuentaDemo(o, r, [
+        AbonoDemo(fecha: DateTime(2026, 10, 10), monto: 100, metodo: 'Efectivo', validado: true),
+        AbonoDemo(fecha: DateTime(2026, 10, 11), monto: 50, metodo: 'Transferencia', validado: false),
+      ]);
+      expect(c.total, 1160);
+      expect(c.pagado, 564);
+      expect(c.enRevision, 50);
+      expect(c.saldo, 596);
+      expect(c.pagos.map((p) => p.concepto), ['Abono', 'Abono', 'Anticipo']);
+      final t = cuentaDemo(o, ResultadoAnticipo(metodo: 'transferencia', monto: 464, fecha: DateTime(2026, 10, 9)), const []);
+      expect(t.saldo, 1160);
+      expect(t.enRevision, 464);
+    });
+
+    testWidgets('abono en efectivo con el PIN del arquitecto: queda registrado y validado', (tester) async {
+      tester.view.physicalSize = const Size(1080, 4000);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(AppScope(
+        state: state,
+        child: const MaterialApp(
+          home: AbonarProyectoPage(
+            destino: ofertaDestino,
+            arquitecto: 'Ana López',
+            demo: true,
+          ),
+        ),
+      ));
+      await tester.enterText(find.byKey(const Key('montoProyecto')), '100');
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('abonoEfectivo')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('turnoArquitecto')));
+      await tester.pumpAndSettle();
+      for (final d in ['4', '8', '2', '7']) {
+        await tester.tap(find.byKey(Key('pin-$d')));
+        await tester.pumpAndSettle();
+      }
+      await tester.tap(find.byKey(const Key('pinConfirmar')));
+      await tester.pumpAndSettle();
+      expect(state.abonosDe('cita-1').map((a) => (a.monto, a.metodo, a.validado)), [(100, 'Efectivo', true)]);
+      expect(find.byType(AbonarProyectoPage), findsNothing);
+    });
+
+    testWidgets('más que el saldo: aviso y formas de pago desactivadas', (tester) async {
+      tester.view.physicalSize = const Size(1080, 4000);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(AppScope(
+        state: state,
+        child: const MaterialApp(home: AbonarProyectoPage(destino: ofertaDestino, demo: true)),
+      ));
+      await tester.enterText(find.byKey(const Key('montoProyecto')), '700');
+      await tester.pump();
+      expect(find.textContaining('no puedes abonar más'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('abonoEfectivo')));
+      await tester.pumpAndSettle();
+      expect(state.abonosDe('cita-1'), isEmpty);
+      expect(find.byType(AbonarProyectoPage), findsOneWidget);
     });
   });
 }

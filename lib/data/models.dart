@@ -1126,3 +1126,25 @@ class DestinoAbono {
   /// Solo oferta: la variante que eligió al adquirir.
   final bool factura;
 }
+
+/// Demostración: un abono hecho desde la app a la oferta ya adquirida (solo
+/// en memoria, igual que el anticipo de la demo).
+class AbonoDemo {
+  const AbonoDemo({
+    required this.fecha,
+    required this.monto,
+    required this.metodo,
+    required this.validado,
+  });
+
+  final DateTime fecha;
+
+  /// Lo que se aplica al saldo (sin la comisión de la tarjeta).
+  final num monto;
+
+  /// "Efectivo" | "Transferencia" | "Tarjeta"
+  final String metodo;
+
+  /// false = transferencia en revisión (no resta del saldo hasta validarla).
+  final bool validado;
+}
