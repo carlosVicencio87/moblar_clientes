@@ -220,18 +220,20 @@ class ClienteApi {
   /// desglose; sin él, el servidor genera el link de Clip.
   Future<Map<String, dynamic>> _pagoTarjeta(
     String token,
-    String compraId, {
+    String ruta, {
     num? monto,
     required bool liquidar,
     required bool cotizar,
+    Map<String, Object> extra = const {},
   }) async {
     final r = await _enviar(() => _http.post(
-          Uri.parse('$_base/api/cliente/proyectos/$compraId/pago-tarjeta'),
+          Uri.parse('$_base/api/cliente/$ruta/pago-tarjeta'),
           headers: _headers(token: token, json: true),
           body: jsonEncode({
             'monto': ?monto,
             'liquidar': liquidar,
             'cotizar': cotizar,
+            ...extra,
           }),
         ));
     if (r.statusCode == 401) throw const SesionTerminada();
@@ -248,13 +250,50 @@ class ClienteApi {
 
   Future<CotizacionAbono> cotizarAbono(String token, String compraId, {num? monto, bool liquidar = false}) async =>
       CotizacionAbono.fromJson(
-        await _pagoTarjeta(token, compraId, monto: monto, liquidar: liquidar, cotizar: true),
+        await _pagoTarjeta(token, 'proyectos/$compraId', monto: monto, liquidar: liquidar, cotizar: true),
       );
 
-  Future<LinkPagoTarjeta> crearPagoTarjeta(String token, String compraId, {num? monto, bool liquidar = false}) async {
-    final l = LinkPagoTarjeta.fromJson(
-      await _pagoTarjeta(token, compraId, monto: monto, liquidar: liquidar, cotizar: false),
-    );
+  Future<LinkPagoTarjeta> crearPagoTarjeta(String token, String compraId, {num? monto, bool liquidar = false}) =>
+      _link(_pagoTarjeta(token, 'proyectos/$compraId', monto: monto, liquidar: liquidar, cotizar: false));
+
+  /// Demostración: abono a la oferta de la visita ya adquirida (la compra aún
+  /// no existe en el ERP). Manda el saldo que ve la app; el servidor lo topa.
+  Future<CotizacionAbono> cotizarAbonoOferta(
+    String token,
+    String citaId, {
+    required num saldo,
+    required bool factura,
+    num? monto,
+    bool liquidar = false,
+  }) async =>
+      CotizacionAbono.fromJson(await _pagoTarjeta(
+        token,
+        'citas/$citaId',
+        monto: monto,
+        liquidar: liquidar,
+        cotizar: true,
+        extra: {'saldo': saldo, 'factura': factura},
+      ));
+
+  Future<LinkPagoTarjeta> crearPagoTarjetaOferta(
+    String token,
+    String citaId, {
+    required num saldo,
+    required bool factura,
+    num? monto,
+    bool liquidar = false,
+  }) =>
+      _link(_pagoTarjeta(
+        token,
+        'citas/$citaId',
+        monto: monto,
+        liquidar: liquidar,
+        cotizar: false,
+        extra: {'saldo': saldo, 'factura': factura},
+      ));
+
+  Future<LinkPagoTarjeta> _link(Future<Map<String, dynamic>> respuesta) async {
+    final l = LinkPagoTarjeta.fromJson(await respuesta);
     if (l.id.isEmpty || !l.url.startsWith('https://') || l.ticket.isEmpty) {
       throw const ErrorServidor('No pudimos generar tu pago. Intenta de nuevo.');
     }

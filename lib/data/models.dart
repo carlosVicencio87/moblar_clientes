@@ -214,7 +214,11 @@ class OfertaVisita {
     this.imagenDiseno,
     this.arquitecto,
     this.incluye = const [],
+    this.pagoTarjeta,
   });
+
+  /// Abonar con tarjeta después de adquirirla (solo demostración); null = no.
+  final PagoTarjetaConfig? pagoTarjeta;
 
   /// Cita de la que salió (id de appointments).
   final String citaId;
@@ -339,6 +343,9 @@ class OfertaVisita {
         incluye: j['incluye'] is List
             ? (j['incluye'] as List).whereType<String>().where((t) => t.trim().isNotEmpty).toList()
             : const [],
+        pagoTarjeta: j['pagoTarjeta'] is Map<String, dynamic>
+            ? PagoTarjetaConfig.fromJson(j['pagoTarjeta'] as Map<String, dynamic>)
+            : null,
       );
 }
 
@@ -1053,13 +1060,19 @@ class PagoPendiente {
     required this.compraId,
     required this.neto,
     required this.cobro,
+    this.oferta = false,
   });
 
   final String id;
   final String ticket;
+
+  /// Compra (projects.id) o, con [oferta], la cita de la oferta de la demo.
   final String compraId;
   final num neto;
   final num cobro;
+
+  /// Abono a la oferta de la demostración (no a una compra del ERP).
+  final bool oferta;
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -1067,6 +1080,7 @@ class PagoPendiente {
         'compraId': compraId,
         'neto': neto,
         'cobro': cobro,
+        'oferta': oferta,
       };
 
   /// null si el guardado está incompleto.
@@ -1080,6 +1094,35 @@ class PagoPendiente {
       compraId: _s(j['compraId']),
       neto: _n(j['neto']) ?? 0,
       cobro: _n(j['cobro']) ?? 0,
+      oferta: j['oferta'] == true,
     );
   }
+}
+
+/// A qué se abona con tarjeta: una compra del ERP o (demostración) la oferta
+/// de la visita ya adquirida.
+class DestinoAbono {
+  DestinoAbono.compra(Compra c)
+      : id = c.id,
+        oferta = false,
+        saldo = c.cuenta?.saldo ?? 0,
+        abonoMinimo = c.pagoTarjeta?.abonoMinimo ?? 1000,
+        factura = true;
+
+  const DestinoAbono.oferta({
+    required String citaId,
+    required this.saldo,
+    required this.abonoMinimo,
+    required this.factura,
+  })  : id = citaId,
+        oferta = true;
+
+  /// projects.id (compra) o appointments.id (oferta).
+  final String id;
+  final bool oferta;
+  final num saldo;
+  final num abonoMinimo;
+
+  /// Solo oferta: la variante que eligió al adquirir.
+  final bool factura;
 }

@@ -12,6 +12,7 @@ import 'package:moblar_clientes/data/session_store.dart';
 import 'package:moblar_clientes/state/app_scope.dart';
 import 'package:moblar_clientes/state/app_state.dart';
 import 'package:moblar_clientes/ui/abono_tarjeta_page.dart';
+import 'package:moblar_clientes/ui/widgets/adquirir_oferta.dart';
 
 import 'fixtures/inicio_fixture.dart';
 
@@ -32,12 +33,14 @@ class _Servidor {
   late final client = MockClient((r) async {
     if (r.headers['Authorization'] != 'Bearer tok-1') return _json({}, 401);
     if (r.url.path == '/api/cliente/inicio') return http.Response.bytes(utf8.encode(inicioJson), 200);
-    if (r.url.path == '/api/cliente/proyectos/compra-1/pago-tarjeta') {
+    if (r.url.path == '/api/cliente/proyectos/compra-1/pago-tarjeta' ||
+        r.url.path == '/api/cliente/citas/cita-1/pago-tarjeta') {
       final b = jsonDecode(r.body) as Map<String, dynamic>;
-      pedidos.add(b);
+      pedidos.add({...b, 'ruta': r.url.path});
       final liquidar = b['liquidar'] == true;
       final monto = (b['monto'] as num?) ?? 0;
-      if (!liquidar && monto < 1000) return _json({'error': r'El abono mínimo con tarjeta es $1,000.00.'}, 422);
+      final minimo = r.url.path.contains('/citas/') ? 10 : 1000;
+      if (!liquidar && monto < minimo) return _json({'error': r'El abono mínimo con tarjeta es $1,000.00.'}, 422);
       final d = liquidar
           ? {'neto': 6000, 'cobro': 6216.33, 'comision': 216.33, 'liquida': true, 'saldo': 6000}
           : {'neto': 5000, 'cobro': 5180.28, 'comision': 180.28, 'liquida': false, 'saldo': 6000};
@@ -56,6 +59,12 @@ void main() {
   late _Servidor servidor;
   late MemoryPagoPendienteStore pagos;
   late AppState state;
+  final compraDestino = DestinoAbono.compra(Compra.fromJson(const {
+    'id': 'compra-1',
+    'cuenta': {'subtotal': 10000, 'iva': 0, 'total': 10000, 'pagado': 4000, 'enRevision': 0, 'saldo': 6000, 'conFactura': false},
+    'pagoTarjeta': {'abonoMinimo': 1000},
+  }));
+  const ofertaDestino = DestinoAbono.oferta(citaId: 'cita-1', saldo: 696, abonoMinimo: 10, factura: true);
 
   setUp(() async {
     servidor = _Servidor();
@@ -70,23 +79,28 @@ void main() {
 
   group('llamadas', () {
     test('cotizar: desglose del servidor, sin crear link', () async {
-      final c = await state.cotizarAbono('compra-1', monto: 5000);
+      final c = await state.cotizarAbono(compraDestino, monto: 5000);
       expect(c.neto, 5000);
       expect(c.cobro, 5180.28);
       expect(c.comision, 180.28);
-      expect(servidor.pedidos.last, {'monto': 5000, 'liquidar': false, 'cotizar': true});
+      expect(servidor.pedidos.last, {
+        'monto': 5000,
+        'liquidar': false,
+        'cotizar': true,
+        'ruta': '/api/cliente/proyectos/compra-1/pago-tarjeta',
+      });
       expect(pagos.pago, isNull);
     });
 
     test('monto fuera de regla: AbonoInvalido con el motivo del servidor', () async {
       await expectLater(
-        state.cotizarAbono('compra-1', monto: 500),
+        state.cotizarAbono(compraDestino, monto: 500),
         throwsA(isA<AbonoInvalido>().having((e) => e.mensaje, 'mensaje', contains('mínimo'))),
       );
     });
 
     test('crear: guarda el pago pendiente antes de abrir Clip', () async {
-      final l = await state.crearPagoTarjeta('compra-1', monto: 5000);
+      final l = await state.crearPagoTarjeta(compraDestino, monto: 5000);
       expect(l.url, startsWith('https://completa-tu-pago.payclip.com/'));
       expect(pagos.pago?.id, _link);
       expect(pagos.pago?.neto, 5000);
@@ -95,7 +109,7 @@ void main() {
   });
 
   group('revisar el pago al regresar de Clip', () {
-    setUp(() async => state.crearPagoTarjeta('compra-1', monto: 5000));
+    setUp(() async => state.crearPagoTarjeta(compraDestino, monto: 5000));
 
     test('pendiente: se conserva y no hay aviso', () async {
       final e = await state.revisarPagoPendiente();
@@ -155,7 +169,7 @@ void main() {
     test('pago pendiente incompleto no se usa', () {
       expect(PagoPendiente.fromJson(const {'id': 'a'}), isNull);
       final p = PagoPendiente.fromJson(const {'id': 'a', 'ticket': 't', 'compraId': 'c', 'neto': 1, 'cobro': 2});
-      expect(p?.toJson(), {'id': 'a', 'ticket': 't', 'compraId': 'c', 'neto': 1, 'cobro': 2});
+      expect(p?.toJson(), {'id': 'a', 'ticket': 't', 'compraId': 'c', 'neto': 1, 'cobro': 2, 'oferta': false});
     });
   });
 
@@ -174,7 +188,13 @@ void main() {
       addTearDown(tester.view.reset);
       await tester.pumpWidget(AppScope(
         state: state,
-        child: MaterialApp(home: AbonoTarjetaPage(compra: compra, espera: Duration.zero, intervalo: const Duration(hours: 1))),
+        child: MaterialApp(
+          home: AbonoTarjetaPage(
+            destino: DestinoAbono.compra(compra),
+            espera: Duration.zero,
+            intervalo: const Duration(hours: 1),
+          ),
+        ),
       ));
       await tester.pumpAndSettle();
     }
@@ -223,6 +243,94 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('¡Pago recibido!'), findsOneWidget);
       expect(pagos.pago, isNull);
+    });
+  });
+
+  group('oferta de la demostración', () {
+    test('cotiza en la ruta de la cita con el saldo y la variante', () async {
+      await state.cotizarAbono(ofertaDestino, monto: 10);
+      expect(servidor.pedidos.last, {
+        'monto': 10,
+        'liquidar': false,
+        'cotizar': true,
+        'saldo': 696,
+        'factura': true,
+        'ruta': '/api/cliente/citas/cita-1/pago-tarjeta',
+      });
+    });
+
+    test('pagado: se suma al abono de la demo una sola vez', () async {
+      final l = await state.crearPagoTarjeta(ofertaDestino, monto: 5000);
+      expect(pagos.pago?.oferta, isTrue);
+      final p = PagoPendiente(id: l.id, ticket: l.ticket, compraId: 'cita-1', neto: 5000, cobro: 5180.28, oferta: true);
+      servidor.estado = 'pagado';
+      await state.revisarPago(p);
+      await state.revisarPago(p);
+      await state.revisarPagoPendiente();
+      expect(state.abonosDemo['cita-1'], 5000);
+      expect(pagos.pago, isNull);
+    });
+
+    testWidgets('tras adquirir: saldo con lo abonado y botón para abonar con tarjeta', (tester) async {
+      state.abonosDemo['cita-1'] = 100;
+      final oferta = OfertaVisita.fromJson(const {
+        'citaId': 'cita-1',
+        'demo': true,
+        'precioContado': 1160,
+        'precioLista': 1784.54,
+        'mensualidad': 74.36,
+        'meses': 24,
+        'descuento': 624.54,
+        'descuentoPct': 35,
+        'emitida': '2026-10-09T16:00:00Z',
+        'vigenteHasta': '2026-10-24T16:00:00Z',
+        'pagoTarjeta': {'abonoMinimo': 10},
+      });
+      tester.view.physicalSize = const Size(1080, 4000);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(AppScope(
+        state: state,
+        child: MaterialApp(
+          home: Scaffold(
+            body: ResumenCompraOferta(
+              oferta: oferta,
+              resultado: ResultadoAnticipo(metodo: 'efectivo', monto: 464, fecha: DateTime(2026, 10, 9)),
+            ),
+          ),
+        ),
+      ));
+      expect(find.text(r'Abonado con tarjeta: $100.00'), findsOneWidget);
+      expect(find.text(r'Saldo: $596.00'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('abonarTarjetaOferta-cita-1')));
+      await tester.pumpAndSettle();
+      expect(find.byType(AbonoTarjetaPage), findsOneWidget);
+      expect(tester.widget<Text>(find.byKey(const Key('saldoAbono'))).data, r'$596.00');
+    });
+
+    testWidgets('sin Clip (pagoTarjeta null) no hay botón', (tester) async {
+      final oferta = OfertaVisita.fromJson(const {
+        'citaId': 'cita-1',
+        'demo': true,
+        'precioContado': 1160,
+        'precioLista': 1784.54,
+        'mensualidad': 74.36,
+        'meses': 24,
+        'descuento': 624.54,
+        'descuentoPct': 35,
+        'emitida': '2026-10-09T16:00:00Z',
+        'vigenteHasta': '2026-10-24T16:00:00Z',
+      });
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: ResumenCompraOferta(
+            oferta: oferta,
+            resultado: ResultadoAnticipo(metodo: 'efectivo', monto: 464, fecha: DateTime(2026, 10, 9)),
+          ),
+        ),
+      ));
+      expect(find.text(r'Saldo: $696.00'), findsOneWidget);
+      expect(find.byKey(const Key('abonarTarjetaOferta-cita-1')), findsNothing);
     });
   });
 }

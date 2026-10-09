@@ -125,29 +125,48 @@ class AppState extends ChangeNotifier {
 
   // ---- Abonar con tarjeta (link de Clip) ----
 
-  Future<CotizacionAbono> cotizarAbono(String compraId, {num? monto, bool liquidar = false}) =>
-      _conToken((t) => api.cotizarAbono(t, compraId, monto: monto, liquidar: liquidar));
+  /// Demostración: lo abonado con tarjeta a cada oferta adquirida (por cita),
+  /// solo en memoria, igual que el anticipo de la demo.
+  final Map<String, num> abonosDemo = {};
+
+  /// Links ya cerrados en esta sesión (el aviso y el abono se cuentan una vez).
+  final Set<String> _linksCerrados = {};
+
+  Future<CotizacionAbono> cotizarAbono(DestinoAbono d, {num? monto, bool liquidar = false}) =>
+      _conToken((t) => d.oferta
+          ? api.cotizarAbonoOferta(t, d.id, saldo: d.saldo, factura: d.factura, monto: monto, liquidar: liquidar)
+          : api.cotizarAbono(t, d.id, monto: monto, liquidar: liquidar));
 
   /// Genera el link y lo guarda como pendiente ANTES de abrir Clip.
-  Future<LinkPagoTarjeta> crearPagoTarjeta(String compraId, {num? monto, bool liquidar = false}) async {
-    final l = await _conToken((t) => api.crearPagoTarjeta(t, compraId, monto: monto, liquidar: liquidar));
+  Future<LinkPagoTarjeta> crearPagoTarjeta(DestinoAbono d, {num? monto, bool liquidar = false}) async {
+    final l = await _conToken((t) => d.oferta
+        ? api.crearPagoTarjetaOferta(t, d.id, saldo: d.saldo, factura: d.factura, monto: monto, liquidar: liquidar)
+        : api.crearPagoTarjeta(t, d.id, monto: monto, liquidar: liquidar));
     await pagos.guardar(PagoPendiente(
       id: l.id,
       ticket: l.ticket,
-      compraId: compraId,
+      compraId: d.id,
       neto: l.cotizacion.neto,
       cobro: l.cotizacion.cobro,
+      oferta: d.oferta,
     ));
     return l;
   }
 
-  /// Revisa el pago con tarjeta en curso. Si ya terminó (pagado, vencido o
-  /// cancelado) deja el aviso y lo olvida; si sigue pendiente, lo conserva.
-  /// Nunca lanza: un fallo de red se reintenta en la siguiente revisión.
+  /// Revisa el pago guardado como pendiente (al arrancar la app).
   Future<EstadoPagoTarjeta?> revisarPagoPendiente() async {
     final p = await pagos.leer();
+    if (p == null) return null;
+    return revisarPago(p);
+  }
+
+  /// Revisa un pago con tarjeta. Si ya terminó (pagado, vencido o cancelado)
+  /// deja el aviso, lo olvida y (en la demo) suma el abono; si sigue
+  /// pendiente, no cambia nada. Nunca lanza: un fallo de red se reintenta en
+  /// la siguiente revisión.
+  Future<EstadoPagoTarjeta?> revisarPago(PagoPendiente p) async {
     final token = _token;
-    if (p == null || token == null) return null;
+    if (token == null) return null;
     final EstadoPagoTarjeta e;
     try {
       e = await api.estadoPagoTarjeta(token, p.id, p.ticket);
@@ -158,8 +177,10 @@ class AppState extends ChangeNotifier {
       return null;
     }
     if (e.pendiente) return e;
-    await pagos.borrar();
+    if ((await pagos.leer())?.id == p.id) await pagos.borrar();
+    if (!_linksCerrados.add(p.id)) return e;
     if (e.pagado) {
+      if (p.oferta) abonosDemo[p.compraId] = (abonosDemo[p.compraId] ?? 0) + p.neto;
       avisoPago = e.registrado
           ? 'Recibimos tu pago de ${dinero(p.neto)} con tarjeta. Ya está en tu estado de cuenta.'
           : 'Recibimos tu pago con tarjeta: ${dinero(p.neto)} para tu mueble'
@@ -199,6 +220,7 @@ class AppState extends ChangeNotifier {
     datos = null;
     errorCarga = null;
     avisoPago = null;
+    abonosDemo.clear();
     this.aviso = aviso;
     await store.borrar();
     await pagos.borrar();

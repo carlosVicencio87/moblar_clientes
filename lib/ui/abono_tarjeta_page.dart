@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -19,17 +20,24 @@ import 'widgets/comunes.dart';
 // ERP genera un link de Clip con ese monto exacto y se abre la página segura
 // de Clip. Solo un pago (sin MSI): los MSI son para el precio total al
 // adquirir. Con transferencia o depósito no hay comisión, y se le recuerda.
+//
+// Sirve para una compra del ERP o, en la demostración, para la oferta de la
+// visita ya adquirida ([DestinoAbono]).
+//
+// En web, la página de Clip se abre en OTRA pestaña con un toque directo
+// ("Abrir la página de pago"): así la app no se recarga y no pierde la demo;
+// mientras tanto revisa el pago cada pocos segundos.
 // ---------------------------------------------------------------------------
 
 class AbonoTarjetaPage extends StatefulWidget {
   const AbonoTarjetaPage({
     super.key,
-    required this.compra,
+    required this.destino,
     this.espera = const Duration(milliseconds: 450),
     this.intervalo = const Duration(seconds: 5),
   });
 
-  final Compra compra;
+  final DestinoAbono destino;
 
   /// Pausa tras teclear antes de pedir el desglose.
   final Duration espera;
@@ -52,13 +60,14 @@ class _AbonoTarjetaPageState extends State<AbonoTarjetaPage> {
   Timer? _debounce;
 
   LinkPagoTarjeta? _link;
+  PagoPendiente? _pendiente;
   EstadoPagoTarjeta? _estado;
   Timer? _sondeo;
   bool _revisando = false;
 
-  num get _saldo => widget.compra.cuenta?.saldo ?? 0;
+  num get _saldo => widget.destino.saldo;
   num get _minimo {
-    final m = widget.compra.pagoTarjeta?.abonoMinimo ?? 1000;
+    final m = widget.destino.abonoMinimo;
     return m < _saldo ? m : _saldo;
   }
 
@@ -89,7 +98,7 @@ class _AbonoTarjetaPageState extends State<AbonoTarjetaPage> {
     setState(() => _cotizando = true);
     try {
       final c = await AppScope.read(context).cotizarAbono(
-        widget.compra.id,
+        widget.destino,
         monto: _liquidar ? null : monto,
         liquidar: _liquidar,
       );
@@ -118,14 +127,25 @@ class _AbonoTarjetaPageState extends State<AbonoTarjetaPage> {
     });
     try {
       final l = await AppScope.read(context).crearPagoTarjeta(
-        widget.compra.id,
+        widget.destino,
         monto: _liquidar ? null : int.tryParse(_monto.text.trim()),
         liquidar: _liquidar,
       );
       if (!mounted) return;
-      setState(() => _link = l);
+      setState(() {
+        _link = l;
+        _pendiente = PagoPendiente(
+          id: l.id,
+          ticket: l.ticket,
+          compraId: widget.destino.id,
+          neto: l.cotizacion.neto,
+          cobro: l.cotizacion.cobro,
+          oferta: widget.destino.oferta,
+        );
+      });
       _sondeo = Timer.periodic(widget.intervalo, (_) => _revisar());
-      await abrirEnlace(context, Uri.parse(l.url), trasEspera: true);
+      // En el teléfono se abre solo; en web, con el botón (pestaña nueva).
+      if (!kIsWeb) await abrirEnlace(context, Uri.parse(l.url));
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = e.mensaje);
     } finally {
@@ -137,7 +157,9 @@ class _AbonoTarjetaPageState extends State<AbonoTarjetaPage> {
     if (_revisando || !mounted) return;
     _revisando = true;
     try {
-      final e = await AppScope.read(context).revisarPagoPendiente();
+      final p = _pendiente;
+      if (p == null) return;
+      final e = await AppScope.read(context).revisarPago(p);
       if (!mounted || e == null) return;
       setState(() => _estado = e);
       if (!e.pendiente) _sondeo?.cancel();

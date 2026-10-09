@@ -52,7 +52,7 @@ class CompraDetallePage extends StatelessWidget {
                     OutlinedButton.icon(
                       key: const Key('abonarTarjeta'),
                       onPressed: () => Navigator.of(context).push(
-                        MaterialPageRoute<void>(builder: (_) => AbonoTarjetaPage(compra: compra)),
+                        MaterialPageRoute<void>(builder: (_) => AbonoTarjetaPage(destino: DestinoAbono.compra(compra))),
                       ),
                       icon: const Icon(Icons.credit_card),
                       label: const Text('Abonar con tarjeta'),

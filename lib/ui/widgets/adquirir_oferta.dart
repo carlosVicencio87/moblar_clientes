@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../../data/models.dart';
+import '../../state/app_scope.dart';
 import '../../theme.dart';
 import '../../util/formato.dart';
+import '../abono_tarjeta_page.dart';
 import 'comunes.dart';
 import 'pago_visita.dart' show AvisoDemo, DemoPagosVisita, EfectivoPinPage, TransferenciaPagoPage;
 
@@ -656,6 +658,9 @@ class ResumenCompraOferta extends StatelessWidget {
     final o = oferta;
     final r = resultado;
     final total = r.conTarjeta ? (r.totalMueble ?? o.precioTarjeta) : o.precioContado;
+    // Demo: lo abonado con tarjeta después del anticipo (en memoria).
+    final abonado = AppScope.maybeOf(context)?.abonosDemo[o.citaId] ?? 0;
+    final saldo = r.liquida ? 0 : menosAbono(menosAbono(total - r.monto, r.abonoVisita), abonado);
     final estado = r.metodo == 'efectivo'
         ? 'recibido por ${r.arquitecto ?? 'tu arquitecto'}'
         : r.metodo == 'transferencia'
@@ -705,12 +710,35 @@ class ResumenCompraOferta extends StatelessWidget {
               icono: Icons.home_work_outlined,
               texto: 'Incluye ${dinero(r.abonoVisita)} que ya habías pagado de tu visita.',
             ),
+          if (abonado > 0)
+            Dato(
+              icono: Icons.credit_card,
+              texto: 'Abonado con tarjeta: ${dinero(abonado)}',
+            ),
           Dato(
             icono: Icons.account_balance_wallet_outlined,
-            texto: r.liquida
-                ? 'Saldo: ${dinero(0)} · Liquidado'
-                : 'Saldo: ${dinero(menosAbono(total - r.monto, r.abonoVisita))}',
+            texto: r.liquida || saldo <= 0 ? 'Saldo: ${dinero(0)} · Liquidado' : 'Saldo: ${dinero(saldo)}',
           ),
+          if (o.pagoTarjeta != null && saldo > 0) ...[
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              key: Key('abonarTarjetaOferta-${o.citaId}'),
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => AbonoTarjetaPage(
+                    destino: DestinoAbono.oferta(
+                      citaId: o.citaId,
+                      saldo: saldo,
+                      abonoMinimo: o.pagoTarjeta!.abonoMinimo,
+                      factura: r.factura,
+                    ),
+                  ),
+                ),
+              ),
+              icon: const Icon(Icons.credit_card),
+              label: const Text('Abonar con tarjeta'),
+            ),
+          ],
           const SizedBox(height: 10),
           FilledButton.icon(
             key: Key('verCompraOferta-${o.citaId}'),
