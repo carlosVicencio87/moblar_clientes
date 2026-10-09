@@ -18,6 +18,10 @@ class AppScope extends InheritedNotifier<AppState> {
   static AppState? maybeOf(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<AppScope>()?.notifier;
 
+  /// Como [read], pero null si no hay [AppScope] arriba (para callbacks).
+  static AppState? maybeRead(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<AppScope>()?.notifier;
+
   static AppState read(BuildContext context) =>
       context.getInheritedWidgetOfExactType<AppScope>()!.notifier!;
 }

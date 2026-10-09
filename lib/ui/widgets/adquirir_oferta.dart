@@ -778,10 +778,9 @@ class ResumenCompraOferta extends StatelessWidget {
               builder: (ctx) => AlertDialog(
                 title: const Text('Tu compra'),
                 content: Text(
-                  'Tu compra aparecerá en «Mi compra» en cuanto validemos tu '
-                  '${r.liquida ? 'pago' : 'anticipo'}. '
-                  'Ahí verás el avance de tu mueble y tu estado de cuenta.\n\n'
-                  '(Demostración: todavía no se crea la compra.)',
+                  'Tu compra ya está en «Mi compra»: ahí verás el avance de tu '
+                  'mueble y tu estado de cuenta, y podrás abonar.\n\n'
+                  '(Demostración: no se guarda en el ERP.)',
                 ),
                 actions: [
                   TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Entendido')),
@@ -796,7 +795,10 @@ class ResumenCompraOferta extends StatelessWidget {
               alignment: Alignment.centerRight,
               child: TextButton(
                 key: Key('reiniciarAnticipo-${o.citaId}'),
-                onPressed: () => DemoAnticipos.reiniciar(o.citaId),
+                onPressed: () {
+                  DemoAnticipos.reiniciar(o.citaId);
+                  AppScope.maybeRead(context)?.borrarAbonosDemo(o.citaId);
+                },
                 child: const Text('Reiniciar demostración'),
               ),
             ),

@@ -15,8 +15,9 @@ import 'widgets/pago_visita.dart' show AvisoDemo, EfectivoPinPage, Transferencia
 //   - Efectivo: lo recibe el arquitecto y lo confirma con SU PIN.
 //   - Transferencia: datos de la cuenta de Moblar + comprobante → en revisión.
 //   - Tarjeta: link de Clip; se suma la comisión (la paga el cliente).
-// Efectivo y transferencia solo en la demostración (oferta adquirida): para
-// una compra real del ERP se registran en Pagos cuando gerencia lo apruebe.
+// Efectivo y transferencia solo en la demostración (Preview): se ven en el
+// estado de cuenta como abonos de demostración y NO se guardan en el ERP. En
+// producción se registrarán en Pagos cuando gerencia lo apruebe.
 // ---------------------------------------------------------------------------
 
 class AbonarProyectoPage extends StatefulWidget {
@@ -90,13 +91,13 @@ class _AbonarProyectoPageState extends State<AbonarProyectoPage> {
   @override
   Widget build(BuildContext context) {
     final m = _elegido;
-    final demo = widget.demo && widget.destino.oferta;
+    final demo = widget.demo;
     final efectivo = demo;
     final transferencia = demo ? widget.transferencia : null;
     return Scaffold(
       appBar: AppBar(title: const Text('Abonar a mi proyecto')),
       body: ListView(
-        key: const Key('abonarProyecto'),
+        key: const Key('paginaAbonarProyecto'),
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: [
           if (widget.demo) ...[

@@ -13,6 +13,10 @@ import 'package:moblar_clientes/state/app_scope.dart';
 import 'package:moblar_clientes/state/app_state.dart';
 import 'package:moblar_clientes/ui/abonar_proyecto_page.dart';
 import 'package:moblar_clientes/ui/abono_tarjeta_page.dart';
+import 'package:moblar_clientes/ui/compra_detalle_page.dart';
+import 'package:moblar_clientes/ui/compras_demo.dart';
+import 'package:moblar_clientes/ui/widgets/pago_visita.dart' show DemoPagosVisita, ResultadoPagoVisita;
+import 'package:moblar_clientes/ui/widgets/persistencia_demo.dart';
 import 'package:moblar_clientes/ui/widgets/adquirir_oferta.dart';
 
 import 'fixtures/inicio_fixture.dart';
@@ -27,13 +31,16 @@ http.Response _json(Object cuerpo, int status) => http.Response.bytes(
 
 /// Servidor falso con las reglas del ERP (mínimo $1,000, saldo $6,000).
 class _Servidor {
+  _Servidor({this.inicio = inicioJson});
+
+  final String inicio;
   String estado = 'pendiente';
   bool registrado = false;
   final pedidos = <Map<String, dynamic>>[];
 
   late final client = MockClient((r) async {
     if (r.headers['Authorization'] != 'Bearer tok-1') return _json({}, 401);
-    if (r.url.path == '/api/cliente/inicio') return http.Response.bytes(utf8.encode(inicioJson), 200);
+    if (r.url.path == '/api/cliente/inicio') return http.Response.bytes(utf8.encode(inicio), 200);
     if (r.url.path == '/api/cliente/proyectos/compra-1/pago-tarjeta' ||
         r.url.path == '/api/cliente/citas/cita-1/pago-tarjeta') {
       final b = jsonDecode(r.body) as Map<String, dynamic>;
@@ -410,6 +417,113 @@ void main() {
       await tester.pumpAndSettle();
       expect(state.abonosDe('cita-1'), isEmpty);
       expect(find.byType(AbonarProyectoPage), findsOneWidget);
+    });
+  });
+
+  group('demostración completa', () {
+    const ofertaJson = {
+      'citaId': 'cita-1', 'demo': true, 'muebles': ['Centro de TV'], 'precioContado': 1000, 'precioLista': 1538.4,
+      'mensualidad': 64.1, 'meses': 24, 'descuento': 538.4, 'descuentoPct': 35, 'emitida': '2026-10-09T16:00:00Z',
+      'vigenteHasta': '2026-10-24T16:00:00Z', 'anticipoPct': 40, 'anticipoContado': 400, 'anticipoTarjeta': 414.42,
+      'precioTarjeta': 1036.04, 'arquitecto': 'Ana López',
+      'transferencia': {'banco': 'BBVA', 'beneficiario': 'MOBLAR (datos de ejemplo)', 'clabe': '012180001234567891', 'concepto': 'ANTICIPO-CITA1', 'ejemplo': true},
+      'pagoTarjeta': {'abonoMinimo': 10},
+    };
+    final anticipo = ResultadoAnticipo(metodo: 'efectivo', monto: 400, fecha: DateTime(2026, 10, 9, 12), arquitecto: 'Ana López', factura: false);
+
+    setUp(() {
+      DemoAnticipos.resultados.value = const {};
+      DemoPagosVisita.resultados.value = const {};
+    });
+    tearDown(() {
+      DemoAnticipos.resultados.value = const {};
+      DemoPagosVisita.resultados.value = const {};
+    });
+
+    test('la compra de la demo: línea de tiempo en "Pedido" y estado de cuenta', () {
+      final c = compraDemo(OfertaVisita.fromJson(ofertaJson), anticipo, [
+        AbonoDemo(fecha: DateTime(2026, 10, 10), monto: 100, metodo: 'Efectivo', validado: true),
+      ]);
+      expect(c.id, 'demo-cita-1');
+      expect(c.esDemo, isTrue);
+      expect(c.mueble, 'Centro de TV');
+      expect(c.lineaTiempo.etapas.first.situacion, Situacion.actual);
+      expect(c.lineaTiempo.mensaje, contains('Recibimos tu anticipo'));
+      expect(c.cuenta?.saldo, 500);
+      expect(c.pagos.saldo, 500);
+      expect(c.abonoDemo?.arquitecto, 'Ana López');
+    });
+
+    test('compra real + abonos de demostración (solo a la vista)', () {
+      const real = CuentaCompra(subtotal: 10000, iva: 0, total: 10000, pagado: 4000, enRevision: 0, saldo: 6000, conFactura: false);
+      final c = conAbonosDemo(real, [
+        AbonoDemo(fecha: DateTime(2026, 10, 10), monto: 1000, metodo: 'Efectivo', validado: true),
+        AbonoDemo(fecha: DateTime(2026, 10, 11), monto: 500, metodo: 'Transferencia', validado: false),
+      ]);
+      expect(c.pagado, 5000);
+      expect(c.saldo, 5000);
+      expect(c.enRevision, 500);
+      expect(c.pagos.first.concepto, 'Abono (demostración)');
+      expect(identical(conAbonosDemo(real, const []), real), isTrue);
+    });
+
+    test('se guarda y se restaura (sobrevive a recargar la página)', () {
+      DemoAnticipos.registrar('cita-1', anticipo);
+      DemoPagosVisita.registrar('cita-1', ResultadoPagoVisita(metodo: 'efectivo', fecha: DateTime(2026, 10, 9), arquitecto: 'Ana López'));
+      state.registrarAbonoDemo('cita-1', AbonoDemo(fecha: DateTime(2026, 10, 10), monto: 100, metodo: 'Tarjeta', validado: true));
+      final json = demoAJson(state);
+
+      DemoAnticipos.resultados.value = const {};
+      DemoPagosVisita.resultados.value = const {};
+      state.restaurarAbonosDemo(const {});
+      restaurarDemo(json, state);
+
+      final r = DemoAnticipos.resultados.value['cita-1']!;
+      expect((r.metodo, r.monto, r.factura, r.arquitecto), ('efectivo', 400, false, 'Ana López'));
+      expect(DemoPagosVisita.resultados.value['cita-1']?.esEfectivo, isTrue);
+      expect(state.abonosDe('cita-1').single.monto, 100);
+      // Basura o versión vieja: no rompe ni borra.
+      restaurarDemo('no es json', state);
+      restaurarDemo('{"v": 99}', state);
+      expect(DemoAnticipos.resultados.value, hasLength(1));
+    });
+
+    test('cerrar sesión borra lo guardado de la demo', () async {
+      final demo = MemoryDemoStore()..json = '{}';
+      final s2 = AppState(
+        api: ClienteApi(client: servidor.client, base: 'https://ejemplo.test', bypass: ''),
+        store: MemorySessionStore()..token = 'tok-1',
+        demo: demo,
+      );
+      await s2.arrancar();
+      await s2.salir();
+      expect(demo.json, isNull);
+    });
+
+    testWidgets('el detalle de la compra de la demo: aviso, estado de cuenta y abonar con las 3 formas', (tester) async {
+      final srv = _Servidor(inicio: jsonEncode({...jsonDecode(inicioJson) as Map<String, dynamic>, 'ofertasVisita': [ofertaJson]}));
+      final s3 = AppState(
+        api: ClienteApi(client: srv.client, base: 'https://ejemplo.test', bypass: ''),
+        store: MemorySessionStore()..token = 'tok-1',
+      );
+      await s3.arrancar();
+      DemoAnticipos.registrar('cita-1', anticipo);
+      tester.view.physicalSize = const Size(1080, 6000);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(AppScope(
+        state: s3,
+        child: const MaterialApp(home: CompraDetallePage(compraId: 'demo-cita-1')),
+      ));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('avisoDemo')), findsOneWidget);
+      expect(find.byKey(const Key('estadoCuentaCompra')), findsOneWidget);
+      expect(tester.widget<Text>(find.byKey(const Key('saldoPendiente'))).data, r'$600.00');
+      await tester.tap(find.byKey(const Key('abonarProyecto')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('abonoEfectivo')), findsOneWidget);
+      expect(find.byKey(const Key('abonoTransferencia')), findsOneWidget);
+      expect(find.byKey(const Key('abonoTarjeta')), findsOneWidget);
     });
   });
 }

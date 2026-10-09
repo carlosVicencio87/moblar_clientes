@@ -251,7 +251,7 @@ void main() {
       expect(find.text(r'Saldo: $6,000.00'), findsOneWidget);
 
       await tocar(tester, const Key('verCompraOferta-cita-1'));
-      expect(find.textContaining('aparecerá en «Mi compra»'), findsOneWidget);
+      expect(find.textContaining('ya está en «Mi compra»'), findsOneWidget);
       await tester.tap(find.text('Entendido'));
       await tester.pumpAndSettle();
 

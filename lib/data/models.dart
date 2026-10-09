@@ -739,12 +739,22 @@ class Compra {
     required this.marca,
     this.cuenta,
     this.pagoTarjeta,
+    this.abonoDemo,
+    this.demoCitaId,
   });
 
   final String id;
   final String? codigo;
   final String? mueble;
   final LineaTiempo lineaTiempo;
+
+  /// Abonar en efectivo o transferencia como demostración (Preview); null = no.
+  final AbonoDemoConfig? abonoDemo;
+
+  /// Compra de la DEMOSTRACIÓN armada en la app (oferta adquirida): la cita de
+  /// la oferta. null = compra real del ERP.
+  final String? demoCitaId;
+  bool get esDemo => demoCitaId != null;
   final Instalacion? instalacion;
   final Pagos pagos;
   final Marca marca;
@@ -769,6 +779,24 @@ class Compra {
         pagoTarjeta: j['pagoTarjeta'] is Map<String, dynamic>
             ? PagoTarjetaConfig.fromJson(j['pagoTarjeta'] as Map<String, dynamic>)
             : null,
+        abonoDemo: j['abonoDemo'] is Map<String, dynamic>
+            ? AbonoDemoConfig.fromJson(j['abonoDemo'] as Map<String, dynamic>)
+            : null,
+      );
+}
+
+/// Abonos de demostración a una compra real (solo Preview).
+class AbonoDemoConfig {
+  const AbonoDemoConfig({this.transferencia, this.arquitecto});
+
+  final DatosTransferencia? transferencia;
+  final String? arquitecto;
+
+  factory AbonoDemoConfig.fromJson(Map<String, dynamic> j) => AbonoDemoConfig(
+        transferencia: j['transferencia'] is Map<String, dynamic>
+            ? DatosTransferencia.fromJson(j['transferencia'] as Map<String, dynamic>)
+            : null,
+        arquitecto: _sn(j['arquitecto']),
       );
 }
 
@@ -1147,4 +1175,19 @@ class AbonoDemo {
 
   /// false = transferencia en revisión (no resta del saldo hasta validarla).
   final bool validado;
+
+  Map<String, dynamic> toJson() => {
+        'fecha': fecha.toIso8601String(),
+        'monto': monto,
+        'metodo': metodo,
+        'validado': validado,
+      };
+
+  static AbonoDemo? fromJson(Object? v) {
+    if (v is! Map) return null;
+    final f = DateTime.tryParse('${v['fecha']}');
+    final m = v['monto'];
+    if (f == null || m is! num || v['metodo'] is! String) return null;
+    return AbonoDemo(fecha: f, monto: m, metodo: v['metodo'] as String, validado: v['validado'] == true);
+  }
 }

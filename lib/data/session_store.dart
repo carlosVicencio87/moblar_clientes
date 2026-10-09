@@ -101,3 +101,51 @@ class MemoryPagoPendienteStore implements PagoPendienteStore {
   @override
   Future<void> borrar() async => pago = null;
 }
+
+/// Estado de la demostración (anticipos, abonos y pagos de visita que no se
+/// guardan en el ERP), para que sobreviva a recargar la página. Un JSON.
+abstract class DemoStore {
+  Future<String?> leer();
+  Future<void> guardar(String json);
+  Future<void> borrar();
+}
+
+class SecureDemoStore implements DemoStore {
+  SecureDemoStore([FlutterSecureStorage? storage]) : _storage = storage ?? const FlutterSecureStorage();
+
+  final FlutterSecureStorage _storage;
+  static const _clave = 'moblar_cliente_demo';
+
+  @override
+  Future<String?> leer() async {
+    try {
+      return await _storage.read(key: _clave);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  @override
+  Future<void> guardar(String json) async {
+    try {
+      await _storage.write(key: _clave, value: json);
+    } catch (_) {}
+  }
+
+  @override
+  Future<void> borrar() async {
+    try {
+      await _storage.delete(key: _clave);
+    } catch (_) {}
+  }
+}
+
+class MemoryDemoStore implements DemoStore {
+  String? json;
+  @override
+  Future<String?> leer() async => json;
+  @override
+  Future<void> guardar(String j) async => json = j;
+  @override
+  Future<void> borrar() async => json = null;
+}

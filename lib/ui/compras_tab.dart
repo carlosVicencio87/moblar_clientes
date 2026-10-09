@@ -5,8 +5,10 @@ import '../state/app_scope.dart';
 import '../theme.dart';
 import '../util/formato.dart';
 import 'compra_detalle_page.dart';
+import 'compras_demo.dart';
 import 'estado_cuenta.dart';
 import 'widgets/comunes.dart';
+import 'widgets/adquirir_oferta.dart' show DemoAnticipos, ResultadoAnticipo;
 import 'widgets/contacto.dart';
 
 /// "Mi compra": un renglón por mueble comprado con su etapa y avance.
@@ -16,8 +18,13 @@ class ComprasTab extends StatelessWidget {
   final Inicio datos;
 
   @override
-  Widget build(BuildContext context) {
-    final compras = datos.comprasOrdenadas;
+  Widget build(BuildContext context) => ValueListenableBuilder<Map<String, ResultadoAnticipo>>(
+        valueListenable: DemoAnticipos.resultados,
+        builder: (context, _, _) => _lista(context),
+      );
+
+  Widget _lista(BuildContext context) {
+    final compras = todasLasCompras(context, datos);
     final enCurso = compras.where((c) => !c.lineaTiempo.entregado).toList();
     final entregadas = compras.where((c) => c.lineaTiempo.entregado).toList();
 
@@ -97,7 +104,7 @@ class TarjetaCompra extends StatelessWidget {
                     ),
                     if (compra.codigo != null)
                       Text(
-                        'Pedido ${compra.codigo}',
+                        compra.esDemo ? 'Demostración · no se guarda en el ERP' : 'Pedido ${compra.codigo}',
                         style: const TextStyle(color: MoblarColors.textMuted, fontSize: 12),
                       ),
                     const SizedBox(height: 12),

@@ -15,6 +15,7 @@ void main() {
     api: ClienteApi(),
     store: SecureSessionStore(),
     pagos: SecurePagoPendienteStore(),
+    demo: SecureDemoStore(),
   )..arrancar();
   runApp(MoblarClientesApp(state: state));
 }

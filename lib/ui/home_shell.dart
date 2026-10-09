@@ -4,7 +4,10 @@ import '../state/app_scope.dart';
 import '../theme.dart';
 import 'citas_tab.dart';
 import 'compras_tab.dart';
+import 'compras_demo.dart';
 import 'cotizaciones_tab.dart';
+import 'widgets/adquirir_oferta.dart' show DemoAnticipos, ResultadoAnticipo;
+import 'widgets/persistencia_demo.dart';
 import 'widgets/llegada_qr.dart';
 import 'widgets/visita_terminada.dart';
 
@@ -45,11 +48,20 @@ class _HomeShellState extends State<HomeShell> {
     if (salir == true && mounted) await AppScope.read(context).salir();
   }
 
+  // La demo (anticipo adquirido en la app) también abre "Mi compra" y se
+  // guarda en el teléfono para sobrevivir a recargar la página.
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => PersistenciaDemo(
+        child: ValueListenableBuilder<Map<String, ResultadoAnticipo>>(
+          valueListenable: DemoAnticipos.resultados,
+          builder: (context, _, _) => _pantalla(context),
+        ),
+      );
+
+  Widget _pantalla(BuildContext context) {
     final state = AppScope.of(context);
     final datos = state.datos;
-    final hayCompras = datos != null && datos.compras.isNotEmpty;
+    final hayCompras = datos != null && todasLasCompras(context, datos).isNotEmpty;
     final secciones = [
       Seccion.citas,
       Seccion.cotizaciones,

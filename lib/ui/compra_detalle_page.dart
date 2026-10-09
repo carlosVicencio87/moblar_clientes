@@ -5,8 +5,11 @@ import '../state/app_scope.dart';
 import '../theme.dart';
 import '../util/formato.dart';
 import 'abonar_proyecto_page.dart';
+import 'compras_demo.dart';
 import 'estado_cuenta.dart';
+import 'widgets/adquirir_oferta.dart' show DemoAnticipos, ResultadoAnticipo;
 import 'widgets/comunes.dart';
+import 'widgets/pago_visita.dart' show AvisoDemo;
 import 'widgets/contacto.dart';
 import 'widgets/detalle_mueble.dart';
 
@@ -20,10 +23,28 @@ class CompraDetallePage extends StatelessWidget {
   final String compraId;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => ValueListenableBuilder<Map<String, ResultadoAnticipo>>(
+        valueListenable: DemoAnticipos.resultados,
+        builder: (context, anticipos, _) => _pagina(context, anticipos),
+      );
+
+  /// A qué se abona: la compra real o (demo) la oferta adquirida.
+  static DestinoAbono _destino(Compra c, Map<String, ResultadoAnticipo> anticipos) => c.esDemo
+      ? DestinoAbono.oferta(
+          citaId: c.demoCitaId!,
+          saldo: c.cuenta?.saldo ?? 0,
+          abonoMinimo: c.pagoTarjeta?.abonoMinimo ?? 1000,
+          factura: anticipos[c.demoCitaId]?.factura ?? true,
+        )
+      : DestinoAbono.compra(c);
+
+  Widget _pagina(BuildContext context, Map<String, ResultadoAnticipo> anticipos) {
     final state = AppScope.of(context);
     final datos = state.datos;
-    final compra = datos?.compras.where((c) => c.id == compraId).firstOrNull;
+    final compra = datos == null ? null : todasLasCompras(context, datos).where((c) => c.id == compraId).firstOrNull;
+    final puedeAbonar = compra != null &&
+        (compra.pagoTarjeta != null || compra.abonoDemo != null) &&
+        (compra.cuenta?.saldo ?? 0) > 0;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Seguimiento')),
@@ -36,6 +57,10 @@ class CompraDetallePage extends StatelessWidget {
           : ListaRefrescable(
               onRefrescar: AppScope.read(context).refrescar,
               children: [
+                if (compra.esDemo || compra.abonoDemo != null) ...[
+                  const AvisoDemo(),
+                  const SizedBox(height: 12),
+                ],
                 _Encabezado(compra: compra),
                 const SizedBox(height: 16),
                 Card(
@@ -47,17 +72,21 @@ class CompraDetallePage extends StatelessWidget {
                 if (compra.cuenta != null) ...[
                   const SizedBox(height: 16),
                   EstadoCuentaCompra(cuenta: compra.cuenta!),
-                  // Solo con pago con tarjeta disponible: efectivo y transferencia de
-                  // una compra real se registran en Pagos (con aprobación de gerencia).
-                  if (compra.pagoTarjeta != null && compra.cuenta!.saldo > 0) ...[
+                  // Tarjeta (link de Clip) y, solo en la demostración, efectivo y
+                  // transferencia. En producción, efectivo y transferencia de una
+                  // compra real se registrarán en Pagos (con aprobación de gerencia).
+                  if (puedeAbonar) ...[
                     const SizedBox(height: 8),
                     OutlinedButton.icon(
                       key: const Key('abonarProyecto'),
                       onPressed: () => Navigator.of(context).push(
                         MaterialPageRoute<void>(
                           builder: (_) => AbonarProyectoPage(
-                            destino: DestinoAbono.compra(compra),
+                            destino: _destino(compra, anticipos),
                             tarjeta: compra.pagoTarjeta != null,
+                            transferencia: compra.abonoDemo?.transferencia,
+                            arquitecto: compra.abonoDemo?.arquitecto,
+                            demo: compra.abonoDemo != null,
                           ),
                         ),
                       ),
@@ -66,8 +95,11 @@ class CompraDetallePage extends StatelessWidget {
                     ),
                   ],
                 ],
-                const SizedBox(height: 16),
-                DetalleMueble(proyectoId: compra.id),
+                // La compra de la demo no existe en el ERP: no hay detalle que pedir.
+                if (!compra.esDemo) ...[
+                  const SizedBox(height: 16),
+                  DetalleMueble(proyectoId: compra.id),
+                ],
                 const SizedBox(height: 16),
                 _Ayuda(contacto: datos.contacto, compra: compra, nombre: datos.nombre),
               ],

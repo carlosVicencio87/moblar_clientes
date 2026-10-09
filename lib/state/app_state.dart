@@ -13,8 +13,12 @@ enum EstadoApp { arrancando, sinSesion, conSesion }
 /// regenerado por la operadora, pase vencido), la sesión se borra y el cliente
 /// regresa a la pantalla de ingreso con un aviso.
 class AppState extends ChangeNotifier {
-  AppState({required this.api, required this.store, PagoPendienteStore? pagos})
-      : pagos = pagos ?? MemoryPagoPendienteStore();
+  AppState({required this.api, required this.store, PagoPendienteStore? pagos, DemoStore? demo})
+      : pagos = pagos ?? MemoryPagoPendienteStore(),
+        demo = demo ?? MemoryDemoStore();
+
+  /// Estado de la demostración guardado en el teléfono (ver PersistenciaDemo).
+  final DemoStore demo;
 
   final ClienteApi api;
   final SessionStore store;
@@ -136,6 +140,18 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  void borrarAbonosDemo(String id) {
+    if (abonosDemo.remove(id) != null) notifyListeners();
+  }
+
+  /// Al arrancar: los abonos de la demo guardados en el teléfono.
+  void restaurarAbonosDemo(Map<String, List<AbonoDemo>> guardados) {
+    abonosDemo
+      ..clear()
+      ..addAll(guardados);
+    notifyListeners();
+  }
+
   /// Links ya cerrados en esta sesión (el aviso y el abono se cuentan una vez).
   final Set<String> _linksCerrados = {};
 
@@ -187,7 +203,9 @@ class AppState extends ChangeNotifier {
     if ((await pagos.leer())?.id == p.id) await pagos.borrar();
     if (!_linksCerrados.add(p.id)) return e;
     if (e.pagado) {
-      if (p.oferta) {
+      // Mientras el ERP no lo registre (fase 1), se muestra como abono de la
+      // demostración en el estado de cuenta (oferta o compra).
+      if (!e.registrado) {
         abonosDemo[p.compraId] = [
           ...?abonosDemo[p.compraId],
           AbonoDemo(fecha: DateTime.now(), monto: p.neto, metodo: 'Tarjeta', validado: true),
@@ -233,6 +251,7 @@ class AppState extends ChangeNotifier {
     errorCarga = null;
     avisoPago = null;
     abonosDemo.clear();
+    await demo.borrar();
     this.aviso = aviso;
     await store.borrar();
     await pagos.borrar();
