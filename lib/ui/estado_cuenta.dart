@@ -28,7 +28,9 @@ class EstadoCuentaCompra extends StatelessWidget {
               children: [
                 Icon(Icons.account_balance_wallet_outlined, color: MoblarColors.primary),
                 SizedBox(width: 8),
-                Text('Estado de cuenta', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                Expanded(
+                  child: Text('Estado de cuenta', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                ),
               ],
             ),
             const SizedBox(height: 12),
