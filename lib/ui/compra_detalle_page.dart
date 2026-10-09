@@ -4,6 +4,7 @@ import '../data/models.dart';
 import '../state/app_scope.dart';
 import '../theme.dart';
 import '../util/formato.dart';
+import 'abono_tarjeta_page.dart';
 import 'estado_cuenta.dart';
 import 'widgets/comunes.dart';
 import 'widgets/contacto.dart';
@@ -46,6 +47,17 @@ class CompraDetallePage extends StatelessWidget {
                 if (compra.cuenta != null) ...[
                   const SizedBox(height: 16),
                   EstadoCuentaCompra(cuenta: compra.cuenta!),
+                  if (compra.pagoTarjeta != null && compra.cuenta!.saldo > 0) ...[
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      key: const Key('abonarTarjeta'),
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(builder: (_) => AbonoTarjetaPage(compra: compra)),
+                      ),
+                      icon: const Icon(Icons.credit_card),
+                      label: const Text('Abonar con tarjeta'),
+                    ),
+                  ],
                 ],
                 const SizedBox(height: 16),
                 DetalleMueble(proyectoId: compra.id),

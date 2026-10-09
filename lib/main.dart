@@ -11,7 +11,11 @@ import 'ui/login_page.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  final state = AppState(api: ClienteApi(), store: SecureSessionStore())..arrancar();
+  final state = AppState(
+    api: ClienteApi(),
+    store: SecureSessionStore(),
+    pagos: SecurePagoPendienteStore(),
+  )..arrancar();
   runApp(MoblarClientesApp(state: state));
 }
 

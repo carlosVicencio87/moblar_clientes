@@ -38,6 +38,11 @@ class SinConexion extends ApiException {
       : super('No hay conexión. Revisa tu internet e intenta de nuevo.');
 }
 
+/// 422 al abonar con tarjeta: el monto no cumple la regla (mínimo, saldo...).
+class AbonoInvalido extends ApiException {
+  const AbonoInvalido(super.mensaje);
+}
+
 class ErrorServidor extends ApiException {
   const ErrorServidor([super.mensaje = 'No pudimos cargar tu información. Intenta de nuevo.']);
 }
@@ -209,5 +214,66 @@ class ClienteApi {
       throw ErrorServidor(_errorDe(cuerpo) ?? const ErrorServidor().mensaje);
     }
     return Uri.parse(url);
+  }
+
+  /// POST /api/cliente/proyectos/:id/pago-tarjeta — con [cotizar] solo el
+  /// desglose; sin él, el servidor genera el link de Clip.
+  Future<Map<String, dynamic>> _pagoTarjeta(
+    String token,
+    String compraId, {
+    num? monto,
+    required bool liquidar,
+    required bool cotizar,
+  }) async {
+    final r = await _enviar(() => _http.post(
+          Uri.parse('$_base/api/cliente/proyectos/$compraId/pago-tarjeta'),
+          headers: _headers(token: token, json: true),
+          body: jsonEncode({
+            if (monto != null) 'monto': monto,
+            'liquidar': liquidar,
+            'cotizar': cotizar,
+          }),
+        ));
+    if (r.statusCode == 401) throw const SesionTerminada();
+    final cuerpo = _cuerpo(r);
+    if (r.statusCode == 422) throw AbonoInvalido(_errorDe(cuerpo) ?? 'Revisa el monto.');
+    if (r.statusCode == 404) {
+      throw ErrorServidor(_errorDe(cuerpo) ?? 'El pago con tarjeta no está disponible para esta compra.');
+    }
+    if (r.statusCode != 200) {
+      throw ErrorServidor(_errorDe(cuerpo) ?? 'No pudimos generar tu pago. Intenta de nuevo.');
+    }
+    return cuerpo;
+  }
+
+  Future<CotizacionAbono> cotizarAbono(String token, String compraId, {num? monto, bool liquidar = false}) async =>
+      CotizacionAbono.fromJson(
+        await _pagoTarjeta(token, compraId, monto: monto, liquidar: liquidar, cotizar: true),
+      );
+
+  Future<LinkPagoTarjeta> crearPagoTarjeta(String token, String compraId, {num? monto, bool liquidar = false}) async {
+    final l = LinkPagoTarjeta.fromJson(
+      await _pagoTarjeta(token, compraId, monto: monto, liquidar: liquidar, cotizar: false),
+    );
+    if (l.id.isEmpty || !l.url.startsWith('https://') || l.ticket.isEmpty) {
+      throw const ErrorServidor('No pudimos generar tu pago. Intenta de nuevo.');
+    }
+    return l;
+  }
+
+  /// GET /api/cliente/pagos-tarjeta/:id?t= — 404 (link ajeno o función
+  /// apagada) se trata como "desconocido".
+  Future<EstadoPagoTarjeta> estadoPagoTarjeta(String token, String id, String ticket) async {
+    final r = await _enviar(() => _http.get(
+          Uri.parse('$_base/api/cliente/pagos-tarjeta/$id').replace(queryParameters: {'t': ticket}),
+          headers: _headers(token: token),
+        ));
+    if (r.statusCode == 401) throw const SesionTerminada();
+    if (r.statusCode == 404) return const EstadoPagoTarjeta(estado: 'desconocido');
+    final cuerpo = _cuerpo(r);
+    if (r.statusCode != 200) {
+      throw ErrorServidor(_errorDe(cuerpo) ?? 'No pudimos revisar tu pago. Intenta de nuevo.');
+    }
+    return EstadoPagoTarjeta.fromJson(cuerpo);
   }
 }

@@ -731,6 +731,7 @@ class Compra {
     required this.pagos,
     required this.marca,
     this.cuenta,
+    this.pagoTarjeta,
   });
 
   final String id;
@@ -744,6 +745,9 @@ class Compra {
   /// Estado de cuenta de esta compra; null con montos apagados.
   final CuentaCompra? cuenta;
 
+  /// Abonar con tarjeta (link de Clip); null = no disponible.
+  final PagoTarjetaConfig? pagoTarjeta;
+
   factory Compra.fromJson(Map<String, dynamic> j) => Compra(
         id: _s(j['id']),
         codigo: _sn(j['codigo']),
@@ -754,6 +758,9 @@ class Compra {
         marca: Marca.fromJson(_mapa(j['marca'])),
         cuenta: j['cuenta'] is Map<String, dynamic>
             ? CuentaCompra.fromJson(j['cuenta'] as Map<String, dynamic>)
+            : null,
+        pagoTarjeta: j['pagoTarjeta'] is Map<String, dynamic>
+            ? PagoTarjetaConfig.fromJson(j['pagoTarjeta'] as Map<String, dynamic>)
             : null,
       );
 }
@@ -944,4 +951,135 @@ class LlegadaCita {
         qr: j['qr'] is String ? j['qr'] as String : null,
         codigo: j['codigo'] is String ? j['codigo'] as String : null,
       );
+}
+
+// ---------------------------------------------------------------------------
+// Abonar con tarjeta: link de pago de Clip (clientePagoTarjeta.ts del ERP).
+// La comisión la paga el cliente; los montos los calcula el servidor.
+// ---------------------------------------------------------------------------
+
+class PagoTarjetaConfig {
+  const PagoTarjetaConfig({required this.abonoMinimo});
+
+  /// Abono mínimo (si debe menos, el mínimo es su saldo).
+  final num abonoMinimo;
+
+  factory PagoTarjetaConfig.fromJson(Map<String, dynamic> j) =>
+      PagoTarjetaConfig(abonoMinimo: _n(j['abonoMinimo']) ?? 1000);
+}
+
+/// Desglose de un abono con tarjeta.
+class CotizacionAbono {
+  const CotizacionAbono({
+    required this.neto,
+    required this.cobro,
+    required this.comision,
+    required this.liquida,
+    required this.saldo,
+  });
+
+  /// Lo que se aplica al saldo.
+  final num neto;
+
+  /// Lo que se carga a la tarjeta (neto + comisión).
+  final num cobro;
+  final num comision;
+  final bool liquida;
+  final num saldo;
+
+  factory CotizacionAbono.fromJson(Map<String, dynamic> j) => CotizacionAbono(
+        neto: _n(j['neto']) ?? 0,
+        cobro: _n(j['cobro']) ?? 0,
+        comision: _n(j['comision']) ?? 0,
+        liquida: j['liquida'] == true,
+        saldo: _n(j['saldo']) ?? 0,
+      );
+}
+
+/// Link de pago generado: se abre la página segura de Clip.
+class LinkPagoTarjeta {
+  const LinkPagoTarjeta({
+    required this.id,
+    required this.url,
+    required this.ticket,
+    required this.cotizacion,
+    this.expira,
+  });
+
+  final String id;
+  final String url;
+
+  /// Para consultar el estado de ESTE link (firmado con la cuenta).
+  final String ticket;
+  final CotizacionAbono cotizacion;
+  final String? expira;
+
+  factory LinkPagoTarjeta.fromJson(Map<String, dynamic> j) => LinkPagoTarjeta(
+        id: _s(j['id']),
+        url: _s(j['url']),
+        ticket: _s(j['ticket']),
+        cotizacion: CotizacionAbono.fromJson(j),
+        expira: _sn(j['expira']),
+      );
+}
+
+/// Estado de un link: pendiente | pagado | vencido | cancelado | desconocido.
+class EstadoPagoTarjeta {
+  const EstadoPagoTarjeta({required this.estado, this.recibo, this.registrado = false});
+
+  final String estado;
+  final String? recibo;
+
+  /// Ya se aplicó al estado de cuenta (en la fase de pruebas, nunca).
+  final bool registrado;
+
+  bool get pagado => estado == 'pagado';
+  bool get pendiente => estado == 'pendiente';
+
+  factory EstadoPagoTarjeta.fromJson(Map<String, dynamic> j) => EstadoPagoTarjeta(
+        estado: _s(j['estado']).isEmpty ? 'desconocido' : _s(j['estado']),
+        recibo: _sn(j['recibo']),
+        registrado: j['registrado'] == true,
+      );
+}
+
+/// Pago con tarjeta en curso. Se guarda en el teléfono porque en la versión
+/// web la página de Clip se abre en la misma pestaña: al regresar, la app
+/// arranca de nuevo y revisa este pago.
+class PagoPendiente {
+  const PagoPendiente({
+    required this.id,
+    required this.ticket,
+    required this.compraId,
+    required this.neto,
+    required this.cobro,
+  });
+
+  final String id;
+  final String ticket;
+  final String compraId;
+  final num neto;
+  final num cobro;
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'ticket': ticket,
+        'compraId': compraId,
+        'neto': neto,
+        'cobro': cobro,
+      };
+
+  /// null si el guardado está incompleto.
+  static PagoPendiente? fromJson(Map<String, dynamic> j) {
+    final id = _s(j['id']);
+    final ticket = _s(j['ticket']);
+    if (id.isEmpty || ticket.isEmpty) return null;
+    return PagoPendiente(
+      id: id,
+      ticket: ticket,
+      compraId: _s(j['compraId']),
+      neto: _n(j['neto']) ?? 0,
+      cobro: _n(j['cobro']) ?? 0,
+    );
+  }
 }

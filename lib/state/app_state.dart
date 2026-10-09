@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../data/api_client.dart';
 import '../data/models.dart';
 import '../data/session_store.dart';
+import '../util/formato.dart';
 
 enum EstadoApp { arrancando, sinSesion, conSesion }
 
@@ -12,10 +13,17 @@ enum EstadoApp { arrancando, sinSesion, conSesion }
 /// regenerado por la operadora, pase vencido), la sesión se borra y el cliente
 /// regresa a la pantalla de ingreso con un aviso.
 class AppState extends ChangeNotifier {
-  AppState({required this.api, required this.store});
+  AppState({required this.api, required this.store, PagoPendienteStore? pagos})
+      : pagos = pagos ?? MemoryPagoPendienteStore();
 
   final ClienteApi api;
   final SessionStore store;
+
+  /// Pago con tarjeta en curso (sobrevive a recargar la página en web).
+  final PagoPendienteStore pagos;
+
+  /// Resultado de un pago con tarjeta para mostrar arriba (lo cierra el cliente).
+  String? avisoPago;
 
   EstadoApp estado = EstadoApp.arrancando;
   Inicio? datos;
@@ -34,6 +42,7 @@ class AppState extends ChangeNotifier {
     estado = EstadoApp.conSesion;
     notifyListeners();
     await refrescar();
+    await revisarPagoPendiente();
   }
 
   /// Lanza [ApiException] para que la pantalla de ingreso muestre el motivo.
@@ -114,14 +123,85 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  // ---- Abonar con tarjeta (link de Clip) ----
+
+  Future<CotizacionAbono> cotizarAbono(String compraId, {num? monto, bool liquidar = false}) =>
+      _conToken((t) => api.cotizarAbono(t, compraId, monto: monto, liquidar: liquidar));
+
+  /// Genera el link y lo guarda como pendiente ANTES de abrir Clip.
+  Future<LinkPagoTarjeta> crearPagoTarjeta(String compraId, {num? monto, bool liquidar = false}) async {
+    final l = await _conToken((t) => api.crearPagoTarjeta(t, compraId, monto: monto, liquidar: liquidar));
+    await pagos.guardar(PagoPendiente(
+      id: l.id,
+      ticket: l.ticket,
+      compraId: compraId,
+      neto: l.cotizacion.neto,
+      cobro: l.cotizacion.cobro,
+    ));
+    return l;
+  }
+
+  /// Revisa el pago con tarjeta en curso. Si ya terminó (pagado, vencido o
+  /// cancelado) deja el aviso y lo olvida; si sigue pendiente, lo conserva.
+  /// Nunca lanza: un fallo de red se reintenta en la siguiente revisión.
+  Future<EstadoPagoTarjeta?> revisarPagoPendiente() async {
+    final p = await pagos.leer();
+    final token = _token;
+    if (p == null || token == null) return null;
+    final EstadoPagoTarjeta e;
+    try {
+      e = await api.estadoPagoTarjeta(token, p.id, p.ticket);
+    } on SesionTerminada catch (x) {
+      await _cerrar(aviso: x.mensaje);
+      return null;
+    } on ApiException {
+      return null;
+    }
+    if (e.pendiente) return e;
+    await pagos.borrar();
+    if (e.pagado) {
+      avisoPago = e.registrado
+          ? 'Recibimos tu pago de ${dinero(p.neto)} con tarjeta. Ya está en tu estado de cuenta.'
+          : 'Recibimos tu pago con tarjeta: ${dinero(p.neto)} para tu mueble'
+              '${e.recibo != null ? ' (recibo ${e.recibo})' : ''}. '
+              'Prueba: todavía no se suma solo a tu estado de cuenta.';
+      if (e.registrado) await refrescar();
+    } else if (e.estado == 'vencido' || e.estado == 'cancelado') {
+      avisoPago = 'Tu link de pago con tarjeta venció sin pagarse. Puedes generar otro cuando quieras.';
+    }
+    notifyListeners();
+    return e;
+  }
+
+  /// El cliente decidió no pagar el link en curso.
+  Future<void> olvidarPagoPendiente() => pagos.borrar();
+
+  void cerrarAvisoPago() {
+    avisoPago = null;
+    notifyListeners();
+  }
+
+  Future<T> _conToken<T>(Future<T> Function(String token) f) async {
+    final token = _token;
+    if (token == null) throw const SesionTerminada();
+    try {
+      return await f(token);
+    } on SesionTerminada catch (e) {
+      await _cerrar(aviso: e.mensaje);
+      rethrow;
+    }
+  }
+
   Future<void> salir() => _cerrar();
 
   Future<void> _cerrar({String? aviso}) async {
     _token = null;
     datos = null;
     errorCarga = null;
+    avisoPago = null;
     this.aviso = aviso;
     await store.borrar();
+    await pagos.borrar();
     estado = EstadoApp.sinSesion;
     notifyListeners();
   }

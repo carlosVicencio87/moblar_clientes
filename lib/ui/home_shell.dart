@@ -81,6 +81,8 @@ class _HomeShellState extends State<HomeShell> {
         children: [
           if (state.errorCarga != null)
             _AvisoDesactualizado(mensaje: state.errorCarga!, onReintentar: state.refrescar),
+          if (state.avisoPago != null)
+            _AvisoPago(mensaje: state.avisoPago!, onCerrar: state.cerrarAvisoPago),
           Expanded(
             child: IndexedStack(
               index: indice,
@@ -195,6 +197,39 @@ class _AvisoDesactualizado extends StatelessWidget {
               child: Text(mensaje, style: const TextStyle(color: Color(0xFF92400E), fontSize: 13)),
             ),
             TextButton(onPressed: onReintentar, child: const Text('Reintentar')),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Resultado de un pago con tarjeta (al regresar de Clip).
+class _AvisoPago extends StatelessWidget {
+  const _AvisoPago({required this.mensaje, required this.onCerrar});
+
+  final String mensaje;
+  final VoidCallback onCerrar;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      key: const Key('avisoPagoTarjeta'),
+      color: const Color(0xFFD1FAE5),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+        child: Row(
+          children: [
+            const Icon(Icons.credit_card, size: 18, color: Color(0xFF065F46)),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(mensaje, style: const TextStyle(color: Color(0xFF065F46), fontSize: 13)),
+            ),
+            IconButton(
+              tooltip: 'Cerrar',
+              onPressed: onCerrar,
+              icon: const Icon(Icons.close, size: 18, color: Color(0xFF065F46)),
+            ),
           ],
         ),
       ),
