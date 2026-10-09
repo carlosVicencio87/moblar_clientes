@@ -229,7 +229,7 @@ class ClienteApi {
           Uri.parse('$_base/api/cliente/proyectos/$compraId/pago-tarjeta'),
           headers: _headers(token: token, json: true),
           body: jsonEncode({
-            if (monto != null) 'monto': monto,
+            'monto': ?monto,
             'liquidar': liquidar,
             'cotizar': cotizar,
           }),
