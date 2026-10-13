@@ -37,7 +37,7 @@ Compra compraDemo(OfertaVisita o, ResultadoAnticipo r, List<AbonoDemo> abonos) {
     lineaTiempo: LineaTiempo(
       etapaActual: 0,
       mensaje: apartadoSinCubrir
-          ? 'Proyecto apartado. Te faltan ${dinero(((meta! - cuenta.pagado) * 100).round() / 100)} para iniciar '
+          ? 'Proyecto apartado. Te faltan ${dinero(((meta - cuenta.pagado) * 100).round() / 100)} para iniciar '
               'la fabricación (${o.anticipoPct.round()}%). Tu precio queda respetado.'
           : validado
               ? 'Recibimos tu anticipo. ¡Comenzamos!'
