@@ -193,6 +193,7 @@ class OfertaVisita {
     this.anticipoPct = 0,
     this.anticipoContado = 0,
     this.anticipoTarjeta = 0,
+    this.apartadoMinimo = 0,
     this.precioTarjeta = 0,
     this.opcionesTarjeta = const [],
     this.transferencia,
@@ -234,6 +235,12 @@ class OfertaVisita {
 
   /// Con tarjeta en un solo pago (sobre [precioTarjeta]).
   final num anticipoTarjeta;
+
+  /// Lo mínimo para apartar el proyecto (0 = el servidor no lo manda).
+  final num apartadoMinimo;
+
+  /// Se puede apartar con menos del anticipo.
+  bool get permiteApartar => apartadoMinimo > 0 && apartadoMinimo < anticipoContado;
 
   /// Con tarjeta en un solo pago: solo la comisión base de Clip.
   final num precioTarjeta;
@@ -320,6 +327,7 @@ class OfertaVisita {
         anticipoPct: _n(j['anticipoPct']) ?? 0,
         anticipoContado: _n(j['anticipoContado']) ?? 0,
         anticipoTarjeta: _n(j['anticipoTarjeta']) ?? 0,
+        apartadoMinimo: _n(j['apartadoMinimo']) ?? 0,
         precioTarjeta: _n(j['precioTarjeta']) ?? 0,
         opcionesTarjeta: _lista(j['opcionesTarjeta'])
             .map(OpcionTarjeta.fromJson)
@@ -741,6 +749,7 @@ class Compra {
     this.pagoTarjeta,
     this.abonoDemo,
     this.demoCitaId,
+    this.metaFabricacion,
   });
 
   final String id;
@@ -754,6 +763,9 @@ class Compra {
   /// Compra de la DEMOSTRACIÓN armada en la app (oferta adquirida): la cita de
   /// la oferta. null = compra real del ERP.
   final String? demoCitaId;
+
+  /// Demo: cuánto hay que haber pagado para iniciar la fabricación (50%).
+  final num? metaFabricacion;
   bool get esDemo => demoCitaId != null;
   final Instalacion? instalacion;
   final Pagos pagos;

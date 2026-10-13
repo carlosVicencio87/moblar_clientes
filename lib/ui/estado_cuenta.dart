@@ -9,9 +9,14 @@ import 'widgets/detalle_pago.dart';
 /// Estado de cuenta de UNA compra (decisión de Carlos, 2026-10-02): cada
 /// pago queda ligado a su mueble, aunque el cliente tenga varios proyectos.
 class EstadoCuentaCompra extends StatelessWidget {
-  const EstadoCuentaCompra({super.key, required this.cuenta});
+  const EstadoCuentaCompra({super.key, required this.cuenta, this.metaFabricacion, this.pctFabricacion = 50});
 
   final CuentaCompra cuenta;
+
+  /// Proyecto apartado (demo): lo que hay que haber pagado para iniciar la
+  /// fabricación. null = no aplica.
+  final num? metaFabricacion;
+  final num pctFabricacion;
 
   @override
   Widget build(BuildContext context) {
@@ -73,6 +78,27 @@ class EstadoCuentaCompra extends StatelessWidget {
                 sutil: true,
               ),
             _Renglon('Saldo', dinero(c.saldo), fuerte: true),
+            if (metaFabricacion case final meta?) ...[
+              const SizedBox(height: 10),
+              Container(
+                key: const Key('metaFabricacion'),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: c.pagado >= meta ? const Color(0xFFD1FAE5) : MoblarColors.amberSoft,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  c.pagado >= meta
+                      ? 'Ya cubriste el ${pctFabricacion.round()}% (${dinero(meta)}): tu proyecto entra a fabricación.'
+                      : 'Proyecto apartado. Para iniciar la fabricación (${pctFabricacion.round()}%, ${dinero(meta)}) '
+                          'te faltan ${dinero(((meta - c.pagado) * 100).round() / 100)}.',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: c.pagado >= meta ? const Color(0xFF065F46) : const Color(0xFF92400E),
+                  ),
+                ),
+              ),
+            ],
             if (c.enRevision > 0) ...[
               const SizedBox(height: 8),
               Text(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../data/models.dart';
 import '../../state/app_scope.dart';
@@ -46,7 +47,12 @@ class ResultadoAnticipo {
     this.liquida = false,
     this.factura = true,
     this.abonoVisita = 0,
+    this.apartado = false,
   });
+
+  /// Apartó el proyecto con menos del anticipo (Carlos, 2026-10-13): entra a
+  /// fabricación cuando sus pagos sumen el 50%.
+  final bool apartado;
 
   /// Lo que ya había pagado de su visita y se abonó a este pago.
   final num abonoVisita;
@@ -140,6 +146,16 @@ class AdquirirOfertaPage extends StatefulWidget {
 class _AdquirirOfertaPageState extends State<AdquirirOfertaPage> {
   bool _factura = true;
 
+  /// Apartar el proyecto en vez de pagar el anticipo completo.
+  bool _apartar = false;
+  final _montoApartado = TextEditingController();
+
+  @override
+  void dispose() {
+    _montoApartado.dispose();
+    super.dispose();
+  }
+
   Future<void> _abrir(BuildContext context, Widget pagina) async {
     final listo = await Navigator.of(context).push<bool>(
       MaterialPageRoute<bool>(builder: (_) => pagina),
@@ -194,6 +210,14 @@ class _AdquirirOfertaPageState extends State<AdquirirOfertaPage> {
                     'final. El saldo lo verás en el estado de cuenta de tu compra.',
                     style: TextStyle(color: MoblarColors.textSecondary),
                   ),
+                  if (o.permiteApartar) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      'También puedes apartarlo desde ${dinero(o.apartadoMinimo)} y completar el $pct% después.',
+                      key: const Key('textoApartar'),
+                      style: const TextStyle(color: MoblarColors.textSecondary),
+                    ),
+                  ],
                   if (widget.montoVisita > 0) ...[
                     const SizedBox(height: 8),
                     Dato(
@@ -227,6 +251,28 @@ class _AdquirirOfertaPageState extends State<AdquirirOfertaPage> {
               ),
             ),
           ],
+          if (o.permiteApartar) ...[
+            const SizedBox(height: 12),
+            SegmentedButton<bool>(
+              key: const Key('modoInicio'),
+              showSelectedIcon: false,
+              segments: [
+                ButtonSegment(
+                  value: false,
+                  label: Text('Iniciar fabricación · $pct%', key: const Key('segIniciar')),
+                ),
+                const ButtonSegment(
+                  value: true,
+                  label: Text('Apartar mi proyecto', key: Key('segApartar')),
+                ),
+              ],
+              selected: {_apartar},
+              onSelectionChanged: (v) => setState(() => _apartar = v.first),
+            ),
+          ],
+          if (_apartar && o.permiteApartar)
+            ..._apartado(context, o, factura: factura, abono: abono, pct: pct)
+          else ...[
           const SizedBox(height: 12),
           _Resumen(
             clave: const Key('resumenContado'),
@@ -313,6 +359,257 @@ class _AdquirirOfertaPageState extends State<AdquirirOfertaPage> {
               ),
             ),
           ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// "Apartar mi proyecto": monto libre desde el mínimo y menor al anticipo.
+  List<Widget> _apartado(
+    BuildContext context,
+    OfertaVisita o, {
+    required bool factura,
+    required num abono,
+    required int pct,
+  }) {
+    final minimoHoy = menosAbono(o.apartadoMinimo, abono);
+    final topeHoy = menosAbono(o.anticipoContado, abono);
+    final texto = _montoApartado.text.trim();
+    final m = int.tryParse(texto);
+    String? error;
+    num? valido;
+    if (texto.isNotEmpty) {
+      if (m == null || m <= 0) {
+        error = 'Escribe cuánto abonas hoy.';
+      } else if (m < minimoHoy) {
+        error = 'Para apartar, lo mínimo es ${dinero(minimoHoy)}.';
+      } else if (m >= topeHoy) {
+        error = 'Con ${dinero(topeHoy)} o más tu proyecto entra directo a fabricación: '
+            'elige «Iniciar fabricación».';
+      } else {
+        valido = m;
+      }
+    }
+    void registrar(String metodo, num monto, {String? arquitecto, num? totalMueble}) => DemoAnticipos.registrar(
+          o.citaId,
+          ResultadoAnticipo(
+            metodo: metodo,
+            monto: monto,
+            fecha: DateTime.now(),
+            arquitecto: arquitecto,
+            factura: factura,
+            abonoVisita: abono,
+            totalMueble: totalMueble,
+            apartado: true,
+          ),
+        );
+    final v = valido;
+    return [
+      const SizedBox(height: 12),
+      Card(
+        key: const Key('infoApartado'),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text('Aparta tu proyecto', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 6),
+              Text(
+                'Cierra el trato hoy con lo que puedas, desde ${dinero(o.apartadoMinimo)}. '
+                'Tu proyecto entra a fabricación cuando tus pagos sumen el $pct% '
+                '(${dinero(o.anticipoContado)}).',
+                style: const TextStyle(color: MoblarColors.textSecondary),
+              ),
+              // Un trato es un trato (Carlos, 2026-10-13): sin vencimiento
+              // mientras gerencia no defina un límite.
+              const Dato(
+                icono: Icons.handshake_outlined,
+                texto: 'Una vez apartado, te respetamos este precio.',
+              ),
+              if (abono > 0)
+                Dato(
+                  icono: Icons.home_work_outlined,
+                  texto: 'Ya pagaste tu visita (${dinero(abono)}): cuenta para tu apartado.',
+                ),
+            ],
+          ),
+        ),
+      ),
+      const SizedBox(height: 12),
+      TextField(
+        key: const Key('montoApartado'),
+        controller: _montoApartado,
+        keyboardType: TextInputType.number,
+        inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(8)],
+        onChanged: (_) => setState(() {}),
+        decoration: InputDecoration(
+          labelText: '¿Cuánto abonas hoy?',
+          prefixText: r'$ ',
+          helperText: 'Desde ${dinero(minimoHoy < 1 ? 1 : minimoHoy)}',
+          errorText: error,
+          border: const OutlineInputBorder(),
+        ),
+      ),
+      const SizedBox(height: 16),
+      const Text('¿Cómo quieres pagar?', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+      const SizedBox(height: 10),
+      _Opcion(
+        clave: const Key('apartadoEfectivo'),
+        icono: Icons.payments_outlined,
+        titulo: v == null ? 'Efectivo' : 'Efectivo · ${dinero(v)}',
+        texto: 'Se lo entregas a tu arquitecto y él lo confirma con su PIN en tu pantalla. Sin comisión.',
+        onTap: v == null
+            ? null
+            : () => _abrir(
+                  context,
+                  EfectivoPinPage(
+                    titulo: 'Apartado en efectivo',
+                    monto: v,
+                    arquitecto: o.arquitecto,
+                    demo: o.demo,
+                    onConfirmado: () => registrar('efectivo', v, arquitecto: o.arquitecto),
+                  ),
+                ),
+      ),
+      if (o.transferencia != null)
+        _Opcion(
+          clave: const Key('apartadoTransferencia'),
+          icono: Icons.account_balance_outlined,
+          titulo: v == null ? 'Transferencia' : 'Transferencia · ${dinero(v)}',
+          texto: 'Te damos los datos de la cuenta y subes tu comprobante. Sin comisión.',
+          onTap: v == null
+              ? null
+              : () => _abrir(
+                    context,
+                    TransferenciaPagoPage(
+                      titulo: 'Apartado por transferencia',
+                      monto: v,
+                      datos: o.transferencia!,
+                      demo: o.demo,
+                      paraQue: 'del apartado de tu mueble',
+                      onEnviado: (_) => registrar('transferencia', v),
+                    ),
+                  ),
+        ),
+      if (o.pagoTarjeta != null)
+        _Opcion(
+          clave: const Key('apartadoTarjeta'),
+          icono: Icons.credit_card,
+          titulo: 'Tarjeta, un solo pago',
+          texto: 'Débito o crédito. Se suma la comisión de la tarjeta.',
+          onTap: v == null
+              ? null
+              : () => _abrir(
+                    context,
+                    _ApartadoTarjetaPage(
+                      oferta: o,
+                      monto: v,
+                      factura: factura,
+                      onPagado: (neto) => registrar('tarjeta', neto, totalMueble: o.precioContado),
+                    ),
+                  ),
+        ),
+    ];
+  }
+}
+
+/// Apartar con tarjeta: el desglose (abono + comisión) lo calcula el servidor.
+/// En la demostración, como el anticipo con tarjeta, no se abre Clip todavía:
+/// la adquisición con tarjeta real se abordará junto con los MSI.
+class _ApartadoTarjetaPage extends StatefulWidget {
+  const _ApartadoTarjetaPage({
+    required this.oferta,
+    required this.monto,
+    required this.factura,
+    required this.onPagado,
+  });
+
+  final OfertaVisita oferta;
+  final num monto;
+  final bool factura;
+  final void Function(num neto) onPagado;
+
+  @override
+  State<_ApartadoTarjetaPage> createState() => _ApartadoTarjetaPageState();
+}
+
+class _ApartadoTarjetaPageState extends State<_ApartadoTarjetaPage> {
+  CotizacionAbono? _cot;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _cotizar());
+  }
+
+  Future<void> _cotizar() async {
+    final o = widget.oferta;
+    try {
+      final c = await AppScope.read(context).cotizarAbono(
+        DestinoAbono.oferta(citaId: o.citaId, saldo: o.precioContado, abonoMinimo: 1, factura: widget.factura),
+        monto: widget.monto,
+      );
+      if (mounted) setState(() => _cot = c);
+    } on Exception catch (e) {
+      if (mounted) setState(() => _error = '$e');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = _cot;
+    return Scaffold(
+      appBar: AppBar(title: const Text('Apartar con tarjeta')),
+      body: ListView(
+        key: const Key('apartadoTarjetaPagina'),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+        children: [
+          if (widget.oferta.demo) ...[
+            const AvisoDemo(),
+            const SizedBox(height: 16),
+          ],
+          if (_error != null)
+            Text(_error!, key: const Key('errorApartadoTarjeta'), style: const TextStyle(color: MoblarColors.danger))
+          else if (c == null)
+            const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator()))
+          else ...[
+            Card(
+              key: const Key('desgloseApartado'),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _Fila('Apartado de tu proyecto', dinero(c.neto), color: MoblarColors.textPrimary),
+                    _Fila('Comisión de la tarjeta', dinero(c.comision), color: MoblarColors.textPrimary),
+                    const Divider(height: 20),
+                    _Fila('Se cargará a tu tarjeta', dinero(c.cobro), color: MoblarColors.textPrimary, fuerte: true),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Sin comisión pagando en efectivo o por transferencia.',
+              style: TextStyle(fontSize: 12, color: MoblarColors.textMuted),
+            ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              key: const Key('pagarApartadoClip'),
+              onPressed: () {
+                widget.onPagado(c.neto);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Demostración: aquí se abriría el pago seguro de Clip.')),
+                );
+                Navigator.of(context).pop(true);
+              },
+              icon: const Icon(Icons.credit_card),
+              label: Text('Pagar ${dinero(c.cobro)} con Clip'),
+            ),
+          ],
         ],
       ),
     );
@@ -410,11 +707,15 @@ class _Opcion extends StatelessWidget {
   final IconData icono;
   final String titulo;
   final String texto;
-  final VoidCallback onTap;
+
+  /// null = todavía no se puede (monto inválido): se ve atenuada.
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Card(
+    return Opacity(
+      opacity: onTap == null ? 0.55 : 1,
+      child: Card(
       key: clave,
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -443,6 +744,7 @@ class _Opcion extends StatelessWidget {
             ],
           ),
         ),
+      ),
       ),
     );
   }
@@ -706,7 +1008,7 @@ class ResumenCompraOferta extends StatelessWidget {
             icono: Icons.payments_outlined,
             texto: r.liquida
                 ? 'Pagado completo: ${dinero(r.monto + r.abonoVisita)} · ${r.metodoLegible} · $estado'
-                : 'Anticipo: ${dinero(r.monto + r.abonoVisita)} · ${r.metodoLegible} · $estado',
+                : '${r.apartado ? 'Apartado' : 'Anticipo'}: ${dinero(r.monto + r.abonoVisita)} · ${r.metodoLegible} · $estado',
           ),
           if (r.abonoVisita > 0)
             Dato(
@@ -722,6 +1024,15 @@ class ResumenCompraOferta extends StatelessWidget {
             icono: Icons.account_balance_wallet_outlined,
             texto: r.liquida || saldo <= 0 ? 'Saldo: ${dinero(0)} · Liquidado' : 'Saldo: ${dinero(saldo)}',
           ),
+          if (metaFabricacionDe(o, r) case final meta?)
+            Dato(
+              key: Key('faltaFabricacion-${o.citaId}'),
+              icono: Icons.precision_manufacturing_outlined,
+              texto: cuenta.pagado >= meta
+                  ? 'Ya cubriste el ${o.anticipoPct.round()}%: tu proyecto entra a fabricación.'
+                  : 'Proyecto apartado. Te faltan ${dinero(menosAbono(meta, cuenta.pagado))} '
+                      'para iniciar la fabricación (${o.anticipoPct.round()}%).',
+            ),
           if (o.demo && saldo > 0) ...[
             const SizedBox(height: 10),
             OutlinedButton.icon(
@@ -760,6 +1071,8 @@ class ResumenCompraOferta extends StatelessWidget {
                       Builder(
                         builder: (ctx) => EstadoCuentaCompra(
                           cuenta: cuentaDemo(o, r, AppScope.maybeOf(ctx)?.abonosDe(o.citaId) ?? const []),
+                          metaFabricacion: metaFabricacionDe(o, r),
+                          pctFabricacion: o.anticipoPct,
                         ),
                       ),
                     ],
@@ -829,7 +1142,7 @@ CuentaCompra cuentaDemo(OfertaVisita o, ResultadoAnticipo r, List<AbonoDemo> abo
     PagoCliente(
       fecha: r.fecha.toIso8601String(),
       monto: r.monto + r.abonoVisita,
-      concepto: r.liquida ? 'Pago completo' : 'Anticipo',
+      concepto: r.liquida ? 'Pago completo' : (r.apartado ? 'Apartado' : 'Anticipo'),
       metodo: r.metodoLegible,
       validado: anticipoValidado,
       visitaIncluida: r.abonoVisita > 0 ? r.abonoVisita : null,
@@ -858,3 +1171,7 @@ CuentaCompra cuentaDemo(OfertaVisita o, ResultadoAnticipo r, List<AbonoDemo> abo
     pagos: pagos,
   );
 }
+
+/// Demo: lo que debe haber pagado para iniciar la fabricación si APARTÓ el
+/// proyecto (el anticipo de contado de su variante); null si pagó el anticipo.
+num? metaFabricacionDe(OfertaVisita o, ResultadoAnticipo r) => r.apartado ? o.anticipoContado : null;

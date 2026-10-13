@@ -71,7 +71,7 @@ class CompraDetallePage extends StatelessWidget {
                 ),
                 if (compra.cuenta != null) ...[
                   const SizedBox(height: 16),
-                  EstadoCuentaCompra(cuenta: compra.cuenta!),
+                  EstadoCuentaCompra(cuenta: compra.cuenta!, metaFabricacion: compra.metaFabricacion),
                   // Tarjeta (link de Clip) y, solo en la demostración, efectivo y
                   // transferencia. En producción, efectivo y transferencia de una
                   // compra real se registrarán en Pagos (con aprobación de gerencia).

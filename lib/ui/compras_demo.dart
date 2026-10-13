@@ -2,7 +2,8 @@ import 'package:flutter/widgets.dart';
 
 import '../data/models.dart';
 import '../state/app_scope.dart';
-import 'widgets/adquirir_oferta.dart' show DemoAnticipos, ResultadoAnticipo, cuentaDemo, muebleDe;
+import '../util/formato.dart';
+import 'widgets/adquirir_oferta.dart' show DemoAnticipos, ResultadoAnticipo, cuentaDemo, metaFabricacionDe, muebleDe;
 
 // ---------------------------------------------------------------------------
 // Compras de la DEMOSTRACIÓN (Carlos, 2026-10-09): una oferta adquirida en la
@@ -24,7 +25,10 @@ const _etapas = [
 /// La compra de la demo para una oferta adquirida.
 Compra compraDemo(OfertaVisita o, ResultadoAnticipo r, List<AbonoDemo> abonos) {
   final cuenta = cuentaDemo(o, r, abonos);
-  final validado = r.metodo != 'transferencia';
+  final meta = metaFabricacionDe(o, r);
+  // Apartado: entra a fabricación cuando lo pagado (validado) llega al 50%.
+  final apartadoSinCubrir = meta != null && cuenta.pagado < meta;
+  final validado = r.metodo != 'transferencia' && !apartadoSinCubrir;
   return Compra(
     id: 'demo-${o.citaId}',
     codigo: 'DEMO',
@@ -32,7 +36,12 @@ Compra compraDemo(OfertaVisita o, ResultadoAnticipo r, List<AbonoDemo> abonos) {
     demoCitaId: o.citaId,
     lineaTiempo: LineaTiempo(
       etapaActual: 0,
-      mensaje: validado ? 'Recibimos tu anticipo. ¡Comenzamos!' : 'Esperando tu anticipo para comenzar.',
+      mensaje: apartadoSinCubrir
+          ? 'Proyecto apartado. Te faltan ${dinero(((meta! - cuenta.pagado) * 100).round() / 100)} para iniciar '
+              'la fabricación (${o.anticipoPct.round()}%). Tu precio queda respetado.'
+          : validado
+              ? 'Recibimos tu anticipo. ¡Comenzamos!'
+              : 'Esperando tu anticipo para comenzar.',
       porcentaje: validado ? 5 : 0,
       etapas: [
         for (var i = 0; i < _etapas.length; i++)
@@ -52,6 +61,7 @@ Compra compraDemo(OfertaVisita o, ResultadoAnticipo r, List<AbonoDemo> abonos) {
     cuenta: cuenta,
     pagoTarjeta: o.pagoTarjeta,
     abonoDemo: AbonoDemoConfig(transferencia: o.transferencia, arquitecto: o.arquitecto),
+    metaFabricacion: meta,
   );
 }
 

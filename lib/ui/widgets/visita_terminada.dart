@@ -266,7 +266,7 @@ class VisitaTerminadaPage extends StatelessWidget {
             destacada: true,
             titulo: 'Iniciar mi proyecto',
             texto: 'Tu visita (${dinero(pago.monto)}) no tiene costo. '
-                'Anticipo de ${dinero(o.anticipoContado)} de contado, o con tarjeta.',
+                '${o.permiteApartar ? 'Inicia la fabricación con ${dinero(o.anticipoContado)} o apártalo desde ${dinero(o.apartadoMinimo)}.' : 'Anticipo de ${dinero(o.anticipoContado)} de contado, o con tarjeta.'}',
             onTap: () => _ir(context, AdquirirOfertaPage(oferta: o, montoVisita: pago.monto)),
           ),
           _Eleccion(

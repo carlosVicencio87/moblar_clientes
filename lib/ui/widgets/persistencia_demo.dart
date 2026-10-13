@@ -28,6 +28,7 @@ Map<String, dynamic> anticipoAJson(ResultadoAnticipo r) => {
       'liquida': r.liquida,
       'factura': r.factura,
       'abonoVisita': r.abonoVisita,
+      'apartado': r.apartado,
     };
 
 ResultadoAnticipo? anticipoDeJson(Object? v) {
@@ -45,6 +46,7 @@ ResultadoAnticipo? anticipoDeJson(Object? v) {
     liquida: v['liquida'] == true,
     factura: v['factura'] != false,
     abonoVisita: v['abonoVisita'] is num ? v['abonoVisita'] as num : 0,
+    apartado: v['apartado'] == true,
   );
 }
 
