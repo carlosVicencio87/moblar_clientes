@@ -6,6 +6,8 @@ import 'citas_tab.dart';
 import 'compras_tab.dart';
 import 'compras_demo.dart';
 import 'cotizaciones_tab.dart';
+import 'navegacion.dart';
+import 'widgets/aviso_arquitecto.dart';
 import 'widgets/adquirir_oferta.dart' show DemoAnticipos, ResultadoAnticipo;
 import 'widgets/persistencia_demo.dart';
 import 'widgets/llegada_qr.dart';
@@ -32,6 +34,22 @@ class _HomeShellState extends State<HomeShell> {
   /// la SECCIÓN y no el índice, porque la barra cambia de tamaño cuando
   /// aparece "Mi compra".
   Seccion? _seccion;
+
+  @override
+  void initState() {
+    super.initState();
+    irACotizaciones.addListener(_abrirCotizaciones);
+  }
+
+  @override
+  void dispose() {
+    irACotizaciones.removeListener(_abrirCotizaciones);
+    super.dispose();
+  }
+
+  void _abrirCotizaciones() {
+    if (mounted) setState(() => _seccion = Seccion.cotizaciones);
+  }
 
   Future<void> _confirmarSalida() async {
     final salir = await showDialog<bool>(
@@ -95,6 +113,8 @@ class _HomeShellState extends State<HomeShell> {
             _AvisoDesactualizado(mensaje: state.errorCarga!, onReintentar: state.refrescar),
           if (state.avisoPago != null)
             _AvisoPago(mensaje: state.avisoPago!, onCerrar: state.cerrarAvisoPago),
+          // "Tu arquitecto va en camino / llegó" (sin push todavía).
+          const AvisoArquitecto(),
           Expanded(
             child: IndexedStack(
               index: indice,

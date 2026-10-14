@@ -118,7 +118,7 @@ void main() {
   group('iniciar el proyecto', () {
     testWidgets('visita sin pagar: no se cobra y el anticipo es completo', (tester) async {
       await pantalla(tester, AdquirirOfertaPage(oferta: oferta, montoVisita: 500));
-      expect(find.text(r'Tu visita ($500.00) no tiene costo al iniciar tu proyecto.'), findsOneWidget);
+      expect(find.text(r'Tu visita ($500.00) va incluida en este anticipo.'), findsOneWidget);
       expect(find.text(r'Efectivo · $4,000.00'), findsOneWidget);
       expect(find.text('Ya pagaste tu visita'), findsNothing);
     });
@@ -171,14 +171,14 @@ void main() {
     testWidgets('terminada y sin decidir: pendiente, explica que comprando no cuesta', (tester) async {
       await tarjeta(tester);
       expect(find.text('Pendiente'), findsOneWidget);
-      expect(find.textContaining('Si inicias tu proyecto, tu visita no tiene costo'), findsOneWidget);
+      expect(find.textContaining('Si inicias tu proyecto, se toma como parte de tu anticipo'), findsOneWidget);
       expect(find.byKey(const Key('pagarVisita')), findsOneWidget);
     });
 
     testWidgets('inició su proyecto sin pagarla: sin costo y sin botón de pago', (tester) async {
       DemoAnticipos.registrar('cita-1', ResultadoAnticipo(metodo: 'efectivo', monto: 4000, fecha: DateTime(2026, 10, 8)));
       await tarjeta(tester);
-      expect(find.text('Sin costo'), findsOneWidget);
+      expect(find.text('En tu anticipo'), findsOneWidget);
       expect(find.byKey(const Key('visitaSinCosto')), findsOneWidget);
       expect(find.byKey(const Key('pagarVisita')), findsNothing);
     });
@@ -237,7 +237,7 @@ void main() {
       await tester.tap(find.byKey(const Key('finVisitaIniciar')));
       await tester.pumpAndSettle();
       expect(find.byType(AdquirirOfertaPage), findsOneWidget);
-      expect(find.text(r'Tu visita ($500.00) no tiene costo al iniciar tu proyecto.'), findsOneWidget);
+      expect(find.text(r'Tu visita ($500.00) va incluida en este anticipo.'), findsOneWidget);
     });
 
     testWidgets('pagar solo la visita abre el pago de la visita', (tester) async {

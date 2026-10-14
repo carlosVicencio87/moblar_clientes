@@ -4,6 +4,8 @@ import 'package:flutter/services.dart';
 import '../../data/models.dart';
 import '../../theme.dart';
 import '../../util/formato.dart';
+import '../../state/app_scope.dart';
+import '../navegacion.dart';
 import 'adquirir_oferta.dart' show DemoAnticipos, ResultadoAnticipo;
 import 'comunes.dart';
 
@@ -20,8 +22,10 @@ import 'comunes.dart';
 // mientras la app está abierta (DemoPagosVisita) para poder mostrar el flujo
 // completo a gerencia. Cuando se apruebe, este estado lo dará /inicio.
 //
-// Si el cliente inicia su proyecto (Carlos, 2026-10-08), la visita no se
-// cobra: sin pagar → "Sin costo"; ya pagada → se abonó a su anticipo.
+// La visita SÍ se paga (efectivo o transferencia a la cuenta del arquitecto)
+// y, si el cliente inicia su proyecto, se toma como parte de su anticipo
+// (feedback de arquitectura, 2026-10-14: "sin costo" se entendía como gratis).
+// Sin pagar y con proyecto iniciado → va incluida en su anticipo.
 // ---------------------------------------------------------------------------
 
 /// Resultado de un pago hecho en la demostración.
@@ -72,6 +76,10 @@ const largoPin = 4;
 class TarjetaPagoVisita extends StatelessWidget {
   const TarjetaPagoVisita({super.key, required this.cita, required this.pago});
 
+  /// Ya hay propuesta del arquitecto para esta cita (Cotizaciones).
+  bool _tieneOferta(BuildContext context) =>
+      AppScope.maybeOf(context)?.datos?.ofertasVisita.any((o) => o.citaId == cita.id) ?? false;
+
   final Cita cita;
   final PagoVisita pago;
 
@@ -87,7 +95,7 @@ class TarjetaPagoVisita extends StatelessWidget {
         final compro = anticipos.containsKey(cita.id);
         final (chip, color, fondo) = r == null
             ? (compro
-                ? ('Sin costo', const Color(0xFF065F46), const Color(0xFFD1FAE5))
+                ? ('En tu anticipo', const Color(0xFF065F46), const Color(0xFFD1FAE5))
                 : ('Pendiente', const Color(0xFF92400E), MoblarColors.amberSoft))
             : r.esEfectivo
                 ? ('Pagada', const Color(0xFF065F46), const Color(0xFFD1FAE5))
@@ -132,15 +140,18 @@ class TarjetaPagoVisita extends StatelessWidget {
                   const Dato(
                     key: Key('visitaSinCosto'),
                     icono: Icons.verified_outlined,
-                    texto: 'Tu visita no tiene costo porque iniciaste tu proyecto.',
+                    texto: 'Tu visita va incluida en el anticipo de tu proyecto.',
                   )
                 else if (r == null) ...[
                   Text(
                     cita.estado.clave == 'realizada'
-                        ? 'Si inicias tu proyecto, tu visita no tiene costo. Si no, págala por transferencia o en efectivo.'
+                        ? 'La visita se paga en efectivo o por transferencia a tu arquitecto. '
+                            'Si inicias tu proyecto, se toma como parte de tu anticipo.'
                         : pago.promesaRegistrada
-                            ? 'Al agendar te informamos el costo de la visita. Lo pagas el día de tu visita, por transferencia o en efectivo.'
-                            : 'Se paga el día de tu visita, por transferencia o en efectivo.',
+                            ? 'Al agendar te informamos el costo de la visita. Lo pagas el día de tu visita, en efectivo o '
+                                'por transferencia a tu arquitecto, y se toma como parte de tu anticipo si inicias tu proyecto.'
+                            : 'Se paga el día de tu visita, en efectivo o por transferencia a tu arquitecto, y se toma como '
+                                'parte de tu anticipo si inicias tu proyecto.',
                     key: const Key('textoPromesaVisita'),
                     style: const TextStyle(color: MoblarColors.textSecondary),
                   ),
@@ -155,6 +166,7 @@ class TarjetaPagoVisita extends StatelessWidget {
                     icon: const Icon(Icons.payments_outlined),
                     label: const Text('Pagar mi visita'),
                   ),
+                  if (_tieneOferta(context) && !compro) const _BotonVerCotizacion(),
                 ] else ...[
                   Dato(
                     icono: r.esEfectivo ? Icons.verified_outlined : Icons.receipt_long_outlined,
@@ -942,4 +954,24 @@ class _Tecla extends StatelessWidget {
       ),
     );
   }
+}
+
+/// "Ver mi cotización": si el cliente salió de la compra, desde aquí vuelve a
+/// su propuesta sin buscarla (feedback de arquitectura, 2026-10-14).
+class _BotonVerCotizacion extends StatelessWidget {
+  const _BotonVerCotizacion();
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(top: 8),
+        child: OutlinedButton.icon(
+          key: const Key('verCotizacion'),
+          onPressed: () {
+            Navigator.of(context).popUntil((r) => r.isFirst);
+            irACotizaciones.value++;
+          },
+          icon: const Icon(Icons.request_quote_outlined),
+          label: const Text('Ver mi cotización y comprar mi mueble'),
+        ),
+      );
 }

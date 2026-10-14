@@ -70,7 +70,7 @@ class _LoginPageState extends State<LoginPage> {
                   Image.asset('assets/brand/logo-moblar.png', height: 72),
                   const SizedBox(height: 32),
                   const Text(
-                    'Sigue tu mueble',
+                    'Tu visita Moblar',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 24,
@@ -80,7 +80,9 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'Escribe el código que te dimos al agendar tu cita.',
+                    'Ingresa el código que te dimos al agendar, antes de que llegue tu arquitecto. '
+                    'Con él vives tu visita: sabrás cuándo va en camino, recibirás tu propuesta '
+                    'y, si la contratas, seguirás tu mueble.',
                     textAlign: TextAlign.center,
                     style: TextStyle(color: MoblarColors.textSecondary),
                   ),

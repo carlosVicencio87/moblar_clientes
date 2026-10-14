@@ -225,7 +225,7 @@ class _AdquirirOfertaPageState extends State<AdquirirOfertaPage> {
                       icono: Icons.home_work_outlined,
                       texto: abono > 0
                           ? 'Ya pagaste tu visita (${dinero(abono)}): se descuenta de lo que pagas hoy.'
-                          : 'Tu visita (${dinero(widget.montoVisita)}) no tiene costo al iniciar tu proyecto.',
+                          : 'Tu visita (${dinero(widget.montoVisita)}) va incluida en este anticipo.',
                     ),
                   ],
                 ],
