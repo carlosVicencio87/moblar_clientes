@@ -249,6 +249,8 @@ void main() {
       expect(find.text(r'Precio de contado: $10,000.00'), findsOneWidget);
       expect(find.text(r'Anticipo: $4,000.00 · Efectivo · recibido por Ana López'), findsOneWidget);
       expect(find.text(r'Saldo: $6,000.00'), findsOneWidget);
+      // Ya adquirida: sin menú de formas de pago.
+      expect(find.byKey(const Key('otrasOpcionesPago')), findsNothing);
 
       await tocar(tester, const Key('verCompraOferta-cita-1'));
       expect(find.textContaining('ya está en «Mi compra»'), findsOneWidget);
@@ -317,10 +319,13 @@ void main() {
     });
   });
 
-  testWidgets('opciones con tarjeta: un pago y cada plazo con su precio', (tester) async {
+  testWidgets('otras opciones de pago: contado, un pago y cada plazo con su precio', (tester) async {
     await abrir(tester, oferta);
-    await tocar(tester, const Key('opcionesTarjeta'));
-    expect(find.text('Un solo pago'), findsOneWidget);
+    expect(find.text('Elegiste: de contado'), findsOneWidget);
+    await tocar(tester, const Key('otrasOpcionesPago'));
+    expect(find.byKey(const Key('formaPago-0')), findsOneWidget);
+    expect(find.text('Efectivo o transferencia · el más bajo'), findsOneWidget);
+    expect(find.text('Tarjeta, un solo pago'), findsOneWidget);
     expect(find.text(r'$10,360.51'), findsOneWidget);
     expect(find.text(r'3 × $3,654.18'), findsOneWidget);
     expect(find.text(r'Total $10,962.54'), findsOneWidget);
@@ -365,7 +370,8 @@ void main() {
       expect(find.descendant(of: iva, matching: find.text('IVA (16%)')), findsOneWidget);
       expect(find.descendant(of: iva, matching: find.text(r'$1,600.00')), findsOneWidget);
       expect(find.text(r'$11,600.00'), findsOneWidget);
-      expect(find.byKey(const Key('avisoFacturaOferta')), findsOneWidget);
+      expect(tester.widget<SwitchListTile>(find.byKey(const Key('facturaOferta'))).value, isTrue);
+      expect(find.text('Precios con IVA (16%).'), findsOneWidget);
       final y = tester.getTopLeft(iva).dy;
       expect(tester.getTopLeft(subtotal).dy < y, isTrue);
       expect(y < tester.getTopLeft(find.byKey(const Key('precioContadoOferta'))).dy, isTrue);
@@ -375,7 +381,7 @@ void main() {
       await abrir(tester, ofertaIva);
       await tocar(tester, const Key('adquirirOferta-cita-1'));
       final casilla = find.byKey(const Key('requiereFactura'));
-      expect(tester.widget<CheckboxListTile>(casilla).value, isTrue);
+      expect(tester.widget<SwitchListTile>(casilla).value, isTrue);
       expect(find.text(r'Precio de tu mueble $10,000.00 + IVA (16%) $1,600.00.'), findsOneWidget);
       // Con factura: 11,600 → anticipo 4,640, saldo 6,960; tarjeta 12,018.24.
       Future<void> verTarjeta(String precio) async {
@@ -392,8 +398,8 @@ void main() {
       await verTarjeta(r'$12,018.24');
 
       await tocar(tester, const Key('requiereFactura'));
-      expect(tester.widget<CheckboxListTile>(casilla).value, isFalse);
-      expect(find.text(r'Sin factura no se cobra IVA: pagas $1,600.00 menos.'), findsOneWidget);
+      expect(tester.widget<SwitchListTile>(casilla).value, isFalse);
+      expect(find.text(r'Descuento por no facturar: −$1,600.00.'), findsOneWidget);
       // Sin factura: 10,000 → anticipo 4,000, saldo 6,000; tarjeta 10,360.56.
       expect(find.text(r'$4,000.00'), findsOneWidget);
       expect(find.text(r'$6,000.00'), findsOneWidget);
@@ -427,6 +433,110 @@ void main() {
       expect(find.text('Con factura (IVA incluido)'), findsOneWidget);
       expect(find.text(r'Pagado completo: $15,640.45 · Tarjeta, 18 MSI · pagado con Clip'), findsOneWidget);
       expect(find.text(r'Saldo: $0.00 · Liquidado'), findsOneWidget);
+    });
+  });
+
+  group('C5: factura al momento y forma de pago elegida', () {
+    testWidgets('sin factura: descuento por no facturar y los precios sin IVA', (tester) async {
+      await abrir(tester, ofertaIva);
+      expect(find.byKey(const Key('precioConFacturaOferta')), findsNothing);
+      await tocar(tester, const Key('facturaOferta'));
+
+      expect(tester.widget<SwitchListTile>(find.byKey(const Key('facturaOferta'))).value, isFalse);
+      expect(find.text(r'Sin factura: descuento de $1,600.00.'), findsOneWidget);
+      expect(find.text('Precio de lista'), findsOneWidget);
+      expect(find.text(r'$13,483.15'), findsOneWidget);
+      expect(find.text(r'o 18 meses sin intereses de $749.07'), findsOneWidget);
+      expect(find.byKey(const Key('subtotalOferta')), findsNothing);
+      expect(find.byKey(const Key('ivaOferta')), findsNothing);
+      final conFactura = find.byKey(const Key('precioConFacturaOferta'));
+      final descuento = find.byKey(const Key('descuentoFacturaOferta'));
+      expect(find.descendant(of: conFactura, matching: find.text(r'$11,600.00')), findsOneWidget);
+      expect(find.descendant(of: descuento, matching: find.text('Descuento por no facturar')), findsOneWidget);
+      expect(find.descendant(of: descuento, matching: find.text(r'−$1,600.00')), findsOneWidget);
+      final contado = find.byKey(const Key('precioContadoOferta'));
+      expect(tester.widget<Text>(contado).data, r'$10,000.00');
+      expect(tester.getTopLeft(descuento).dy < tester.getTopLeft(contado).dy, isTrue);
+
+      // Se vuelve a encender: regresa el desglose con IVA.
+      await tocar(tester, const Key('facturaOferta'));
+      expect(tester.widget<Text>(contado).data, r'$11,600.00');
+      expect(find.byKey(const Key('descuentoFacturaOferta')), findsNothing);
+      expect(find.byKey(const Key('ivaOferta')), findsOneWidget);
+    });
+
+    testWidgets('las opciones de pago cambian con la factura', (tester) async {
+      await abrir(tester, ofertaIva);
+      await tocar(tester, const Key('otrasOpcionesPago'));
+      final msi18 = find.byKey(const Key('formaPago-18'));
+      expect(find.descendant(of: msi18, matching: find.text(r'18 × $868.92')), findsOneWidget);
+      await tocar(tester, const Key('facturaOferta'));
+      expect(find.descendant(of: msi18, matching: find.text(r'18 × $749.07')), findsOneWidget);
+    });
+
+    testWidgets('sin factura y 18 MSI en la cotización: llega así a la pantalla de pago', (tester) async {
+      await abrir(tester, ofertaIva);
+      await tocar(tester, const Key('facturaOferta'));
+      await tocar(tester, const Key('otrasOpcionesPago'));
+      await tocar(tester, const Key('formaPago-18'));
+      expect(find.text('Elegiste: 18 meses sin intereses'), findsOneWidget);
+
+      await tocar(tester, const Key('adquirirOferta-cita-1'));
+      expect(tester.widget<SwitchListTile>(find.byKey(const Key('requiereFactura'))).value, isFalse);
+      // Sin factura: anticipo de contado 4,000.
+      expect(find.text(r'$4,000.00'), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('formaElegida')),
+        200,
+        scrollable: find.byType(Scrollable).last,
+      );
+      expect(find.text('Elegiste: 18 meses sin intereses. También puedes pagar de otra forma.'), findsOneWidget);
+      // La tarjeta va primero, antes que el efectivo.
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('anticipoEfectivo')),
+        200,
+        scrollable: find.byType(Scrollable).last,
+      );
+      expect(
+        tester.getTopLeft(find.byKey(const Key('anticipoTarjeta'))).dy <
+            tester.getTopLeft(find.byKey(const Key('anticipoEfectivo'))).dy,
+        isTrue,
+      );
+
+      // En la tarjeta ya viene seleccionado el plazo de 18 meses.
+      await tocar(tester, const Key('anticipoTarjeta'));
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('resumenPlazo')),
+        200,
+        scrollable: find.byType(Scrollable).last,
+      );
+      final resumen = find.byKey(const Key('resumenPlazo'));
+      expect(find.descendant(of: resumen, matching: find.text(r'18 × $749.07')), findsOneWidget);
+      await tocar(tester, const Key('pagarConClip'));
+      expect(find.text('Sin factura (sin IVA)'), findsOneWidget);
+      expect(find.text(r'Pagado completo: $13,483.15 · Tarjeta, 18 MSI · pagado con Clip'), findsOneWidget);
+    });
+
+    testWidgets('de contado (por omisión): la tarjeta queda al final y sin aviso', (tester) async {
+      await abrir(tester, ofertaIva);
+      await tocar(tester, const Key('adquirirOferta-cita-1'));
+      expect(tester.widget<SwitchListTile>(find.byKey(const Key('requiereFactura'))).value, isTrue);
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('anticipoTarjeta')),
+        200,
+        scrollable: find.byType(Scrollable).last,
+      );
+      expect(find.byKey(const Key('formaElegida')), findsNothing);
+      expect(
+        tester.getTopLeft(find.byKey(const Key('anticipoEfectivo'))).dy <
+            tester.getTopLeft(find.byKey(const Key('anticipoTarjeta'))).dy,
+        isTrue,
+      );
+    });
+
+    testWidgets('servidor sin IVA: no hay interruptor de factura', (tester) async {
+      await abrir(tester, oferta);
+      expect(find.byKey(const Key('facturaOferta')), findsNothing);
     });
   });
 }

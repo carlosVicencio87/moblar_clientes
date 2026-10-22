@@ -128,13 +128,47 @@ OpcionTarjeta conAbono(OpcionTarjeta x, num abono) {
   );
 }
 
+/// Forma de pago elegida en la cotización (C5): 0 = de contado (efectivo o
+/// transferencia); 1 = tarjeta en un solo pago; n = n meses sin intereses.
+const plazoContado = 0;
+
+/// Las formas de pago con tarjeta de la oferta (servidor viejo sin plazos:
+/// solo el pago único).
+List<OpcionTarjeta> plazosDe(OfertaVisita o) => o.opcionesTarjeta.isNotEmpty
+    ? o.opcionesTarjeta
+    : [
+        OpcionTarjeta(
+          meses: 1,
+          total: o.precioTarjeta,
+          mensualidad: o.precioTarjeta,
+          cobro: o.anticipoTarjeta,
+        ),
+      ];
+
+String nombrePlazo(int meses) => switch (meses) {
+      plazoContado => 'De contado',
+      1 => 'Tarjeta, un solo pago',
+      _ => '$meses meses sin intereses',
+    };
+
 String muebleDe(OfertaVisita o) => o.muebles.isEmpty ? 'tu mueble' : o.muebles.join(', ');
 
 /// Pantalla "Inicia tu proyecto": por qué el anticipo, cuánto y cómo pagarlo.
 class AdquirirOfertaPage extends StatefulWidget {
-  const AdquirirOfertaPage({super.key, required this.oferta, this.montoVisita = 0});
+  const AdquirirOfertaPage({
+    super.key,
+    required this.oferta,
+    this.montoVisita = 0,
+    this.factura = true,
+    this.plazo = plazoContado,
+  });
 
   final OfertaVisita oferta;
+
+  /// Lo que el cliente eligió en la cotización (C5): si requiere factura y la
+  /// forma de pago ([plazoContado], 1 = tarjeta un pago, n = n MSI).
+  final bool factura;
+  final int plazo;
 
   /// Costo de la visita de esta cita (0 si no aplica).
   final num montoVisita;
@@ -144,7 +178,10 @@ class AdquirirOfertaPage extends StatefulWidget {
 }
 
 class _AdquirirOfertaPageState extends State<AdquirirOfertaPage> {
-  bool _factura = true;
+  late bool _factura = widget.factura;
+
+  /// Eligió tarjeta en la cotización: esa opción va primero y destacada.
+  bool get _eligioTarjeta => widget.plazo != plazoContado;
 
   /// Apartar el proyecto en vez de pagar el anticipo completo.
   bool _apartar = false;
@@ -183,6 +220,35 @@ class _AdquirirOfertaPageState extends State<AdquirirOfertaPage> {
             abonoVisita: abono,
           ),
         );
+    final tarjeta = _Opcion(
+      clave: const Key('anticipoTarjeta'),
+      destacada: _eligioTarjeta,
+      icono: Icons.credit_card,
+      titulo: 'Tarjeta · desde ${dinero(hoyTarjeta)}',
+      texto: 'Un solo pago (anticipo) o a meses sin intereses (pagas tu mueble completo '
+          'y lo difieres). Cada plazo incluye la comisión que cobra Clip.',
+      onTap: () => _abrir(
+        context,
+        _TarjetaClipPage(
+          oferta: o,
+          abono: abono,
+          plazoInicial: widget.plazo,
+          onPagado: (x) => DemoAnticipos.registrar(
+            o.citaId,
+            ResultadoAnticipo(
+              metodo: 'tarjeta',
+              monto: x.cobro,
+              fecha: DateTime.now(),
+              meses: x.meses,
+              totalMueble: x.total,
+              liquida: x.liquida,
+              factura: factura,
+              abonoVisita: abono,
+            ),
+          ),
+        ),
+      ),
+    );
     return Scaffold(
       appBar: AppBar(title: const Text('Inicia tu proyecto')),
       body: ListView(
@@ -235,17 +301,17 @@ class _AdquirirOfertaPageState extends State<AdquirirOfertaPage> {
           if (base.eligeFactura) ...[
             const SizedBox(height: 12),
             Card(
-              child: CheckboxListTile(
+              child: SwitchListTile(
                 key: const Key('requiereFactura'),
                 value: _factura,
-                onChanged: (v) => setState(() => _factura = v ?? true),
-                controlAffinity: ListTileControlAffinity.leading,
+                onChanged: (v) => setState(() => _factura = v),
                 title: const Text('Requiero factura', style: TextStyle(fontWeight: FontWeight.w600)),
                 subtitle: Text(
                   _factura
                       ? 'Precio de tu mueble ${dinero(base.subtotal)} + IVA '
                           '(${base.ivaPct.round()}%) ${dinero(base.iva)}.'
-                      : 'Sin factura no se cobra IVA: pagas ${dinero(base.iva)} menos.',
+                      : 'Descuento por no facturar: '
+                          '−${dinero(menosAbono(base.precioContado, base.variante(factura: false).precioContado))}.',
                   key: const Key('detalleFactura'),
                 ),
               ),
@@ -298,6 +364,15 @@ class _AdquirirOfertaPageState extends State<AdquirirOfertaPage> {
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 10),
+          if (_eligioTarjeta) ...[
+            Text(
+              'Elegiste: ${nombrePlazo(widget.plazo).toLowerCase()}. También puedes pagar de otra forma.',
+              key: const Key('formaElegida'),
+              style: const TextStyle(fontSize: 12, color: MoblarColors.textMuted),
+            ),
+            const SizedBox(height: 8),
+          ],
+          if (_eligioTarjeta) tarjeta,
           _Opcion(
             clave: const Key('anticipoEfectivo'),
             icono: Icons.payments_outlined,
@@ -332,33 +407,7 @@ class _AdquirirOfertaPageState extends State<AdquirirOfertaPage> {
                 ),
               ),
             ),
-          _Opcion(
-            clave: const Key('anticipoTarjeta'),
-            icono: Icons.credit_card,
-            titulo: 'Tarjeta · desde ${dinero(hoyTarjeta)}',
-            texto: 'Un solo pago (anticipo) o a meses sin intereses (pagas tu mueble completo '
-                'y lo difieres). Cada plazo incluye la comisión que cobra Clip.',
-            onTap: () => _abrir(
-              context,
-              _TarjetaClipPage(
-                oferta: o,
-                abono: abono,
-                onPagado: (x) => DemoAnticipos.registrar(
-                  o.citaId,
-                  ResultadoAnticipo(
-                    metodo: 'tarjeta',
-                    monto: x.cobro,
-                    fecha: DateTime.now(),
-                    meses: x.meses,
-                    totalMueble: x.total,
-                    liquida: x.liquida,
-                    factura: factura,
-                    abonoVisita: abono,
-                  ),
-                ),
-              ),
-            ),
-          ),
+          if (!_eligioTarjeta) tarjeta,
           ],
         ],
       ),
@@ -701,7 +750,11 @@ class _Opcion extends StatelessWidget {
     required this.titulo,
     required this.texto,
     required this.onTap,
+    this.destacada = false,
   });
+
+  /// La forma de pago que eligió en la cotización (C5).
+  final bool destacada;
 
   final Key clave;
   final IconData icono;
@@ -718,6 +771,12 @@ class _Opcion extends StatelessWidget {
       child: Card(
       key: clave,
       clipBehavior: Clip.antiAlias,
+      shape: destacada
+          ? RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: const BorderSide(color: MoblarColors.primary, width: 2),
+            )
+          : null,
       child: InkWell(
         onTap: onTap,
         child: Padding(
@@ -755,9 +814,17 @@ class _Opcion extends StatelessWidget {
 /// demo solo simula: el link real (por cobro, con el monto exacto) se habilita
 /// cuando lo aprueben.
 class _TarjetaClipPage extends StatefulWidget {
-  const _TarjetaClipPage({required this.oferta, required this.onPagado, this.abono = 0});
+  const _TarjetaClipPage({
+    required this.oferta,
+    required this.onPagado,
+    this.abono = 0,
+    this.plazoInicial = plazoContado,
+  });
 
   final OfertaVisita oferta;
+
+  /// Plazo elegido en la cotización: llega seleccionado (si no existe, el primero).
+  final int plazoInicial;
 
   /// Visita ya pagada: se descuenta del cobro de cada opción.
   final num abono;
@@ -768,20 +835,10 @@ class _TarjetaClipPage extends StatefulWidget {
 }
 
 class _TarjetaClipPageState extends State<_TarjetaClipPage> {
-  late final List<OpcionTarjeta> _opciones = (widget.oferta.opcionesTarjeta.isNotEmpty
-          ? widget.oferta.opcionesTarjeta
-          : [
-          // Servidor viejo sin plazos: solo el pago único.
-          OpcionTarjeta(
-            meses: 1,
-            total: widget.oferta.precioTarjeta,
-            mensualidad: widget.oferta.precioTarjeta,
-            cobro: widget.oferta.anticipoTarjeta,
-          ),
-        ])
-      .map((x) => conAbono(x, widget.abono))
-      .toList();
-  late OpcionTarjeta _elegida = _opciones.first;
+  late final List<OpcionTarjeta> _opciones =
+      plazosDe(widget.oferta).map((x) => conAbono(x, widget.abono)).toList();
+  late OpcionTarjeta _elegida =
+      _opciones.where((x) => x.meses == widget.plazoInicial).firstOrNull ?? _opciones.first;
 
   @override
   Widget build(BuildContext context) {

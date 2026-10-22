@@ -10,7 +10,9 @@ import 'adquirir_oferta.dart';
 import 'pago_visita.dart' show AvisoDemo;
 
 // ---------------------------------------------------------------------------
-// Oferta de la visita — ESQUELETO DE DEMOSTRACIÓN (paso C, 2026-10-02).
+// Oferta de la visita — ESQUELETO DE DEMOSTRACIÓN (paso C, 2026-10-02;
+// rediseño C5, 2026-10-22: factura al momento, el precio más bajo en verde y
+// "Otras opciones de pago").
 //
 // Es la versión temprana de la "cotización comercial" (misma etiqueta,
 // imagen, vigencia, arquitecto e "incluye" que la tarjeta de Cotizaciones):
@@ -21,7 +23,7 @@ import 'pago_visita.dart' show AvisoDemo;
 // contado. Los números vienen del servidor; aquí no se recalcula nada.
 // ---------------------------------------------------------------------------
 
-class TarjetaOfertaVisita extends StatelessWidget {
+class TarjetaOfertaVisita extends StatefulWidget {
   const TarjetaOfertaVisita({
     super.key,
     required this.oferta,
@@ -38,19 +40,44 @@ class TarjetaOfertaVisita extends StatelessWidget {
   final num montoVisita;
 
   @override
+  State<TarjetaOfertaVisita> createState() => _TarjetaOfertaVisitaState();
+}
+
+/// C5 (Carlos, 2026-10-22): "Requiero factura" cambia los precios al momento
+/// (apagado = "descuento por no facturar") y "Otras opciones de pago" deja
+/// elegir la forma de pago. Las dos elecciones pasan a "Inicia tu proyecto".
+class _TarjetaOfertaVisitaState extends State<TarjetaOfertaVisita> {
+  bool _factura = true;
+
+  /// Forma de pago elegida: ver [AdquirirOfertaPage.plazo].
+  int _plazo = plazoContado;
+
+  @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<Map<String, ResultadoAnticipo>>(
       valueListenable: DemoAnticipos.resultados,
-      builder: (context, anticipos, _) => _tarjeta(context, anticipos[oferta.citaId]),
+      builder: (context, anticipos, _) => _tarjeta(context, anticipos[widget.oferta.citaId]),
     );
   }
 
+  void _cambiarFactura(bool v) {
+    setState(() {
+      _factura = v;
+      // Si el plazo elegido no existe en la otra variante, vuelve a contado.
+      final plazos = plazosDe(widget.oferta.variante(factura: v)).map((x) => x.meses);
+      if (_plazo != plazoContado && !plazos.contains(_plazo)) _plazo = plazoContado;
+    });
+  }
+
   Widget _tarjeta(BuildContext context, ResultadoAnticipo? adquirida) {
-    final o = oferta;
-    final hasta = parseFecha(o.vigenteHasta);
+    final o = widget.oferta;
+    // Ya adquirida: los precios de lo que compró; si no, lo que elige ahora.
+    final factura = adquirida?.factura ?? (_factura || !o.eligeFactura);
+    final v = o.variante(factura: factura);
     final vencida = !o.vigente && adquirida == null;
     final imagen = o.imagenDiseno;
     final visita = parseFecha(o.fechaVisita);
+    final elige = adquirida == null && !vencida;
     return Card(
       key: Key('ofertaVisita-${o.citaId}'),
       clipBehavior: Clip.antiAlias,
@@ -132,55 +159,58 @@ class TarjetaOfertaVisita extends StatelessWidget {
                       : 'Propuesta de tu visita del ${fechaLarga(visita)}',
                   style: const TextStyle(fontSize: 12, color: MoblarColors.textMuted),
                 ),
+                // Información del mueble, antes de los precios.
+                _InfoMueble(oferta: o, vencida: vencida, mostrarVigencia: adquirida == null),
+                if (elige && o.eligeFactura) ...[
+                  const SizedBox(height: 8),
+                  _InterruptorFactura(
+                    factura: _factura,
+                    ahorro: menosAbono(o.precioContado, o.variante(factura: false).precioContado),
+                    ivaPct: o.ivaPct,
+                    onChanged: _cambiarFactura,
+                  ),
+                ],
                 const SizedBox(height: 12),
-                _Precios(oferta: o),
+                _Precios(
+                  oferta: v,
+                  // Sin factura: el precio con factura y el descuento por no facturar.
+                  conFactura: o.eligeFactura && !factura ? o : null,
+                ),
+                if (elige) ...[
+                  const SizedBox(height: 4),
+                  _OtrasOpciones(
+                    oferta: v,
+                    plazo: _plazo,
+                    onElegir: (p) => setState(() => _plazo = p),
+                  ),
+                ],
                 if (adquirida != null) ...[
                   const SizedBox(height: 12),
-                  ResumenCompraOferta(oferta: o.variante(factura: adquirida.factura), resultado: adquirida),
+                  ResumenCompraOferta(oferta: v, resultado: adquirida),
                 ] else if (o.adquirible) ...[
                   const SizedBox(height: 12),
                   FilledButton.icon(
                     key: Key('adquirirOferta-${o.citaId}'),
                     onPressed: () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(builder: (_) => AdquirirOfertaPage(oferta: o, montoVisita: montoVisita)),
+                      MaterialPageRoute<void>(
+                        builder: (_) => AdquirirOfertaPage(
+                          oferta: o,
+                          montoVisita: widget.montoVisita,
+                          factura: factura,
+                          plazo: _plazo,
+                        ),
+                      ),
                     ),
                     icon: const Icon(Icons.shopping_bag_outlined),
                     label: const Text('Adquirir esta cotización'),
-                  ),
-                ],
-                if (hasta != null && adquirida == null)
-                  Dato(
-                    icono: vencida ? Icons.event_busy_outlined : Icons.event_available_outlined,
-                    texto: vencida
-                        ? 'Venció el ${fechaLarga(hasta)}. Pídenos una actualización.'
-                        : 'Válida hasta el ${fechaLarga(hasta)}',
-                  ),
-                if (o.arquitecto != null)
-                  Dato(icono: Icons.person_outline, texto: 'Tu arquitecto: ${o.arquitecto}'),
-                if (o.incluye.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  const Text(
-                    'INCLUYE',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.8,
-                      color: MoblarColors.textMuted,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: [for (final t in o.incluye) _ChipIncluye(texto: t)],
                   ),
                 ],
                 const SizedBox(height: 8),
                 BotonPreguntar(
                   key: Key('preguntarOfertaVisita-${o.citaId}'),
                   texto: vencida ? 'Pedir cotización actualizada' : 'Preguntar por esta cotización',
-                  contacto: contacto,
-                  mensaje: mensajeOfertaVisita(o, nombre),
+                  contacto: widget.contacto,
+                  mensaje: mensajeOfertaVisita(o, widget.nombre),
                 ),
               ],
             ),
@@ -191,16 +221,115 @@ class TarjetaOfertaVisita extends StatelessWidget {
   }
 }
 
-/// Precio de lista grande, la mensualidad, el descuento y el precio de
-/// contado resaltado: el beneficio de pagar en efectivo o transferencia.
-class _Precios extends StatelessWidget {
-  const _Precios({required this.oferta});
+/// Vigencia, arquitecto y lo que incluye el precio.
+class _InfoMueble extends StatelessWidget {
+  const _InfoMueble({required this.oferta, required this.vencida, required this.mostrarVigencia});
 
   final OfertaVisita oferta;
+  final bool vencida;
+  final bool mostrarVigencia;
 
   @override
   Widget build(BuildContext context) {
     final o = oferta;
+    final hasta = parseFecha(o.vigenteHasta);
+    return Column(
+      key: const Key('infoMuebleOferta'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (hasta != null && mostrarVigencia)
+          Dato(
+            icono: vencida ? Icons.event_busy_outlined : Icons.event_available_outlined,
+            texto: vencida
+                ? 'Venció el ${fechaLarga(hasta)}. Pídenos una actualización.'
+                : 'Válida hasta el ${fechaLarga(hasta)}',
+          ),
+        if (o.arquitecto != null)
+          Dato(icono: Icons.person_outline, texto: 'Tu arquitecto: ${o.arquitecto}'),
+        if (o.incluye.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          const Text(
+            'INCLUYE',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.8,
+              color: MoblarColors.textMuted,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [for (final t in o.incluye) _ChipIncluye(texto: t)],
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// "Requiero factura": encendido por omisión. Apagado, todos los precios
+/// pasan a la variante sin IVA que manda el servidor (SOLO DEMO: pendiente
+/// de validar con el contador).
+class _InterruptorFactura extends StatelessWidget {
+  const _InterruptorFactura({
+    required this.factura,
+    required this.ahorro,
+    required this.ivaPct,
+    required this.onChanged,
+  });
+
+  final bool factura;
+  final num ahorro;
+  final num ivaPct;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    // Material (no Container con color): el ListTile pinta su toque en el
+    // Material más cercano y un fondo intermedio lo taparía.
+    return Material(
+      color: MoblarColors.surfaceSubtle,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: MoblarColors.border),
+      ),
+      child: SwitchListTile(
+        key: const Key('facturaOferta'),
+        value: factura,
+        onChanged: onChanged,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+        title: const Text('Requiero factura', style: TextStyle(fontWeight: FontWeight.w600)),
+        subtitle: Text(
+          factura
+              ? 'Precios con IVA (${ivaPct.round()}%).'
+              : 'Sin factura: descuento de ${dinero(ahorro)}.',
+          key: const Key('detalleFacturaOferta'),
+          style: const TextStyle(fontSize: 12),
+        ),
+      ),
+    );
+  }
+}
+
+/// Precio de lista y su mensualidad; abajo, en verde, el precio más bajo:
+/// de contado (efectivo o transferencia), con su desglose.
+class _Precios extends StatelessWidget {
+  const _Precios({required this.oferta, this.conFactura});
+
+  final OfertaVisita oferta;
+
+  /// La oferta con factura, cuando el cliente la quitó: para mostrar el
+  /// "descuento por no facturar" (decisión de Carlos, 2026-10-22).
+  final OfertaVisita? conFactura;
+
+  @override
+  Widget build(BuildContext context) {
+    final o = oferta;
+    final cf = conFactura;
+    const verde = Color(0xFF065F46);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -212,7 +341,7 @@ class _Precios extends StatelessWidget {
           dinero(o.precioLista),
           key: const Key('precioListaOferta'),
           style: const TextStyle(
-            fontSize: 28,
+            fontSize: 22,
             height: 1.1,
             fontWeight: FontWeight.w700,
             color: MoblarColors.primaryDark,
@@ -224,10 +353,6 @@ class _Precios extends StatelessWidget {
           key: const Key('mensualidadOferta'),
           style: const TextStyle(color: MoblarColors.textSecondary),
         ),
-        if (o.opcionesTarjeta.isNotEmpty) ...[
-          const SizedBox(height: 10),
-          _OpcionesTarjeta(opciones: o.opcionesTarjeta),
-        ],
         const SizedBox(height: 12),
         Container(
           key: const Key('contadoOferta'),
@@ -239,69 +364,66 @@ class _Precios extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Row(
-                children: [
-                  const Expanded(
-                    child: Text(
-                      'Descuento por pago de contado',
-                      style: TextStyle(fontSize: 13, color: Color(0xFF065F46)),
-                    ),
-                  ),
-                  Text(
-                    '−${dinero(o.descuento)} (${o.descuentoPct.toStringAsFixed(1)}%)',
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF065F46),
-                    ),
-                  ),
-                ],
+              _Renglon(
+                clave: const Key('descuentoContadoOferta'),
+                etiqueta: 'Descuento por pago de contado',
+                valor: '−${dinero(o.descuento)} (${o.descuentoPct.toStringAsFixed(1)}%)',
+                fuerte: true,
               ),
               if (o.iva > 0) ...[
                 const SizedBox(height: 6),
-                _RenglonIva(
+                _Renglon(
                   clave: const Key('subtotalOferta'),
                   etiqueta: 'Precio de tu mueble',
                   valor: dinero(o.subtotal),
                 ),
-                _RenglonIva(
+                _Renglon(
                   clave: const Key('ivaOferta'),
                   etiqueta: 'IVA (${o.ivaPct.round()}%)',
                   valor: dinero(o.iva),
                 ),
+              ] else if (cf != null) ...[
+                const SizedBox(height: 6),
+                _Renglon(
+                  clave: const Key('precioConFacturaOferta'),
+                  etiqueta: 'Precio con factura',
+                  valor: dinero(cf.precioContado),
+                ),
+                _Renglon(
+                  clave: const Key('descuentoFacturaOferta'),
+                  etiqueta: 'Descuento por no facturar',
+                  valor: '−${dinero(menosAbono(cf.precioContado, o.precioContado))}',
+                ),
               ],
               const SizedBox(height: 6),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  const Expanded(
-                    child: Text(
-                      'Precio de contado',
-                      style: TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF065F46)),
-                    ),
-                  ),
-                  Text(
+              // Etiqueta y monto en renglones distintos: a 28 el monto no cabe
+              // junto a la etiqueta en pantallas angostas; si aun así no
+              // cabe, se reduce.
+              const Text(
+                'Precio de contado',
+                style: TextStyle(fontWeight: FontWeight.w700, color: verde),
+              ),
+              Align(
+                alignment: Alignment.centerRight,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
                     dinero(o.precioContado),
                     key: const Key('precioContadoOferta'),
                     style: const TextStyle(
-                      fontSize: 22,
+                      fontSize: 28,
+                      height: 1.1,
                       fontWeight: FontWeight.w700,
-                      color: Color(0xFF065F46),
+                      color: verde,
                     ),
                   ),
-                ],
+                ),
               ),
               const SizedBox(height: 4),
               const Text(
-                'Pagando en efectivo o por transferencia.',
-                style: TextStyle(fontSize: 12, color: Color(0xFF065F46)),
+                'El precio más bajo: pagando en efectivo o por transferencia.',
+                style: TextStyle(fontSize: 12, color: verde),
               ),
-              if (o.eligeFactura)
-                Text(
-                  'Precios con factura. Si no la necesitas, al adquirir puedes quitar el IVA.',
-                  key: const Key('avisoFacturaOferta'),
-                  style: const TextStyle(fontSize: 12, color: Color(0xFF065F46)),
-                ),
             ],
           ),
         ),
@@ -310,17 +432,22 @@ class _Precios extends StatelessWidget {
   }
 }
 
-/// Renglón del desglose de IVA dentro del recuadro de contado.
-class _RenglonIva extends StatelessWidget {
-  const _RenglonIva({required this.clave, required this.etiqueta, required this.valor});
+/// Renglón del desglose dentro del recuadro verde de contado.
+class _Renglon extends StatelessWidget {
+  const _Renglon({required this.clave, required this.etiqueta, required this.valor, this.fuerte = false});
 
   final Key clave;
   final String etiqueta;
   final String valor;
+  final bool fuerte;
 
   @override
   Widget build(BuildContext context) {
-    const estilo = TextStyle(fontSize: 13, color: Color(0xFF065F46));
+    final estilo = TextStyle(
+      fontSize: 13,
+      fontWeight: fuerte ? FontWeight.w600 : FontWeight.w400,
+      color: const Color(0xFF065F46),
+    );
     return Padding(
       key: clave,
       padding: const EdgeInsets.only(top: 2),
@@ -334,61 +461,117 @@ class _RenglonIva extends StatelessWidget {
   }
 }
 
-/// Con tarjeta: un solo pago y cada plazo con su total. Clip cobra menos
-/// comisión entre menos meses, así que cada plazo tiene su propio precio.
-class _OpcionesTarjeta extends StatelessWidget {
-  const _OpcionesTarjeta({required this.opciones});
+/// "Otras opciones de pago": contado y, con tarjeta, un solo pago y cada plazo
+/// de MSI con su total (Clip cobra menos comisión entre menos meses). Se puede
+/// elegir una; la elección pasa a "Inicia tu proyecto".
+class _OtrasOpciones extends StatelessWidget {
+  const _OtrasOpciones({required this.oferta, required this.plazo, required this.onElegir});
 
-  final List<OpcionTarjeta> opciones;
+  final OfertaVisita oferta;
+  final int plazo;
+  final ValueChanged<int> onElegir;
 
   @override
   Widget build(BuildContext context) {
+    final o = oferta;
+    final tarjeta = plazosDe(o);
+    final elegida = tarjeta.where((x) => x.meses == plazo).firstOrNull;
     return Theme(
       data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
       child: ExpansionTile(
-        key: const Key('opcionesTarjeta'),
+        key: const Key('otrasOpcionesPago'),
         tilePadding: EdgeInsets.zero,
         childrenPadding: const EdgeInsets.only(bottom: 4),
-        leading: const Icon(Icons.credit_card, color: MoblarColors.primary),
+        leading: const Icon(Icons.payments_outlined, color: MoblarColors.primary),
         title: const Text(
-          'Opciones con tarjeta',
+          'Otras opciones de pago',
           style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
         ),
-        subtitle: const Text(
-          'Entre menos meses, menor precio.',
-          style: TextStyle(fontSize: 12, color: MoblarColors.textMuted),
+        subtitle: Text(
+          'Elegiste: ${elegida == null ? 'de contado' : nombrePlazo(elegida.meses).toLowerCase()}',
+          key: const Key('formaElegidaOferta'),
+          style: const TextStyle(fontSize: 12, color: MoblarColors.textMuted),
         ),
         children: [
-          for (final x in opciones)
-            Padding(
-              key: Key('opcionTarjeta-${x.meses}'),
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Row(
+          _FilaForma(
+            clave: const Key('formaPago-0'),
+            elegida: elegida == null,
+            titulo: 'De contado',
+            detalle: 'Efectivo o transferencia · el más bajo',
+            monto: dinero(o.precioContado),
+            verde: true,
+            onTap: () => onElegir(plazoContado),
+          ),
+          for (final x in tarjeta)
+            _FilaForma(
+              clave: Key('formaPago-${x.meses}'),
+              elegida: identical(x, elegida),
+              titulo: nombrePlazo(x.meses),
+              detalle: x.unPago ? 'Con tarjeta' : 'Total ${dinero(x.total)}',
+              monto: x.unPago ? dinero(x.total) : '${x.meses} × ${dinero(x.mensualidad)}',
+              onTap: () => onElegir(x.meses),
+            ),
+          const Padding(
+            padding: EdgeInsets.only(top: 4),
+            child: Text(
+              'Con tarjeta, entre menos meses, menor precio.',
+              style: TextStyle(fontSize: 12, color: MoblarColors.textMuted),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FilaForma extends StatelessWidget {
+  const _FilaForma({
+    required this.clave,
+    required this.elegida,
+    required this.titulo,
+    required this.detalle,
+    required this.monto,
+    required this.onTap,
+    this.verde = false,
+  });
+
+  final Key clave;
+  final bool elegida;
+  final String titulo;
+  final String detalle;
+  final String monto;
+  final VoidCallback onTap;
+  final bool verde;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = verde ? const Color(0xFF065F46) : MoblarColors.textPrimary;
+    return InkWell(
+      key: clave,
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          children: [
+            Icon(
+              elegida ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+              size: 20,
+              color: elegida ? MoblarColors.primary : MoblarColors.textMuted,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Text(
-                      x.unPago ? 'Un solo pago' : '${x.meses} meses sin intereses',
-                      style: const TextStyle(color: MoblarColors.textPrimary),
-                    ),
-                  ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        x.unPago ? dinero(x.total) : '${x.meses} × ${dinero(x.mensualidad)}',
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                      if (!x.unPago)
-                        Text(
-                          'Total ${dinero(x.total)}',
-                          style: const TextStyle(fontSize: 12, color: MoblarColors.textMuted),
-                        ),
-                    ],
-                  ),
+                  Text(titulo, style: TextStyle(color: color, fontWeight: FontWeight.w500)),
+                  Text(detalle, style: const TextStyle(fontSize: 12, color: MoblarColors.textMuted)),
                 ],
               ),
             ),
-        ],
+            Text(monto, style: TextStyle(fontWeight: FontWeight.w600, color: color)),
+          ],
+        ),
       ),
     );
   }
