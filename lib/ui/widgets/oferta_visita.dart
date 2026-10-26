@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../data/api_client.dart' show ApiException, SesionTerminada;
 import '../../data/models.dart';
+import '../../state/app_scope.dart';
 import '../../theme.dart';
 import '../../util/formato.dart';
 import 'comunes.dart';
@@ -30,11 +32,16 @@ class TarjetaOfertaVisita extends StatefulWidget {
     required this.contacto,
     this.nombre,
     this.montoVisita = 0,
+    this.formal,
   });
 
   final OfertaVisita oferta;
   final Contacto contacto;
   final String? nombre;
+
+  /// Paso 2a: la cotización formal (proyecto completado en el ERP) de esta
+  /// cita, si ya existe. null = el arquitecto todavía no termina el levantamiento.
+  final Cotizacion? formal;
 
   /// Costo de la visita de la que salió la oferta (no se cobra si la adquiere).
   final num montoVisita;
@@ -246,6 +253,10 @@ class _TarjetaOfertaVisitaState extends State<TarjetaOfertaVisita> {
                     label: Text(o.opcion >= 1 ? 'Adquirir la opción ${o.opcion}' : 'Adquirir esta cotización'),
                   ),
                 ],
+                if (!vencida || widget.formal != null) ...[
+                  const SizedBox(height: 12),
+                  TarjetaCotizacionFormal(formal: widget.formal),
+                ],
                 const SizedBox(height: 8),
                 BotonPreguntar(
                   key: Key('preguntarOfertaVisita-${o.citaId}'),
@@ -255,6 +266,262 @@ class _TarjetaOfertaVisitaState extends State<TarjetaOfertaVisita> {
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// "Tu cotización formal" (Carlos, 2026-10-26): mientras el arquitecto no
+/// termina el levantamiento dice que ahí estará; cuando el ERP ya la tiene
+/// (proyecto completado con su PDF), avisa que está lista y deja descargarla.
+/// El PDF se pide al tocar: la URL es firmada y vence en minutos.
+class TarjetaCotizacionFormal extends StatefulWidget {
+  const TarjetaCotizacionFormal({super.key, this.formal});
+
+  final Cotizacion? formal;
+
+  @override
+  State<TarjetaCotizacionFormal> createState() => _TarjetaCotizacionFormalState();
+}
+
+class _TarjetaCotizacionFormalState extends State<TarjetaCotizacionFormal> {
+  bool _abriendo = false;
+
+  Future<void> _verPdf(String id) async {
+    if (_abriendo) return;
+    setState(() => _abriendo = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final url = await AppScope.read(context).urlPdf(id);
+      if (mounted) await abrirEnlace(context, url, trasEspera: true);
+    } on SesionTerminada {
+      // AppState ya regresó al cliente a la pantalla de ingreso.
+    } on ApiException catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(e.mensaje)));
+    } finally {
+      if (mounted) setState(() => _abriendo = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final f = widget.formal;
+    final lista = f?.tienePdf == true;
+    const verde = Color(0xFF065F46);
+    return Container(
+      key: Key(lista ? 'cotizacionFormalLista' : 'cotizacionFormalPendiente'),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: lista ? const Color(0xFFD1FAE5) : MoblarColors.surfaceSubtle,
+        borderRadius: BorderRadius.circular(12),
+        border: lista ? null : Border.all(color: MoblarColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Icon(
+                lista ? Icons.verified_outlined : Icons.hourglass_top_outlined,
+                color: lista ? verde : MoblarColors.textMuted,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  lista
+                      ? 'Tu cotización formal ya está lista${f?.codigo == null ? '' : ' (folio ${f?.codigo})'}'
+                      : 'Tu cotización formal',
+                  style: TextStyle(fontWeight: FontWeight.w700, color: lista ? verde : MoblarColors.textPrimary),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            lista
+                ? 'Revisa las medidas y lo que lleva tu mueble. Puedes descargarla cuando quieras.'
+                : 'Aquí estará tu cotización formal en cuanto tu arquitecto termine el levantamiento. '
+                    'La podrás descargar desde aquí.',
+            style: TextStyle(fontSize: 13, color: lista ? verde : MoblarColors.textSecondary),
+          ),
+          if (lista) ...[
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              key: Key('verCotizacionFormal-${f!.id}'),
+              style: OutlinedButton.styleFrom(minimumSize: const Size(0, 44)),
+              onPressed: _abriendo ? null : () => _verPdf(f.id),
+              icon: _abriendo
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.picture_as_pdf_outlined),
+              label: const Text('Ver y descargar'),
+            ),
+            const SizedBox(height: 8),
+            if (f.firmada)
+              Row(
+                key: const Key('cotizacionFirmada'),
+                children: [
+                  const Icon(Icons.draw_outlined, size: 18, color: verde),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      parseFecha(f.firmadaEl) == null
+                          ? 'Ya firmaste tu cotización.'
+                          : 'Firmaste tu cotización el ${fechaLarga(parseFecha(f.firmadaEl)!)}.',
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: verde),
+                    ),
+                  ),
+                ],
+              )
+            else
+              FilledButton.icon(
+                key: Key('firmarCotizacion-${f.id}'),
+                onPressed: () async {
+                  final firmada = await Navigator.of(context).push<bool>(
+                    MaterialPageRoute<bool>(builder: (_) => FirmarCotizacionPage(cotizacion: f)),
+                  );
+                  if (firmada == true && context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('¡Listo! Tu cotización quedó firmada.')),
+                    );
+                  }
+                },
+                icon: const Icon(Icons.draw_outlined),
+                label: const Text('Leer y firmar'),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// 2b (Carlos, 2026-10-26): el cliente lee los requerimientos (su cotización
+/// formal en PDF) y firma: confirma que está de acuerdo y escribe su nombre.
+/// La firma queda en el ERP con la versión del PDF. Con la firma y el 50 %
+/// pagado empieza la fabricación.
+class FirmarCotizacionPage extends StatefulWidget {
+  const FirmarCotizacionPage({super.key, required this.cotizacion, this.firmar, this.verPdf});
+
+  final Cotizacion cotizacion;
+
+  /// Inyectables para pruebas.
+  final Future<void> Function(String nombre)? firmar;
+  final Future<void> Function()? verPdf;
+
+  @override
+  State<FirmarCotizacionPage> createState() => _FirmarCotizacionPageState();
+}
+
+class _FirmarCotizacionPageState extends State<FirmarCotizacionPage> {
+  final _nombre = TextEditingController();
+  bool _acepto = false;
+  bool _firmando = false;
+
+  @override
+  void dispose() {
+    _nombre.dispose();
+    super.dispose();
+  }
+
+  bool get _listo => _acepto && _nombre.text.replaceAll(RegExp(r'\s+'), ' ').trim().length >= 3;
+
+  Future<void> _verPdf() async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      if (widget.verPdf != null) {
+        await widget.verPdf!();
+        return;
+      }
+      final url = await AppScope.read(context).urlPdf(widget.cotizacion.id);
+      if (mounted) await abrirEnlace(context, url, trasEspera: true);
+    } on SesionTerminada {
+      // AppState ya regresó al cliente a la pantalla de ingreso.
+    } on ApiException catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(e.mensaje)));
+    }
+  }
+
+  Future<void> _firmar() async {
+    if (!_listo || _firmando) return;
+    setState(() => _firmando = true);
+    final messenger = ScaffoldMessenger.of(context);
+    final nombre = _nombre.text.replaceAll(RegExp(r'\s+'), ' ').trim();
+    try {
+      if (widget.firmar != null) {
+        await widget.firmar!(nombre);
+      } else {
+        await AppScope.read(context).firmarCotizacion(widget.cotizacion.id, nombre);
+      }
+      if (mounted) Navigator.of(context).pop(true);
+    } on SesionTerminada {
+      // AppState ya regresó al cliente a la pantalla de ingreso.
+    } on ApiException catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(e.mensaje)));
+    } finally {
+      if (mounted) setState(() => _firmando = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = widget.cotizacion;
+    return Scaffold(
+      appBar: AppBar(title: const Text('Firma tu cotización')),
+      body: ListView(
+        key: const Key('paginaFirmarCotizacion'),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+        children: [
+          Text(
+            c.codigo == null ? 'Tu cotización formal' : 'Tu cotización formal · folio ${c.codigo}',
+            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Antes de firmar, revisa tu cotización: las medidas que tomó tu arquitecto, lo que lleva tu '
+            'mueble y sus condiciones. Con tu firma y el 50 % pagado empezamos a fabricarlo.',
+            style: TextStyle(color: MoblarColors.textSecondary),
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            key: const Key('verPdfFirma'),
+            style: OutlinedButton.styleFrom(minimumSize: const Size(0, 44)),
+            onPressed: _verPdf,
+            icon: const Icon(Icons.picture_as_pdf_outlined),
+            label: const Text('Ver mi cotización (PDF)'),
+          ),
+          const SizedBox(height: 12),
+          CheckboxListTile(
+            key: const Key('aceptoCotizacion'),
+            value: _acepto,
+            onChanged: (v) => setState(() => _acepto = v ?? false),
+            controlAffinity: ListTileControlAffinity.leading,
+            contentPadding: EdgeInsets.zero,
+            title: const Text(
+              'Leí mi cotización formal y estoy de acuerdo con las medidas, lo que lleva mi mueble y sus condiciones.',
+            ),
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            key: const Key('nombreFirma'),
+            controller: _nombre,
+            textCapitalization: TextCapitalization.words,
+            onChanged: (_) => setState(() {}),
+            decoration: const InputDecoration(
+              labelText: 'Tu nombre completo',
+              helperText: 'Es tu firma.',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 16),
+          FilledButton.icon(
+            key: const Key('confirmarFirma'),
+            onPressed: _listo && !_firmando ? _firmar : null,
+            icon: _firmando
+                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.draw_outlined),
+            label: const Text('Firmar mi cotización'),
           ),
         ],
       ),

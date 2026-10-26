@@ -624,4 +624,116 @@ void main() {
       expect(citaConCompra('cita-9'), isFalse);
     });
   });
+
+  group('paso 2a: tu cotización formal', () {
+    Future<void> conFormal(WidgetTester tester, Cotizacion? formal) async {
+      tester.view.physicalSize = const Size(1080, 3400);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ListView(
+              children: [TarjetaOfertaVisita(oferta: oferta, contacto: contacto, nombre: 'Carlos', formal: formal)],
+            ),
+          ),
+        ),
+      );
+    }
+
+    testWidgets('mientras el arquitecto no termina: aquí estará', (tester) async {
+      await conFormal(tester, null);
+      expect(find.byKey(const Key('cotizacionFormalPendiente')), findsOneWidget);
+      expect(find.textContaining('Aquí estará tu cotización formal'), findsOneWidget);
+    });
+
+    testWidgets('ya en el ERP con su PDF: lista, con folio y para descargar', (tester) async {
+      final formal = Cotizacion.fromJson(const {
+        'id': 'p-1',
+        'codigo': '296754',
+        'citaId': 'cita-1',
+        'tienePdf': true,
+        'comprado': false,
+        'marca': {},
+      });
+      expect(formal.citaId, 'cita-1');
+      await conFormal(tester, formal);
+      expect(find.byKey(const Key('cotizacionFormalLista')), findsOneWidget);
+      expect(find.text('Tu cotización formal ya está lista (folio 296754)'), findsOneWidget);
+      expect(find.byKey(const Key('verCotizacionFormal-p-1')), findsOneWidget);
+    });
+
+    testWidgets('proyecto sin PDF todavía: sigue pendiente', (tester) async {
+      await conFormal(
+        tester,
+        Cotizacion.fromJson(const {'id': 'p-1', 'citaId': 'cita-1', 'tienePdf': false, 'marca': {}}),
+      );
+      expect(find.byKey(const Key('cotizacionFormalPendiente')), findsOneWidget);
+    });
+  });
+
+  group('2b: firma de la cotización formal', () {
+    final formal = Cotizacion.fromJson(const {
+      'id': 'p-1',
+      'codigo': '296754',
+      'citaId': 'cita-1',
+      'tienePdf': true,
+      'marca': {},
+    });
+
+    testWidgets('lista y sin firmar: botón para leer y firmar', (tester) async {
+      tester.view.physicalSize = const Size(1080, 3400);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(body: ListView(children: [TarjetaCotizacionFormal(formal: formal)])),
+      ));
+      expect(find.byKey(const Key('firmarCotizacion-p-1')), findsOneWidget);
+      expect(find.byKey(const Key('cotizacionFirmada')), findsNothing);
+    });
+
+    testWidgets('ya firmada: dice cuándo y no vuelve a pedir firma', (tester) async {
+      final firmada = Cotizacion.fromJson(const {
+        'id': 'p-1',
+        'citaId': 'cita-1',
+        'tienePdf': true,
+        'firma': {'fecha': '2026-10-26T18:00:00.000Z', 'version': 1},
+        'marca': {},
+      });
+      expect(firmada.firmada, isTrue);
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(body: ListView(children: [TarjetaCotizacionFormal(formal: firmada)])),
+      ));
+      expect(find.byKey(const Key('cotizacionFirmada')), findsOneWidget);
+      expect(find.textContaining('Firmaste tu cotización el'), findsOneWidget);
+      expect(find.byKey(const Key('firmarCotizacion-p-1')), findsNothing);
+    });
+
+    testWidgets('firmar: aceptar y escribir el nombre; sin eso no se puede', (tester) async {
+      String? nombreFirmado;
+      await tester.pumpWidget(MaterialApp(
+        home: FirmarCotizacionPage(
+          cotizacion: formal,
+          firmar: (n) async => nombreFirmado = n,
+          verPdf: () async {},
+        ),
+      ));
+      // FilledButton.icon puede ser una subclase privada: se busca por su llave.
+      FilledButton boton() => tester.widget<FilledButton>(find.byKey(const Key('confirmarFirma')));
+      expect(find.text('Tu cotización formal · folio 296754'), findsOneWidget);
+      expect(boton().onPressed, isNull, reason: 'sin aceptar ni nombre');
+
+      await tester.enterText(find.byKey(const Key('nombreFirma')), '  Ana   López ');
+      await tester.pump();
+      expect(boton().onPressed, isNull, reason: 'falta aceptar');
+
+      await tester.tap(find.byKey(const Key('aceptoCotizacion')));
+      await tester.pump();
+      expect(boton().onPressed, isNotNull);
+
+      await tester.tap(find.byKey(const Key('confirmarFirma')));
+      await tester.pumpAndSettle();
+      expect(nombreFirmado, 'Ana López');
+    });
+  });
 }

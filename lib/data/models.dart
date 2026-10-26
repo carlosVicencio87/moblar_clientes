@@ -504,11 +504,20 @@ class Cotizacion {
     required this.comprado,
     required this.marca,
     this.comercial,
+    this.citaId,
+    this.firmadaEl,
   });
+
+  /// 2b: cuándo firmó el cliente su cotización formal (ISO); null = no ha firmado.
+  final String? firmadaEl;
+  bool get firmada => firmadaEl != null;
 
   final String id;
   final String? codigo;
   final String? mueble;
+
+  /// La cita de la que salió (para ligarla con la oferta de la visita).
+  final String? citaId;
   final bool tienePdf;
   final num? precio;
   final bool comprado;
@@ -522,6 +531,8 @@ class Cotizacion {
         codigo: _sn(j['codigo']),
         mueble: _sn(j['mueble']),
         tienePdf: j['tienePdf'] == true,
+        citaId: _sn(j['citaId']),
+        firmadaEl: j['firma'] is Map ? _sn((j['firma'] as Map)['fecha']) : null,
         precio: _n(j['precio']),
         comprado: j['comprado'] == true,
         marca: Marca.fromJson(_mapa(j['marca'])),

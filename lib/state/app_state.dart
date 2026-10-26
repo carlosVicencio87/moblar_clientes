@@ -127,6 +127,19 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  /// 2b: firma la cotización formal y vuelve a cargar (para ver "Firmada").
+  Future<void> firmarCotizacion(String cotizacionId, String nombre) async {
+    final token = _token;
+    if (token == null) throw const SesionTerminada();
+    try {
+      await api.firmarCotizacion(token, cotizacionId, nombre: nombre);
+    } on SesionTerminada catch (e) {
+      await _cerrar(aviso: e.mensaje);
+      rethrow;
+    }
+    await refrescar();
+  }
+
   // ---- Abonar con tarjeta (link de Clip) ----
 
   /// Demostración: abonos a cada oferta adquirida (por cita), solo en

@@ -216,6 +216,23 @@ class ClienteApi {
     return Uri.parse(url);
   }
 
+  /// POST /api/cliente/cotizaciones/:id/firmar — 2b: el cliente firma su
+  /// cotización formal. Regresa la fecha de la firma (ISO).
+  Future<String> firmarCotizacion(String token, String cotizacionId, {required String nombre}) async {
+    final r = await _enviar(() => _http.post(
+          Uri.parse('$_base/api/cliente/cotizaciones/$cotizacionId/firmar'),
+          headers: _headers(token: token, json: true),
+          body: jsonEncode({'nombre': nombre, 'acepto': true}),
+        ));
+    if (r.statusCode == 401) throw const SesionTerminada();
+    final cuerpo = _cuerpo(r);
+    final firma = cuerpo['firma'];
+    if (r.statusCode != 200 || firma is! Map || firma['fecha'] is! String) {
+      throw ErrorServidor(_errorDe(cuerpo) ?? 'No pudimos registrar tu firma. Intenta de nuevo.');
+    }
+    return firma['fecha'] as String;
+  }
+
   /// POST /api/cliente/proyectos/:id/pago-tarjeta — con [cotizar] solo el
   /// desglose; sin él, el servidor genera el link de Clip.
   Future<Map<String, dynamic>> _pagoTarjeta(
