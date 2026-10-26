@@ -151,6 +151,8 @@ class _TarjetaCotizacionState extends State<_TarjetaCotizacion> {
                 padding: const EdgeInsets.fromLTRB(16, 12, 4, 0),
                 child: MarcaEncabezado(
                   marca: c.marca,
+                  etiqueta: 'Tu cotización',
+                  icono: Icons.request_quote_outlined,
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [

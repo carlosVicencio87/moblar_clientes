@@ -139,7 +139,8 @@ class _HomeShellState extends State<HomeShell> {
       child: Scaffold(
       appBar: AppBar(
         titleSpacing: 16,
-        title: Image.asset('assets/brand/logo-moblar.png', height: 30),
+        // Neutral (Carlos, 2026-10-26): el cliente puede venir de cualquier empresa.
+        title: const Text('Tu visita', style: TextStyle(fontWeight: FontWeight.w700)),
         actions: [
           IconButton(
             tooltip: 'Cerrar sesión',

@@ -5,31 +5,44 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../data/models.dart';
 import '../../theme.dart';
 
-/// Logo y nombre de la empresa que atiende el pedido. Es lo único que cambia
-/// entre marcas (decisión 2026-09-27): el resto de la tarjeta es idéntico.
+/// Encabezado de las tarjetas. Antes llevaba el logo y el nombre de la
+/// empresa (decisión 2026-09-27); desde el 2026-10-26 es neutral.
 class MarcaEncabezado extends StatelessWidget {
-  const MarcaEncabezado({super.key, required this.marca, this.trailing});
+  const MarcaEncabezado({
+    super.key,
+    required this.marca,
+    this.trailing,
+    this.etiqueta = 'Tu visita',
+    this.icono = Icons.event_available_outlined,
+  });
 
+  /// La empresa que atiende. No se muestra (Carlos, 2026-10-26): cada cliente
+  /// puede venir de una empresa distinta, así que la app es neutral y la marca
+  /// solo va en el PDF. Se conserva para cuando se quiera volver a mostrar.
   final Marca marca;
   final Widget? trailing;
+
+  /// Lo que se lee en lugar de la marca: "Tu visita", "Tu cotización"…
+  final String etiqueta;
+  final IconData icono;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(6),
-          child: Container(
-            width: 28,
-            height: 28,
-            color: MoblarColors.surface,
-            child: Image.asset(marca.asset, fit: BoxFit.contain),
+        Container(
+          width: 28,
+          height: 28,
+          decoration: BoxDecoration(
+            color: MoblarColors.primarySoft,
+            borderRadius: BorderRadius.circular(6),
           ),
+          child: Icon(icono, size: 16, color: MoblarColors.primary),
         ),
         const SizedBox(width: 8),
         Expanded(
           child: Text(
-            marca.nombre,
+            etiqueta,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(

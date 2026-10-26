@@ -91,6 +91,8 @@ class TarjetaCompra extends StatelessWidget {
                   children: [
                     MarcaEncabezado(
                       marca: compra.marca,
+                      etiqueta: 'Tu proyecto',
+                      icono: Icons.chair_outlined,
                       trailing: const Icon(Icons.chevron_right, color: MoblarColors.textMuted),
                     ),
                     const SizedBox(height: 12),

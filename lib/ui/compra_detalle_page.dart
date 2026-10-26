@@ -124,7 +124,7 @@ class _Encabezado extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            MarcaEncabezado(marca: compra.marca),
+            MarcaEncabezado(marca: compra.marca, etiqueta: 'Tu proyecto', icono: Icons.chair_outlined),
             const SizedBox(height: 12),
             Text(
               compra.mueble ?? 'Tu mueble',

@@ -67,10 +67,10 @@ class _LoginPageState extends State<LoginPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Image.asset('assets/brand/logo-moblar.png', height: 72),
+                  const Icon(Icons.event_available_outlined, size: 64, color: MoblarColors.primary),
                   const SizedBox(height: 32),
                   const Text(
-                    'Tu visita Moblar',
+                    'Tu visita',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 24,
@@ -146,7 +146,7 @@ class _LoginPageState extends State<LoginPage> {
                       context,
                       enlaceWhatsApp(
                         '52${AppConfig.telefonoAtencion}',
-                        mensaje: '[ACCESO] Hola, necesito mi código para la app de Moblar.',
+                        mensaje: '[ACCESO] Hola, necesito mi código para la app Tu visita.',
                       ),
                     ),
                     icon: const Icon(Icons.chat_outlined),

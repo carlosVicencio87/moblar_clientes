@@ -58,7 +58,7 @@ class _MoblarClientesAppState extends State<MoblarClientesApp> {
       state: widget.state,
       child: MaterialApp(
         navigatorKey: _navegador,
-        title: 'Moblar',
+        title: 'Tu visita',
         debugShowCheckedModeBanner: false,
         theme: moblarTheme(),
         locale: const Locale('es', 'MX'),
@@ -95,8 +95,8 @@ class _Arranque extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: MoblarColors.surface,
-      body: Center(
-        child: Image.asset('assets/brand/logo-moblar.png', width: 160),
+      body: const Center(
+        child: Icon(Icons.event_available_outlined, size: 72, color: MoblarColors.primary),
       ),
     );
   }

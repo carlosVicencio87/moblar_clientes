@@ -96,7 +96,7 @@ String mensajeArquitecto(Cita cita, String? nombre) {
   final quien = (nombre ?? '').trim();
   final saludo = quien.isEmpty ? 'Hola.' : 'Hola, soy $quien.';
   return fecha == null
-      ? '$saludo Te escribo por mi cita con MOBLAR.'
+      ? '$saludo Te escribo por mi cita.'
       : '$saludo Te escribo por mi cita del ${fechaLarga(fecha)}.';
 }
 

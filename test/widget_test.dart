@@ -171,6 +171,9 @@ void main() {
 
     expect(find.byKey(const Key('citaDestacada')), findsOneWidget);
     expect(find.text('AL'), findsOneWidget); // iniciales de Ana López, sin foto
+    // Marca neutral (Carlos, 2026-10-26): ni logo ni nombre de MOBLAR en la app.
+    expect(find.text('MOBLAR'), findsNothing);
+    expect(find.text('Tu visita'), findsWidgets);
 
     await tester.tap(find.byKey(const Key('citaDestacada')));
     await tester.pumpAndSettle();
