@@ -440,7 +440,7 @@ void main() {
       DemoPagosVisita.resultados.value = const {};
     });
 
-    test('la compra de la demo: línea de tiempo en "Pedido" y estado de cuenta', () {
+    test('la compra de la demo: línea de tiempo en "Cotización formal" y estado de cuenta', () {
       final c = compraDemo(OfertaVisita.fromJson(ofertaJson), anticipo, [
         AbonoDemo(fecha: DateTime(2026, 10, 10), monto: 100, metodo: 'Efectivo', validado: true),
       ]);
@@ -448,7 +448,8 @@ void main() {
       expect(c.esDemo, isTrue);
       expect(c.mueble, 'Centro de TV');
       expect(c.lineaTiempo.etapas.first.situacion, Situacion.actual);
-      expect(c.lineaTiempo.mensaje, contains('Recibimos tu anticipo'));
+      expect(c.lineaTiempo.mensaje, contains('Recibimos tu pago'));
+      expect(c.lineaTiempo.etapas.first.titulo, 'Cotización formal');
       expect(c.cuenta?.saldo, 500);
       expect(c.pagos.saldo, 500);
       expect(c.abonoDemo?.arquitecto, 'Ana López');

@@ -4,6 +4,7 @@ import '../data/models.dart';
 import '../state/app_scope.dart';
 import '../util/formato.dart';
 import 'widgets/adquirir_oferta.dart' show DemoAnticipos, ResultadoAnticipo, cuentaDemo, metaFabricacionDe, muebleDe;
+import 'widgets/oferta_visita.dart' show indiceOpcionFormal;
 
 // ---------------------------------------------------------------------------
 // Compras de la DEMOSTRACIÓN (Carlos, 2026-10-09): una oferta adquirida en la
@@ -13,8 +14,11 @@ import 'widgets/adquirir_oferta.dart' show DemoAnticipos, ResultadoAnticipo, cue
 // demostración (efectivo, transferencia o tarjeta aún no registrada).
 // ---------------------------------------------------------------------------
 
+// Con el anticipo todavía no empieza nada (Carlos, 2026-10-26): primero el
+// arquitecto termina la cotización formal y el cliente la firma. Con la firma
+// y el 50 % cubierto empieza el proyecto.
 const _etapas = [
-  ('pedido', 'Pedido confirmado', 'Recibimos tu pedido.', 15),
+  ('cotizacion', 'Cotización formal', 'Tu arquitecto prepara tu cotización formal; tú la revisas y la firmas.', 10),
   ('diseno', 'Diseño técnico', 'Estamos preparando los planos de fabricación de tu mueble.', 35),
   ('fabricacion', 'Fabricación', 'Tu mueble se está fabricando en nuestro taller.', 70),
   ('calidad', 'Control de calidad', 'Revisamos cada pieza antes de enviarla.', 80),
@@ -22,13 +26,35 @@ const _etapas = [
   ('entregado', 'Entregado', '¡Tu mueble está instalado! Gracias por tu confianza.', 100),
 ];
 
-/// La compra de la demo para una oferta adquirida.
-Compra compraDemo(OfertaVisita o, ResultadoAnticipo r, List<AbonoDemo> abonos) {
+/// La compra de la demo para una oferta adquirida. [formal] es su cotización
+/// formal en el ERP, si el arquitecto ya terminó el levantamiento.
+Compra compraDemo(OfertaVisita o, ResultadoAnticipo r, List<AbonoDemo> abonos, {Cotizacion? formal}) {
   final cuenta = cuentaDemo(o, r, abonos);
   final meta = metaFabricacionDe(o, r);
-  // Apartado: entra a fabricación cuando lo pagado (validado) llega al 50%.
+  // Apartado: el anticipo se cubre cuando lo pagado (validado) llega al 50%.
   final apartadoSinCubrir = meta != null && cuenta.pagado < meta;
-  final validado = r.metodo != 'transferencia' && !apartadoSinCubrir;
+  // En la demo una transferencia queda en revisión.
+  final pagoValidado = r.metodo != 'transferencia';
+  final lista = formal?.tienePdf ?? false;
+  final firmada = lista && (formal?.firmada ?? false);
+  final comienza = pagoValidado && firmada && !apartadoSinCubrir;
+  final falta = apartadoSinCubrir ? dinero(((meta - cuenta.pagado) * 100).round() / 100) : '';
+  final String mensaje;
+  if (!pagoValidado) {
+    mensaje = 'Estamos validando tu pago. Te avisaremos en cuanto quede confirmado.';
+  } else if (!lista) {
+    mensaje = 'Recibimos tu pago. Tu arquitecto está preparando tu cotización formal; '
+        'te avisaremos en cuanto esté lista.';
+  } else if (!firmada) {
+    mensaje = 'Tu cotización formal está lista. Empezaremos tu proyecto en cuanto la firmes '
+        '(en Cotizaciones) y confirmes que todo está en orden.';
+  } else if (apartadoSinCubrir) {
+    mensaje = 'Firmaste tu cotización. Proyecto apartado: te faltan $falta para iniciar '
+        'la fabricación (${o.anticipoPct.round()}%). Tu precio queda respetado.';
+  } else {
+    mensaje = 'Firmaste tu cotización y tu anticipo está cubierto. ¡Comenzamos con tu proyecto!';
+  }
+  final actual = comienza ? 1 : 0;
   return Compra(
     id: 'demo-${o.clave}',
     codigo: 'DEMO',
@@ -37,22 +63,25 @@ Compra compraDemo(OfertaVisita o, ResultadoAnticipo r, List<AbonoDemo> abonos) {
     demoCitaId: o.citaId,
     demoClave: o.clave,
     lineaTiempo: LineaTiempo(
-      etapaActual: 0,
-      mensaje: apartadoSinCubrir
-          ? 'Proyecto apartado. Te faltan ${dinero(((meta - cuenta.pagado) * 100).round() / 100)} para iniciar '
-              'la fabricación (${o.anticipoPct.round()}%). Tu precio queda respetado.'
-          : validado
-              ? 'Recibimos tu anticipo. ¡Comenzamos!'
-              : 'Esperando tu anticipo para comenzar.',
-      porcentaje: validado ? 5 : 0,
+      etapaActual: actual,
+      mensaje: mensaje,
+      porcentaje: comienza ? _etapas[0].$4 : 0,
       etapas: [
         for (var i = 0; i < _etapas.length; i++)
           EtapaLineaTiempo(
             clave: _etapas[i].$1,
             titulo: _etapas[i].$2,
             descripcion: _etapas[i].$3,
-            situacion: i == 0 ? Situacion.actual : Situacion.pendiente,
-            desde: i == 0 ? r.fecha.toIso8601String() : null,
+            situacion: i < actual
+                ? Situacion.hecha
+                : i == actual
+                    ? Situacion.actual
+                    : Situacion.pendiente,
+            desde: i == 0
+                ? r.fecha.toIso8601String()
+                : i == actual
+                    ? (formal?.firmadaEl ?? r.fecha.toIso8601String())
+                    : null,
             meta: _etapas[i].$4,
           ),
       ],
@@ -128,9 +157,24 @@ List<Compra> todasLasCompras(BuildContext context, Inicio datos) {
   ];
   final demo = [
     for (final base in datos.ofertasVisita)
-      for (final o in base.opciones.isEmpty ? [base] : base.opciones)
+      for (final (i, o) in (base.opciones.isEmpty ? [base] : base.opciones).indexed)
         if (anticipos[o.clave] case final r?)
-          compraDemo(o.variante(factura: r.factura), r, app.abonosDe(o.clave)),
+          compraDemo(
+            o.variante(factura: r.factura),
+            r,
+            app.abonosDe(o.clave),
+            formal: formalDeOpcion(datos, base, i),
+          ),
   ];
   return [...demo, ...reales];
+}
+
+/// La cotización formal de la opción [i] de la oferta [base]: la de su cita,
+/// si corresponde a esa opción (o si no se puede saber a cuál corresponde).
+Cotizacion? formalDeOpcion(Inicio datos, OfertaVisita base, int i) {
+  final f = datos.cotizaciones.where((c) => c.citaId == base.citaId).firstOrNull;
+  if (f == null) return null;
+  final opciones = base.opciones.isEmpty ? [base] : base.opciones;
+  final de = indiceOpcionFormal(opciones, f);
+  return de == null || de == i ? f : null;
 }

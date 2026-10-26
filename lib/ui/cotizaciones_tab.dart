@@ -10,6 +10,7 @@ import 'widgets/contacto.dart';
 import 'compra_detalle_page.dart';
 import 'widgets/detalle_mueble.dart';
 import 'widgets/oferta_visita.dart';
+import 'widgets/plegable.dart';
 import 'widgets/visita_terminada.dart' show montoVisitaDe;
 
 /// Cotizaciones del cliente con su PDF.
@@ -21,6 +22,10 @@ class CotizacionesTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final vacia = datos.cotizaciones.isEmpty && datos.ofertasVisita.isEmpty;
+    final sueltas = [
+      for (final c in datos.cotizaciones)
+        if (c.citaId == null || !datos.ofertasVisita.any((o) => o.citaId == c.citaId)) c,
+    ];
     return ListaRefrescable(
       onRefrescar: AppScope.read(context).refrescar,
       children: [
@@ -34,7 +39,7 @@ class CotizacionesTab extends StatelessWidget {
           const TituloSeccion('Tus cotizaciones'),
           // La propuesta que dejó el arquitecto al terminar la visita: es la
           // cotización comercial más reciente, va primero.
-          for (final o in datos.ofertasVisita)
+          for (final (i, o) in datos.ofertasVisita.indexed)
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: TarjetaOfertaVisita(
@@ -43,14 +48,22 @@ class CotizacionesTab extends StatelessWidget {
                 nombre: datos.nombre,
                 montoVisita: montoVisitaDe(datos, o.citaId),
                 formal: datos.cotizaciones.where((c) => c.citaId == o.citaId).firstOrNull,
+                tieneCompra: datos.compras.any(
+                  (k) => datos.cotizaciones.any((c) => c.citaId == o.citaId && c.id == k.id),
+                ),
+                // Solo la más reciente abierta: las demás, cerradas (Carlos, 2026-10-26).
+                abierta: i == 0,
               ),
             ),
-          for (final c in datos.cotizaciones)
+          // La cotización formal de una cita con oferta ya va dentro de la
+          // tarjeta de la oferta (Carlos, 2026-10-26): no se repite aparte.
+          for (final (i, c) in sueltas.indexed)
             _TarjetaCotizacion(
               cotizacion: c,
               contacto: datos.contacto,
               nombre: datos.nombre,
               tieneCompra: datos.compras.any((k) => k.id == c.id),
+              abierta: datos.ofertasVisita.isEmpty && i == 0,
             ),
         ],
         if (vacia)
@@ -74,9 +87,13 @@ class _TarjetaCotizacion extends StatefulWidget {
     required this.contacto,
     this.nombre,
     this.tieneCompra = false,
+    this.abierta = true,
   });
 
   final Cotizacion cotizacion;
+
+  /// Cómo empieza: abierta (con todo) o cerrada (solo el resumen).
+  final bool abierta;
   final Contacto contacto;
   final String? nombre;
 
@@ -89,6 +106,9 @@ class _TarjetaCotizacion extends StatefulWidget {
 
 class _TarjetaCotizacionState extends State<_TarjetaCotizacion> {
   bool _abriendo = false;
+  late bool _abierta = widget.abierta;
+
+  void _alternar() => setState(() => _abierta = !_abierta);
 
   /// La URL del PDF es firmada y vence en minutos: se pide al tocar el botón,
   /// nunca antes, y no se guarda.
@@ -124,25 +144,50 @@ class _TarjetaCotizacionState extends State<_TarjetaCotizacion> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-              child: MarcaEncabezado(
-                marca: c.marca,
-                trailing: c.comprado
-                    ? const EstadoChip(
-                        texto: 'Comprada',
-                        color: Color(0xFF065F46),
-                        fondo: Color(0xFFD1FAE5),
-                      )
-                    : vencida
-                        ? const EstadoChip(
-                            texto: 'Vencida',
-                            color: Color(0xFF991B1B),
-                            fondo: Color(0xFFFEE2E2),
-                          )
-                        : null,
+            InkWell(
+              key: Key('plegarCotizacion-${c.id}'),
+              onTap: _alternar,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 4, 0),
+                child: MarcaEncabezado(
+                  marca: c.marca,
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (c.comprado)
+                        const EstadoChip(
+                          texto: 'Comprada',
+                          color: Color(0xFF065F46),
+                          fondo: Color(0xFFD1FAE5),
+                        )
+                      else if (vencida)
+                        const EstadoChip(
+                          texto: 'Vencida',
+                          color: Color(0xFF991B1B),
+                          fondo: Color(0xFFFEE2E2),
+                        ),
+                      FlechaPlegable(abierta: _abierta, onTap: _alternar),
+                    ],
+                  ),
+                ),
               ),
             ),
+            if (!_abierta)
+              ResumenPlegado(
+                key: Key('resumenCotizacion-${c.id}'),
+                titulo: c.mueble ?? 'Mueble a la medida',
+                estado: c.comprado
+                    ? 'Comprada'
+                    : vencida
+                        ? 'Vencida · pídenos una actualización'
+                        : c.tienePdf
+                            ? 'Cotización ${c.codigo ?? ''} · formal disponible'.replaceAll('  ', ' ')
+                            : 'Cotización ${c.codigo ?? ''}'.trim(),
+                precio: precio,
+                imagen: imagen,
+                onTap: _alternar,
+              )
+            else ...[
             // Imagen de Moblo: lo primero que ve el cliente.
             if (imagen != null) ...[
               const SizedBox(height: 12),
@@ -314,6 +359,7 @@ class _TarjetaCotizacionState extends State<_TarjetaCotizacion> {
                 ],
               ),
             ),
+            ],
           ],
         ),
       ),

@@ -268,6 +268,13 @@ void main() {
     // q1 ya está comprada: no muestra vigencia. q2 venció.
     final lista = find.byType(Scrollable).first;
     await tester.scrollUntilVisible(find.text('Vencida'), 200, scrollable: lista);
+    // Solo la primera tarjeta empieza abierta: q2 enseña su resumen hasta tocarla.
+    expect(find.byKey(const Key('resumenCotizacion-q2')), findsOneWidget);
+    expect(find.textContaining('Venció el'), findsNothing);
+    await tester.tap(find.byKey(const Key('plegarCotizacion-q2')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('resumenCotizacion-q2')), findsNothing);
+    await tester.scrollUntilVisible(find.textContaining('Venció el'), 200, scrollable: lista);
     expect(find.textContaining('Venció el'), findsOneWidget);
     expect(find.text('Pedir cotización actualizada'), findsOneWidget);
   });
@@ -387,6 +394,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('ofertaVisita-c-pasada')), findsOneWidget);
+    // Su cotización formal (q1, misma cita) va dentro de la oferta: no se repite aparte.
+    expect(find.byKey(const Key('cotizacion-p-fabricacion')), findsNothing);
     expect(find.text('Clóset'), findsOneWidget);
     expect(find.text(r'$13,482.58'), findsOneWidget);
     final lista = find.byType(Scrollable).first;
@@ -395,7 +404,7 @@ void main() {
     // quedar debajo del borde): lo traemos a la vista antes de tocarlo.
     await tester.ensureVisible(find.byKey(const Key('verCompra-p-fabricacion')));
     await tester.pumpAndSettle();
-    // q2 no está comprada: sin botón de compra.
+    // q2 no está comprada (y es otra cita): va aparte, sin botón de compra.
     expect(find.byKey(const Key('verCompra-q2')), findsNothing);
 
     await tester.tap(find.byKey(const Key('verCompra-p-fabricacion')));

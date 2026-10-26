@@ -480,7 +480,7 @@ class _AdquirirOfertaPageState extends State<AdquirirOfertaPage> {
               Text(
                 'Cierra el trato hoy con lo que puedas, desde ${dinero(o.apartadoMinimo)}. '
                 'Tu proyecto entra a fabricación cuando tus pagos sumen el $pct% '
-                '(${dinero(o.anticipoContado)}).',
+                '(${dinero(o.anticipoContado)}) y firmes tu cotización formal.',
                 style: const TextStyle(color: MoblarColors.textSecondary),
               ),
               // Un trato es un trato (Carlos, 2026-10-13): sin vencimiento
@@ -1104,7 +1104,8 @@ class ResumenCompraOferta extends StatelessWidget {
               key: Key('faltaFabricacion-${o.clave}'),
               icono: Icons.precision_manufacturing_outlined,
               texto: cuenta.pagado >= meta
-                  ? 'Ya cubriste el ${o.anticipoPct.round()}%: tu proyecto entra a fabricación.'
+                  ? 'Ya cubriste el ${o.anticipoPct.round()}%: con tu cotización formal firmada, '
+                      'tu proyecto entra a fabricación.'
                   : 'Proyecto apartado. Te faltan ${dinero(menosAbono(meta, cuenta.pagado))} '
                       'para iniciar la fabricación (${o.anticipoPct.round()}%).',
             ),

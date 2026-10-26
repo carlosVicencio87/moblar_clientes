@@ -1,8 +1,11 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:moblar_clientes/data/models.dart';
 import 'package:moblar_clientes/ui/widgets/adquirir_oferta.dart';
 import 'package:moblar_clientes/ui/widgets/contacto.dart';
+import 'package:moblar_clientes/ui/widgets/lienzo_firma.dart';
 import 'package:moblar_clientes/ui/widgets/oferta_visita.dart';
 import 'package:moblar_clientes/ui/widgets/pago_visita.dart' show DemoPagosVisita, ResultadoPagoVisita;
 
@@ -613,6 +616,76 @@ void main() {
       expect(find.byKey(const Key('adquirirOferta-cita-1')), findsOneWidget);
     });
 
+    testWidgets('abre en la opción que ya adquirió, no en la 1', (tester) async {
+      DemoAnticipos.registrar('cita-1#2', ResultadoAnticipo(metodo: 'efectivo', monto: 1, fecha: DateTime(2026)));
+      await abrir(tester, ofertaOpciones);
+      expect(find.text('Con luz LED'), findsOneWidget);
+      expect(find.text('Adquirida'), findsOneWidget);
+      expect(find.text('Adquirir la opción 1'), findsNothing);
+    });
+
+    test('la cotización formal se ubica en su opción por el precio', () {
+      Cotizacion formal(num precio) =>
+          Cotizacion.fromJson({'id': 'p-1', 'citaId': 'cita-1', 'tienePdf': true, 'precio': precio, 'marca': {}});
+      final ops = ofertaOpciones.opciones;
+      expect(indiceOpcionFormal(ops, formal(15000)), 1, reason: 'antes de IVA');
+      expect(indiceOpcionFormal(ops, formal(17400)), 1, reason: 'con IVA');
+      expect(indiceOpcionFormal(ops, formal(10000)), 0);
+      expect(indiceOpcionFormal(ops, formal(999)), isNull);
+      expect(indiceOpcionFormal(ops, null), isNull);
+      expect(indiceOpcionFormal([ofertaIva], formal(15000)), isNull, reason: 'una sola opción');
+    });
+
+    testWidgets('la cotización formal va solo en la opción que le toca', (tester) async {
+      tester.view.physicalSize = const Size(1080, 3400);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      final formal = Cotizacion.fromJson(const {
+        'id': 'p-1',
+        'codigo': '000265',
+        'citaId': 'cita-1',
+        'tienePdf': true,
+        'precio': 15000,
+        'marca': {},
+      });
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: ListView(
+            children: [TarjetaOfertaVisita(oferta: ofertaOpciones, contacto: contacto, formal: formal)],
+          ),
+        ),
+      ));
+      // Abre en la opción 2, la de la cotización formal, con su firma.
+      expect(find.text('Con luz LED'), findsOneWidget);
+      expect(find.byKey(const Key('firmarCotizacion-p-1')), findsOneWidget);
+      await tocar(tester, const Key('opcionOferta-1'));
+      expect(find.byKey(const Key('cotizacionFormalLista')), findsNothing);
+      expect(find.byKey(const Key('cotizacionFormalPendiente')), findsNothing);
+    });
+
+    testWidgets('se cierra y se abre: cerrada solo enseña el resumen', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2340);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: ListView(
+            children: [TarjetaOfertaVisita(oferta: ofertaOpciones, contacto: contacto, abierta: false)],
+          ),
+        ),
+      ));
+      expect(find.byKey(const Key('resumenOferta-cita-1')), findsOneWidget);
+      expect(find.text('Propuesta de tu visita · 2 opciones'), findsOneWidget);
+      expect(find.byKey(const Key('opcionOferta-1')), findsNothing);
+      await tester.tap(find.byKey(const Key('resumenOferta-cita-1')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('resumenOferta-cita-1')), findsNothing);
+      expect(find.byKey(const Key('opcionOferta-1')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('plegarOferta-cita-1')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('resumenOferta-cita-1')), findsOneWidget);
+    });
+
     test('la visita pagada se abona una sola vez por cita', () {
       DemoPagosVisita.registrar('cita-1', ResultadoPagoVisita(metodo: 'efectivo', fecha: DateTime(2026, 10, 24)));
       addTearDown(() => DemoPagosVisita.resultados.value = const {});
@@ -709,31 +782,93 @@ void main() {
       expect(find.byKey(const Key('firmarCotizacion-p-1')), findsNothing);
     });
 
-    testWidgets('firmar: aceptar y escribir el nombre; sin eso no se puede', (tester) async {
+    /// Un trazo con varios puntos dentro del recuadro de la firma.
+    Future<void> dibujar(WidgetTester tester) async {
+      final lienzo = find.byKey(const Key('lienzoFirma'));
+      await tester.ensureVisible(lienzo);
+      await tester.pumpAndSettle();
+      final g = await tester.startGesture(tester.getCenter(lienzo) - const Offset(80, 20));
+      for (var i = 0; i < 12; i++) {
+        await g.moveBy(const Offset(12, 3));
+        await tester.pump();
+      }
+      await g.up();
+      await tester.pump();
+    }
+
+    testWidgets('firmar: aceptar, nombre y firma dibujada; sin eso no se puede', (tester) async {
+      tester.view.physicalSize = const Size(1080, 3400);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
       String? nombreFirmado;
+      Uint8List? pngEnviado;
+      final pngFalso = Uint8List.fromList([137, 80, 78, 71, 13, 10, 26, 10, 1, 2, 3]);
+      int? puntosExportados;
       await tester.pumpWidget(MaterialApp(
         home: FirmarCotizacionPage(
           cotizacion: formal,
-          firmar: (n) async => nombreFirmado = n,
+          firmar: (n, png) async {
+            nombreFirmado = n;
+            pngEnviado = png;
+          },
           verPdf: () async {},
+          exportarFirma: (f) async {
+            puntosExportados = f.puntos;
+            return pngFalso;
+          },
         ),
       ));
       // FilledButton.icon puede ser una subclase privada: se busca por su llave.
       FilledButton boton() => tester.widget<FilledButton>(find.byKey(const Key('confirmarFirma')));
       expect(find.text('Tu cotización formal · folio 296754'), findsOneWidget);
-      expect(boton().onPressed, isNull, reason: 'sin aceptar ni nombre');
+      expect(find.text('Firma aquí con tu dedo'), findsOneWidget);
+      expect(boton().onPressed, isNull, reason: 'sin aceptar, nombre ni firma');
 
       await tester.enterText(find.byKey(const Key('nombreFirma')), '  Ana   López ');
       await tester.pump();
-      expect(boton().onPressed, isNull, reason: 'falta aceptar');
-
       await tester.tap(find.byKey(const Key('aceptoCotizacion')));
       await tester.pump();
+      expect(boton().onPressed, isNull, reason: 'falta dibujar la firma');
+
+      await dibujar(tester);
+      expect(find.text('Firma aquí con tu dedo'), findsNothing);
       expect(boton().onPressed, isNotNull);
 
+      // Borrar deja el recuadro vacío y vuelve a pedir la firma.
+      await tester.tap(find.byKey(const Key('borrarFirma')));
+      await tester.pump();
+      expect(boton().onPressed, isNull, reason: 'borró la firma');
+
+      await dibujar(tester);
+      await tester.ensureVisible(find.byKey(const Key('confirmarFirma')));
       await tester.tap(find.byKey(const Key('confirmarFirma')));
       await tester.pumpAndSettle();
       expect(nombreFirmado, 'Ana López');
+      expect(pngEnviado, pngFalso);
+      expect(puntosExportados, greaterThanOrEqualTo(8));
+    });
+
+    testWidgets('un toque suelto no cuenta como firma', (tester) async {
+      tester.view.physicalSize = const Size(1080, 3400);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      final c = FirmaController();
+      addTearDown(c.dispose);
+      await tester.pumpWidget(MaterialApp(home: Scaffold(body: LienzoFirma(controller: c))));
+      await tester.tap(find.byKey(const Key('lienzoFirma')));
+      await tester.pump();
+      expect(c.firmada, isFalse);
+    });
+
+    testWidgets('la firma sale como PNG', (tester) async {
+      final png = await tester.runAsync(() => firmaPng(
+            [
+              [const Offset(10, 10), const Offset(60, 40), const Offset(120, 20)],
+            ],
+            const Size(200, 100),
+          ));
+      expect(png, isNotNull);
+      expect(png!.sublist(0, 8), [137, 80, 78, 71, 13, 10, 26, 10]);
     });
   });
 }

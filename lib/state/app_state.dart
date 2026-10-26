@@ -128,11 +128,11 @@ class AppState extends ChangeNotifier {
   }
 
   /// 2b: firma la cotización formal y vuelve a cargar (para ver "Firmada").
-  Future<void> firmarCotizacion(String cotizacionId, String nombre) async {
+  Future<void> firmarCotizacion(String cotizacionId, String nombre, List<int> firmaPng) async {
     final token = _token;
     if (token == null) throw const SesionTerminada();
     try {
-      await api.firmarCotizacion(token, cotizacionId, nombre: nombre);
+      await api.firmarCotizacion(token, cotizacionId, nombre: nombre, firmaPng: firmaPng);
     } on SesionTerminada catch (e) {
       await _cerrar(aviso: e.mensaje);
       rethrow;

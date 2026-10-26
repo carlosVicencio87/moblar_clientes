@@ -89,7 +89,8 @@ class EstadoCuentaCompra extends StatelessWidget {
                 ),
                 child: Text(
                   c.pagado >= meta
-                      ? 'Ya cubriste el ${pctFabricacion.round()}% (${dinero(meta)}): tu proyecto entra a fabricación.'
+                      ? 'Ya cubriste el ${pctFabricacion.round()}% (${dinero(meta)}): con tu cotización formal '
+                          'firmada, tu proyecto entra a fabricación.'
                       : 'Proyecto apartado. Para iniciar la fabricación (${pctFabricacion.round()}%, ${dinero(meta)}) '
                           'te faltan ${dinero(((meta - c.pagado) * 100).round() / 100)}.',
                   style: TextStyle(

@@ -136,20 +136,48 @@ void main() {
       expect(find.textContaining(r'Te faltan $3,000.00 para iniciar la fabricación (50%)'), findsOneWidget);
     });
 
-    test('compra de la demo: apartada hasta cubrir el 50%', () {
+    test('compra de la demo: con el anticipo no empieza nada; con firma y 50 % sí', () {
       final c = compraDemo(oferta, apartado, const []);
       expect(c.metaFabricacion, 5000);
-      expect(c.lineaTiempo.mensaje, contains(r'Te faltan $3,000.00'));
+      expect(c.lineaTiempo.mensaje, contains('Tu arquitecto está preparando tu cotización formal'));
+      expect(c.lineaTiempo.mensaje, isNot(contains('Comenzamos')));
+      expect(c.lineaTiempo.porcentaje, 0);
+      expect(c.lineaTiempo.etapas.first.titulo, 'Cotización formal');
       expect(c.cuenta?.pagos.last.concepto, 'Apartado');
-      final cubierta = compraDemo(oferta, apartado, [
+
+      final lista = Cotizacion.fromJson(const {'id': 'p-1', 'citaId': 'cita-1', 'tienePdf': true, 'marca': {}});
+      final firmada = Cotizacion.fromJson(const {
+        'id': 'p-1',
+        'citaId': 'cita-1',
+        'tienePdf': true,
+        'firma': {'fecha': '2026-10-26T18:00:00.000Z', 'version': 1},
+        'marca': {},
+      });
+      expect(
+        compraDemo(oferta, apartado, const [], formal: lista).lineaTiempo.mensaje,
+        contains('Empezaremos tu proyecto en cuanto la firmes'),
+      );
+      // Firmada pero apartada: todavía le falta para el 50 %.
+      final apartada = compraDemo(oferta, apartado, const [], formal: firmada);
+      expect(apartada.lineaTiempo.mensaje, contains(r'te faltan $3,000.00'));
+      expect(apartada.lineaTiempo.porcentaje, 0);
+
+      final cubierta = compraDemo(
+        oferta,
+        apartado,
+        [AbonoDemo(fecha: DateTime(2026, 10, 20), monto: 3000, metodo: 'Efectivo', validado: true)],
+        formal: firmada,
+      );
+      expect(cubierta.lineaTiempo.mensaje, contains('¡Comenzamos con tu proyecto!'));
+      expect(cubierta.lineaTiempo.porcentaje, greaterThan(0));
+      expect(cubierta.lineaTiempo.etapas.first.situacion, Situacion.hecha);
+
+      // Sin firma no empieza aunque esté cubierto.
+      final sinFirma = compraDemo(oferta, apartado, [
         AbonoDemo(fecha: DateTime(2026, 10, 20), monto: 3000, metodo: 'Efectivo', validado: true),
       ]);
-      expect(cubierta.lineaTiempo.mensaje, 'Recibimos tu anticipo. ¡Comenzamos!');
-      // Una transferencia en revisión no cuenta todavía.
-      final enRevision = compraDemo(oferta, apartado, [
-        AbonoDemo(fecha: DateTime(2026, 10, 20), monto: 3000, metodo: 'Transferencia', validado: false),
-      ]);
-      expect(enRevision.lineaTiempo.mensaje, contains('Proyecto apartado'));
+      expect(sinFirma.lineaTiempo.porcentaje, 0);
+      expect(sinFirma.lineaTiempo.mensaje, isNot(contains('Comenzamos')));
     });
 
     testWidgets('estado de cuenta: aviso de lo que falta y de cuando se cubre', (tester) async {

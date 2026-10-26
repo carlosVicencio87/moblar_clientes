@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 
 import '../../data/api_client.dart' show ApiException, SesionTerminada;
@@ -5,10 +7,13 @@ import '../../data/models.dart';
 import '../../state/app_scope.dart';
 import '../../theme.dart';
 import '../../util/formato.dart';
+import '../compra_detalle_page.dart';
 import 'comunes.dart';
 import 'contacto.dart';
 import 'detalle_mueble.dart' show ampliarImagen;
 import 'adquirir_oferta.dart';
+import 'lienzo_firma.dart';
+import 'plegable.dart';
 import 'pago_visita.dart' show AvisoDemo;
 
 // ---------------------------------------------------------------------------
@@ -33,9 +38,17 @@ class TarjetaOfertaVisita extends StatefulWidget {
     this.nombre,
     this.montoVisita = 0,
     this.formal,
+    this.abierta = true,
+    this.tieneCompra = false,
   });
 
+  /// La cotización formal ya es una compra en "Mi compra" (mismo id de proyecto).
+  final bool tieneCompra;
+
   final OfertaVisita oferta;
+
+  /// Cómo empieza: abierta (con todo) o cerrada (solo el resumen).
+  final bool abierta;
   final Contacto contacto;
   final String? nombre;
 
@@ -59,8 +72,22 @@ class _TarjetaOfertaVisitaState extends State<TarjetaOfertaVisita> {
   /// Forma de pago elegida: ver [AdquirirOfertaPage.plazo].
   int _plazo = plazoContado;
 
-  /// A3: la opción que se está viendo (índice en `oferta.opciones`).
-  int _sel = 0;
+  /// A3: la opción que eligió el cliente con las pestañas (null = no ha tocado).
+  int? _selUsuario;
+
+  /// La opción que se ve (índice en `oferta.opciones`): la que tocó o, si no,
+  /// la que ya adquirió o la de su cotización formal; no la 1 como si no
+  /// hubiera comprado nada. Se calcula en cada build porque los anticipos de
+  /// la demo y la cotización formal pueden llegar después.
+  int get _sel {
+    final elegida = _selUsuario;
+    if (elegida != null) return elegida;
+    final anticipos = DemoAnticipos.resultados.value;
+    final adquirida = _ofertas.indexWhere((x) => anticipos.containsKey(x.clave));
+    return adquirida >= 0 ? adquirida : (_indiceFormal ?? 0);
+  }
+
+  late bool _abierta = widget.abierta;
 
   /// Las opciones de la oferta; con una sola, la oferta misma.
   List<OfertaVisita> get _ofertas =>
@@ -68,6 +95,11 @@ class _TarjetaOfertaVisitaState extends State<TarjetaOfertaVisita> {
 
   /// La opción que se ve ahora.
   OfertaVisita get _actual => _ofertas[_sel.clamp(0, _ofertas.length - 1)];
+
+  /// A qué opción corresponde la cotización formal: la del precio que mandó
+  /// el arquitecto al completar el levantamiento (antes o después de IVA).
+  /// null = no hay formal, hay una sola opción o no se puede saber.
+  int? get _indiceFormal => indiceOpcionFormal(_ofertas, widget.formal);
 
   @override
   Widget build(BuildContext context) {
@@ -89,7 +121,7 @@ class _TarjetaOfertaVisitaState extends State<TarjetaOfertaVisita> {
   void _elegirOpcion(int i) {
     if (i == _sel) return;
     setState(() {
-      _sel = i;
+      _selUsuario = i;
       _plazo = plazoContado; // cada opción tiene sus propios plazos y precios
     });
   }
@@ -110,25 +142,50 @@ class _TarjetaOfertaVisitaState extends State<TarjetaOfertaVisita> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-            child: MarcaEncabezado(
-              marca: o.marca,
-              trailing: adquirida != null
-                  ? const EstadoChip(
-                      texto: 'Adquirida',
-                      color: Color(0xFF065F46),
-                      fondo: Color(0xFFD1FAE5),
-                    )
-                  : vencida
-                      ? const EstadoChip(
-                          texto: 'Vencida',
-                          color: Color(0xFF991B1B),
-                          fondo: Color(0xFFFEE2E2),
-                        )
-                      : null,
+          InkWell(
+            key: Key('plegarOferta-${o.citaId}'),
+            onTap: () => setState(() => _abierta = !_abierta),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 4, 0),
+              child: MarcaEncabezado(
+                marca: o.marca,
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (adquirida != null)
+                      const EstadoChip(
+                        texto: 'Adquirida',
+                        color: Color(0xFF065F46),
+                        fondo: Color(0xFFD1FAE5),
+                      )
+                    else if (vencida)
+                      const EstadoChip(
+                        texto: 'Vencida',
+                        color: Color(0xFF991B1B),
+                        fondo: Color(0xFFFEE2E2),
+                      ),
+                    FlechaPlegable(abierta: _abierta, onTap: () => setState(() => _abierta = !_abierta)),
+                  ],
+                ),
+              ),
             ),
           ),
+          if (!_abierta)
+            ResumenPlegado(
+              key: Key('resumenOferta-${o.citaId}'),
+              titulo: [
+                o.muebles.isEmpty ? 'Mueble a la medida' : o.muebles.join(', '),
+                if (_ofertas.length > 1) 'Opción ${o.opcion}',
+              ].join(' · '),
+              estado: _estadoResumen(adquirida != null, vencida),
+              estadoColor: widget.formal?.tienePdf == true && !(widget.formal?.firmada ?? false)
+                  ? const Color(0xFF065F46)
+                  : MoblarColors.textSecondary,
+              precio: v.precioContado,
+              imagen: imagen,
+              onTap: () => setState(() => _abierta = true),
+            )
+          else ...[
           if (o.demo)
             const Padding(
               padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
@@ -253,9 +310,10 @@ class _TarjetaOfertaVisitaState extends State<TarjetaOfertaVisita> {
                     label: Text(o.opcion >= 1 ? 'Adquirir la opción ${o.opcion}' : 'Adquirir esta cotización'),
                   ),
                 ],
-                if (!vencida || widget.formal != null) ...[
+                // La cotización formal va en la opción a la que corresponde.
+                if ((!vencida || widget.formal != null) && (_indiceFormal == null || _indiceFormal == _sel)) ...[
                   const SizedBox(height: 12),
-                  TarjetaCotizacionFormal(formal: widget.formal),
+                  TarjetaCotizacionFormal(formal: widget.formal, tieneCompra: widget.tieneCompra),
                 ],
                 const SizedBox(height: 8),
                 BotonPreguntar(
@@ -267,10 +325,39 @@ class _TarjetaOfertaVisitaState extends State<TarjetaOfertaVisita> {
               ],
             ),
           ),
+          ],
         ],
       ),
     );
   }
+
+  /// La línea de estado con la tarjeta cerrada: lo siguiente que le toca.
+  String _estadoResumen(bool adquirida, bool vencida) {
+    final f = widget.formal;
+    final formalAqui = _indiceFormal == null || _indiceFormal == _sel;
+    if (f != null && f.tienePdf && formalAqui) {
+      return f.firmada ? 'Cotización formal firmada' : 'Tu cotización formal está lista: léela y fírmala';
+    }
+    if (adquirida) return 'Adquirida · tu arquitecto prepara tu cotización formal';
+    if (vencida) return 'Vencida · pídenos una actualización';
+    return _ofertas.length > 1 ? 'Propuesta de tu visita · ${_ofertas.length} opciones' : 'Propuesta de tu visita';
+  }
+}
+
+/// La opción de [opciones] que corresponde a la cotización [formal]: la de su
+/// precio (antes de IVA, o con IVA). null si hay una sola opción, si no hay
+/// formal o si ningún precio coincide.
+int? indiceOpcionFormal(List<OfertaVisita> opciones, Cotizacion? formal) {
+  if (formal == null || opciones.length < 2) return null;
+  final precio = formal.comercial?.precio ?? formal.precio;
+  if (precio == null) return null;
+  bool igual(num a, num b) => (a - b).abs() < 0.5;
+  final i = opciones.indexWhere(
+    (o) =>
+        igual(o.precioContado, precio) ||
+        (o.subtotal > 0 && (igual(o.subtotal, precio) || igual(o.subtotal * (1 + o.ivaPct / 100), precio))),
+  );
+  return i >= 0 ? i : null;
 }
 
 /// "Tu cotización formal" (Carlos, 2026-10-26): mientras el arquitecto no
@@ -278,9 +365,12 @@ class _TarjetaOfertaVisitaState extends State<TarjetaOfertaVisita> {
 /// (proyecto completado con su PDF), avisa que está lista y deja descargarla.
 /// El PDF se pide al tocar: la URL es firmada y vence en minutos.
 class TarjetaCotizacionFormal extends StatefulWidget {
-  const TarjetaCotizacionFormal({super.key, this.formal});
+  const TarjetaCotizacionFormal({super.key, this.formal, this.tieneCompra = false});
 
   final Cotizacion? formal;
+
+  /// Ya comprada y en "Mi compra": el primer botón lleva a la compra.
+  final bool tieneCompra;
 
   @override
   State<TarjetaCotizacionFormal> createState() => _TarjetaCotizacionFormalState();
@@ -347,9 +437,20 @@ class _TarjetaCotizacionFormalState extends State<TarjetaCotizacionFormal> {
             style: TextStyle(fontSize: 13, color: lista ? verde : MoblarColors.textSecondary),
           ),
           if (lista) ...[
+            if (f!.comprado && widget.tieneCompra) ...[
+              const SizedBox(height: 8),
+              FilledButton.icon(
+                key: Key('verCompra-${f.id}'),
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(builder: (_) => CompraDetallePage(compraId: f.id)),
+                ),
+                icon: const Icon(Icons.local_shipping_outlined),
+                label: const Text('Ver mi compra'),
+              ),
+            ],
             const SizedBox(height: 8),
             OutlinedButton.icon(
-              key: Key('verCotizacionFormal-${f!.id}'),
+              key: Key('verCotizacionFormal-${f.id}'),
               style: OutlinedButton.styleFrom(minimumSize: const Size(0, 44)),
               onPressed: _abriendo ? null : () => _verPdf(f.id),
               icon: _abriendo
@@ -398,17 +499,26 @@ class _TarjetaCotizacionFormalState extends State<TarjetaCotizacionFormal> {
 }
 
 /// 2b (Carlos, 2026-10-26): el cliente lee los requerimientos (su cotización
-/// formal en PDF) y firma: confirma que está de acuerdo y escribe su nombre.
-/// La firma queda en el ERP con la versión del PDF. Con la firma y el 50 %
-/// pagado empieza la fabricación.
+/// formal en PDF) y firma: confirma que está de acuerdo, escribe su nombre y
+/// dibuja su firma en el recuadro (canvas). La firma queda en el ERP con la
+/// versión del PDF. Con la firma y el 50 % pagado empieza la fabricación.
 class FirmarCotizacionPage extends StatefulWidget {
-  const FirmarCotizacionPage({super.key, required this.cotizacion, this.firmar, this.verPdf});
+  const FirmarCotizacionPage({
+    super.key,
+    required this.cotizacion,
+    this.firmar,
+    this.verPdf,
+    this.exportarFirma,
+  });
 
   final Cotizacion cotizacion;
 
   /// Inyectables para pruebas.
-  final Future<void> Function(String nombre)? firmar;
+  final Future<void> Function(String nombre, Uint8List png)? firmar;
   final Future<void> Function()? verPdf;
+
+  /// Convierte lo dibujado en PNG (en pruebas, sin el motor de imágenes).
+  final Future<Uint8List> Function(FirmaController firma)? exportarFirma;
 
   @override
   State<FirmarCotizacionPage> createState() => _FirmarCotizacionPageState();
@@ -416,16 +526,28 @@ class FirmarCotizacionPage extends StatefulWidget {
 
 class _FirmarCotizacionPageState extends State<FirmarCotizacionPage> {
   final _nombre = TextEditingController();
+  final _firma = FirmaController();
   bool _acepto = false;
   bool _firmando = false;
 
   @override
+  void initState() {
+    super.initState();
+    _firma.addListener(_alCambiarFirma);
+  }
+
+  void _alCambiarFirma() => setState(() {});
+
+  @override
   void dispose() {
+    _firma.removeListener(_alCambiarFirma);
+    _firma.dispose();
     _nombre.dispose();
     super.dispose();
   }
 
-  bool get _listo => _acepto && _nombre.text.replaceAll(RegExp(r'\s+'), ' ').trim().length >= 3;
+  bool get _listo =>
+      _acepto && _firma.firmada && _nombre.text.replaceAll(RegExp(r'\s+'), ' ').trim().length >= 3;
 
   Future<void> _verPdf() async {
     final messenger = ScaffoldMessenger.of(context);
@@ -448,11 +570,13 @@ class _FirmarCotizacionPageState extends State<FirmarCotizacionPage> {
     setState(() => _firmando = true);
     final messenger = ScaffoldMessenger.of(context);
     final nombre = _nombre.text.replaceAll(RegExp(r'\s+'), ' ').trim();
+    final app = widget.firmar == null ? AppScope.read(context) : null;
     try {
+      final png = widget.exportarFirma != null ? await widget.exportarFirma!(_firma) : await _firma.aPng();
       if (widget.firmar != null) {
-        await widget.firmar!(nombre);
+        await widget.firmar!(nombre, png);
       } else {
-        await AppScope.read(context).firmarCotizacion(widget.cotizacion.id, nombre);
+        await app!.firmarCotizacion(widget.cotizacion.id, nombre, png);
       }
       if (mounted) Navigator.of(context).pop(true);
     } on SesionTerminada {
@@ -510,11 +634,14 @@ class _FirmarCotizacionPageState extends State<FirmarCotizacionPage> {
             onChanged: (_) => setState(() {}),
             decoration: const InputDecoration(
               labelText: 'Tu nombre completo',
-              helperText: 'Es tu firma.',
               border: OutlineInputBorder(),
             ),
           ),
           const SizedBox(height: 16),
+          const Text('Tu firma', style: TextStyle(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 6),
+          LienzoFirma(controller: _firma),
+          const SizedBox(height: 8),
           FilledButton.icon(
             key: const Key('confirmarFirma'),
             onPressed: _listo && !_firmando ? _firmar : null,

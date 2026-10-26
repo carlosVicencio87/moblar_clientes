@@ -217,12 +217,22 @@ class ClienteApi {
   }
 
   /// POST /api/cliente/cotizaciones/:id/firmar — 2b: el cliente firma su
-  /// cotización formal. Regresa la fecha de la firma (ISO).
-  Future<String> firmarCotizacion(String token, String cotizacionId, {required String nombre}) async {
+  /// cotización formal con su nombre y la firma dibujada (PNG). Regresa la
+  /// fecha de la firma (ISO).
+  Future<String> firmarCotizacion(
+    String token,
+    String cotizacionId, {
+    required String nombre,
+    required List<int> firmaPng,
+  }) async {
     final r = await _enviar(() => _http.post(
           Uri.parse('$_base/api/cliente/cotizaciones/$cotizacionId/firmar'),
           headers: _headers(token: token, json: true),
-          body: jsonEncode({'nombre': nombre, 'acepto': true}),
+          body: jsonEncode({
+            'nombre': nombre,
+            'acepto': true,
+            'firma': 'data:image/png;base64,${base64Encode(firmaPng)}',
+          }),
         ));
     if (r.statusCode == 401) throw const SesionTerminada();
     final cuerpo = _cuerpo(r);
