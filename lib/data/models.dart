@@ -216,7 +216,27 @@ class OfertaVisita {
     this.arquitecto,
     this.incluye = const [],
     this.pagoTarjeta,
+    this.opcion = 0,
+    this.notas,
+    this.notasGenerales,
+    this.opciones = const [],
   });
+
+  /// A3: número de opción (1 a 3); 0 = la oferta no tiene varias opciones.
+  final int opcion;
+
+  /// A3: notas del arquitecto para esta opción.
+  final String? notas;
+
+  /// A3: notas generales de la oferta (las mismas en todas las opciones).
+  final String? notasGenerales;
+
+  /// A3: las opciones (solo si son 2 o 3; con una sola, la oferta es esta).
+  final List<OfertaVisita> opciones;
+
+  /// Llave de la compra de la demo: la cita, o la cita y la opción (#2, #3).
+  /// La opción 1 usa la cita sola, así una oferta de una opción no cambia.
+  String get clave => opcion <= 1 ? citaId : '$citaId#$opcion';
 
   /// Abonar con tarjeta después de adquirirla (solo demostración); null = no.
   final PagoTarjetaConfig? pagoTarjeta;
@@ -295,13 +315,32 @@ class OfertaVisita {
   bool get adquirible => vigente && anticipoContado > 0 && anticipoTarjeta > 0 && precioTarjeta > 0;
 
   factory OfertaVisita.fromJson(Map<String, dynamic> j) {
+    // A3: cada opción hereda lo de la oferta (cita, marca, vigencia,
+    // transferencia…) y trae sus propios precios, foto y notas.
+    final opciones = [
+      for (final op in _lista(j['opciones']))
+        OfertaVisita._variantes({...j, ...op}, opcion: (_n(op['numero']) ?? 0).toInt()),
+    ].where((o) => o.completa && o.opcion >= 1 && o.opcion <= 3).toList()
+      ..sort((a, b) => a.opcion.compareTo(b.opcion));
+    return OfertaVisita._variantes(j, opciones: opciones.length >= 2 ? opciones : const []);
+  }
+
+  /// La oferta con factura y, adentro, su variante sin factura.
+  factory OfertaVisita._variantes(
+    Map<String, dynamic> j, {
+    int opcion = 0,
+    List<OfertaVisita> opciones = const [],
+  }) {
     final sin = j['sinFactura'];
     return OfertaVisita._deJson(
       j,
+      opcion: opcion,
+      opciones: opciones,
       sinFactura: sin is Map<String, dynamic>
           ? OfertaVisita._deJson(
               {...j, ...sin, 'iva': 0},
               conFactura: false,
+              opcion: opcion,
             )
           : null,
     );
@@ -311,8 +350,14 @@ class OfertaVisita {
     Map<String, dynamic> j, {
     OfertaVisita? sinFactura,
     bool conFactura = true,
+    int opcion = 0,
+    List<OfertaVisita> opciones = const [],
   }) =>
       OfertaVisita(
+        opcion: opcion,
+        opciones: opciones,
+        notas: _sn((j['notas'] as Object?) is String ? (j['notas'] as String).trim() : null),
+        notasGenerales: _sn((j['notasGenerales'] as Object?) is String ? (j['notasGenerales'] as String).trim() : null),
         subtotal: _n(j['subtotal']) ?? 0,
         iva: _n(j['iva']) ?? 0,
         ivaPct: _n(j['ivaPct']) ?? 0,
@@ -749,6 +794,7 @@ class Compra {
     this.pagoTarjeta,
     this.abonoDemo,
     this.demoCitaId,
+    this.demoClave,
     this.metaFabricacion,
   });
 
@@ -763,6 +809,9 @@ class Compra {
   /// Compra de la DEMOSTRACIÓN armada en la app (oferta adquirida): la cita de
   /// la oferta. null = compra real del ERP.
   final String? demoCitaId;
+
+  /// Demo: la llave de la compra (la cita, o la cita y la opción; A3).
+  final String? demoClave;
 
   /// Demo: cuánto hay que haber pagado para iniciar la fabricación (50%).
   final num? metaFabricacion;
@@ -1144,6 +1193,7 @@ class PagoPendiente {
 class DestinoAbono {
   DestinoAbono.compra(Compra c)
       : id = c.id,
+        claveLocal = c.id,
         oferta = false,
         saldo = c.cuenta?.saldo ?? 0,
         abonoMinimo = c.pagoTarjeta?.abonoMinimo ?? 1000,
@@ -1154,11 +1204,17 @@ class DestinoAbono {
     required this.saldo,
     required this.abonoMinimo,
     required this.factura,
+    String? clave,
   })  : id = citaId,
+        claveLocal = clave ?? citaId,
         oferta = true;
 
-  /// projects.id (compra) o appointments.id (oferta).
+  /// projects.id (compra) o appointments.id (oferta). Es lo que va al servidor.
   final String id;
+
+  /// Llave de los abonos de la demo en el teléfono: la compra, o la cita con
+  /// su opción (A3, `OfertaVisita.clave`).
+  final String claveLocal;
   final bool oferta;
   final num saldo;
   final num abonoMinimo;

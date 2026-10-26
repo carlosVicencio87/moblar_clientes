@@ -83,7 +83,7 @@ class _AbonarProyectoPageState extends State<AbonarProyectoPage> {
 
   void _registrar(num monto, String metodo, {required bool validado}) {
     AppScope.read(context).registrarAbonoDemo(
-      widget.destino.id,
+      widget.destino.claveLocal,
       AbonoDemo(fecha: DateTime.now(), monto: monto, metodo: metodo, validado: validado),
     );
   }

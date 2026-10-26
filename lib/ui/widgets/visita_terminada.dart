@@ -45,7 +45,7 @@ bool _mismoDia(DateTime a, DateTime b) => a.year == b.year && a.month == b.month
 }) {
   for (final o in datos.ofertasVisita) {
     if (omitir.contains(o.citaId) || !o.adquirible) continue;
-    if (DemoAnticipos.resultados.value.containsKey(o.citaId)) continue;
+    if (citaConCompra(o.citaId)) continue;
     if (DemoPagosVisita.resultados.value.containsKey(o.citaId)) continue;
     Cita? cita;
     for (final c in datos.citas) {

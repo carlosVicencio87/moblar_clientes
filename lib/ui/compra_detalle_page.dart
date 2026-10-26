@@ -32,9 +32,10 @@ class CompraDetallePage extends StatelessWidget {
   static DestinoAbono _destino(Compra c, Map<String, ResultadoAnticipo> anticipos) => c.esDemo
       ? DestinoAbono.oferta(
           citaId: c.demoCitaId!,
+          clave: c.demoClave,
           saldo: c.cuenta?.saldo ?? 0,
           abonoMinimo: c.pagoTarjeta?.abonoMinimo ?? 1000,
-          factura: anticipos[c.demoCitaId]?.factura ?? true,
+          factura: anticipos[c.demoClave ?? c.demoCitaId]?.factura ?? true,
         )
       : DestinoAbono.compra(c);
 

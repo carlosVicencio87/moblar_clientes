@@ -52,11 +52,21 @@ class _TarjetaOfertaVisitaState extends State<TarjetaOfertaVisita> {
   /// Forma de pago elegida: ver [AdquirirOfertaPage.plazo].
   int _plazo = plazoContado;
 
+  /// A3: la opción que se está viendo (índice en `oferta.opciones`).
+  int _sel = 0;
+
+  /// Las opciones de la oferta; con una sola, la oferta misma.
+  List<OfertaVisita> get _ofertas =>
+      widget.oferta.opciones.isEmpty ? [widget.oferta] : widget.oferta.opciones;
+
+  /// La opción que se ve ahora.
+  OfertaVisita get _actual => _ofertas[_sel.clamp(0, _ofertas.length - 1)];
+
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<Map<String, ResultadoAnticipo>>(
       valueListenable: DemoAnticipos.resultados,
-      builder: (context, anticipos, _) => _tarjeta(context, anticipos[widget.oferta.citaId]),
+      builder: (context, anticipos, _) => _tarjeta(context, anticipos),
     );
   }
 
@@ -64,13 +74,22 @@ class _TarjetaOfertaVisitaState extends State<TarjetaOfertaVisita> {
     setState(() {
       _factura = v;
       // Si el plazo elegido no existe en la otra variante, vuelve a contado.
-      final plazos = plazosDe(widget.oferta.variante(factura: v)).map((x) => x.meses);
+      final plazos = plazosDe(_actual.variante(factura: v)).map((x) => x.meses);
       if (_plazo != plazoContado && !plazos.contains(_plazo)) _plazo = plazoContado;
     });
   }
 
-  Widget _tarjeta(BuildContext context, ResultadoAnticipo? adquirida) {
-    final o = widget.oferta;
+  void _elegirOpcion(int i) {
+    if (i == _sel) return;
+    setState(() {
+      _sel = i;
+      _plazo = plazoContado; // cada opción tiene sus propios plazos y precios
+    });
+  }
+
+  Widget _tarjeta(BuildContext context, Map<String, ResultadoAnticipo> anticipos) {
+    final o = _actual;
+    final adquirida = anticipos[o.clave];
     // Ya adquirida: los precios de lo que compró; si no, lo que elige ahora.
     final factura = adquirida?.factura ?? (_factura || !o.eligeFactura);
     final v = o.variante(factura: factura);
@@ -107,6 +126,16 @@ class _TarjetaOfertaVisitaState extends State<TarjetaOfertaVisita> {
             const Padding(
               padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
               child: AvisoDemo(),
+            ),
+          if (_ofertas.length > 1)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: _SelectorOpciones(
+                opciones: _ofertas,
+                seleccion: _sel.clamp(0, _ofertas.length - 1),
+                adquiridas: {for (final x in _ofertas) if (anticipos.containsKey(x.clave)) x.opcion},
+                onElegir: _elegirOpcion,
+              ),
             ),
           const SizedBox(height: 12),
           // La foto del diseño es lo primero que ve el cliente.
@@ -159,8 +188,20 @@ class _TarjetaOfertaVisitaState extends State<TarjetaOfertaVisita> {
                       : 'Propuesta de tu visita del ${fechaLarga(visita)}',
                   style: const TextStyle(fontSize: 12, color: MoblarColors.textMuted),
                 ),
+                if (o.notas != null)
+                  Padding(
+                    key: const Key('notasOpcion'),
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(o.notas!, style: const TextStyle(color: MoblarColors.textSecondary)),
+                  ),
                 // Información del mueble, antes de los precios.
                 _InfoMueble(oferta: o, vencida: vencida, mostrarVigencia: adquirida == null),
+                if (o.notasGenerales != null)
+                  Dato(
+                    key: const Key('notasGeneralesOferta'),
+                    icono: Icons.notes_outlined,
+                    texto: o.notasGenerales!,
+                  ),
                 if (elige && o.eligeFactura) ...[
                   const SizedBox(height: 8),
                   _InterruptorFactura(
@@ -190,7 +231,7 @@ class _TarjetaOfertaVisitaState extends State<TarjetaOfertaVisita> {
                 ] else if (o.adquirible) ...[
                   const SizedBox(height: 12),
                   FilledButton.icon(
-                    key: Key('adquirirOferta-${o.citaId}'),
+                    key: Key('adquirirOferta-${o.clave}'),
                     onPressed: () => Navigator.of(context).push(
                       MaterialPageRoute<void>(
                         builder: (_) => AdquirirOfertaPage(
@@ -202,7 +243,7 @@ class _TarjetaOfertaVisitaState extends State<TarjetaOfertaVisita> {
                       ),
                     ),
                     icon: const Icon(Icons.shopping_bag_outlined),
-                    label: const Text('Adquirir esta cotización'),
+                    label: Text(o.opcion >= 1 ? 'Adquirir la opción ${o.opcion}' : 'Adquirir esta cotización'),
                   ),
                 ],
                 const SizedBox(height: 8),
@@ -217,6 +258,53 @@ class _TarjetaOfertaVisitaState extends State<TarjetaOfertaVisita> {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// A3: "Opción 1 · Opción 2 · Opción 3", cada una con su precio de contado.
+/// Las que ya adquirió llevan una palomita: puede adquirir una, varias o todas.
+class _SelectorOpciones extends StatelessWidget {
+  const _SelectorOpciones({
+    required this.opciones,
+    required this.seleccion,
+    required this.adquiridas,
+    required this.onElegir,
+  });
+
+  final List<OfertaVisita> opciones;
+  final int seleccion;
+  final Set<int> adquiridas;
+  final ValueChanged<int> onElegir;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Tu arquitecto te dejó ${opciones.length} opciones',
+          style: const TextStyle(fontSize: 13, color: MoblarColors.textSecondary),
+        ),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (var i = 0; i < opciones.length; i++)
+              ChoiceChip(
+                key: Key('opcionOferta-${opciones[i].opcion}'),
+                selected: i == seleccion,
+                showCheckmark: false,
+                onSelected: (_) => onElegir(i),
+                avatar: adquiridas.contains(opciones[i].opcion)
+                    ? const Icon(Icons.check_circle, size: 18, color: Color(0xFF065F46))
+                    : null,
+                label: Text('Opción ${opciones[i].opcion} · ${dinero(opciones[i].precioContado)}'),
+              ),
+          ],
+        ),
+      ],
     );
   }
 }

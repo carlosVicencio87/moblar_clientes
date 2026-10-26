@@ -30,10 +30,12 @@ Compra compraDemo(OfertaVisita o, ResultadoAnticipo r, List<AbonoDemo> abonos) {
   final apartadoSinCubrir = meta != null && cuenta.pagado < meta;
   final validado = r.metodo != 'transferencia' && !apartadoSinCubrir;
   return Compra(
-    id: 'demo-${o.citaId}',
+    id: 'demo-${o.clave}',
     codigo: 'DEMO',
-    mueble: muebleDe(o) == 'tu mueble' ? 'Mueble a la medida' : muebleDe(o),
+    mueble: (muebleDe(o) == 'tu mueble' ? 'Mueble a la medida' : muebleDe(o)) +
+        (o.opcion >= 1 ? ' · Opción ${o.opcion}' : ''),
     demoCitaId: o.citaId,
+    demoClave: o.clave,
     lineaTiempo: LineaTiempo(
       etapaActual: 0,
       mensaje: apartadoSinCubrir
@@ -125,9 +127,10 @@ List<Compra> todasLasCompras(BuildContext context, Inicio datos) {
         c,
   ];
   final demo = [
-    for (final o in datos.ofertasVisita)
-      if (anticipos[o.citaId] case final r?)
-        compraDemo(o.variante(factura: r.factura), r, app.abonosDe(o.citaId)),
+    for (final base in datos.ofertasVisita)
+      for (final o in base.opciones.isEmpty ? [base] : base.opciones)
+        if (anticipos[o.clave] case final r?)
+          compraDemo(o.variante(factura: r.factura), r, app.abonosDe(o.clave)),
   ];
   return [...demo, ...reales];
 }

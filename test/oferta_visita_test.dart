@@ -4,6 +4,7 @@ import 'package:moblar_clientes/data/models.dart';
 import 'package:moblar_clientes/ui/widgets/adquirir_oferta.dart';
 import 'package:moblar_clientes/ui/widgets/contacto.dart';
 import 'package:moblar_clientes/ui/widgets/oferta_visita.dart';
+import 'package:moblar_clientes/ui/widgets/pago_visita.dart' show DemoPagosVisita, ResultadoPagoVisita;
 
 /// Esqueleto de la oferta de la visita (paso C). La app solo muestra los
 /// números del servidor, no los recalcula.
@@ -537,6 +538,90 @@ void main() {
     testWidgets('servidor sin IVA: no hay interruptor de factura', (tester) async {
       await abrir(tester, oferta);
       expect(find.byKey(const Key('facturaOferta')), findsNothing);
+    });
+  });
+
+  group('A3: varias opciones', () {
+    final jsonOpciones = <String, dynamic>{
+      ...jsonIva,
+      'notasGenerales': 'Incluye instalación',
+      'opciones': [
+        {...jsonIva, 'numero': 1, 'notas': 'Nogal'},
+        {
+          ...jsonIva,
+          'numero': 2,
+          'notas': 'Con luz LED',
+          'subtotal': 15000,
+          'iva': 2400,
+          'precioContado': 17400,
+          'anticipoContado': 8700,
+          'sinFactura': {...(jsonIva['sinFactura'] as Map<String, dynamic>), 'precioContado': 15000, 'anticipoContado': 7500},
+        },
+      ],
+    };
+    final ofertaOpciones = OfertaVisita.fromJson(jsonOpciones);
+
+    test('el modelo lee las opciones; cada una con su llave', () {
+      expect(ofertaOpciones.opciones.map((o) => o.opcion), [1, 2]);
+      expect(ofertaOpciones.opciones[1].precioContado, 17400);
+      expect(ofertaOpciones.opciones[1].notas, 'Con luz LED');
+      expect(ofertaOpciones.opciones[1].notasGenerales, 'Incluye instalación');
+      expect(ofertaOpciones.opciones[1].citaId, 'cita-1');
+      expect(ofertaOpciones.opciones[0].clave, 'cita-1');
+      expect(ofertaOpciones.opciones[1].clave, 'cita-1#2');
+      expect(ofertaOpciones.opciones[1].variante(factura: false).precioContado, 15000);
+      expect(ofertaOpciones.opciones[1].variante(factura: false).clave, 'cita-1#2');
+      // Con una sola opción, la oferta es la de siempre (sin pestañas).
+      final una = OfertaVisita.fromJson({...jsonIva, 'opciones': [{...jsonIva, 'numero': 1}]});
+      expect(una.opciones, isEmpty);
+      expect(ofertaIva.clave, 'cita-1');
+    });
+
+    testWidgets('pestañas: cada opción con su precio y sus notas', (tester) async {
+      await abrir(tester, ofertaOpciones);
+      expect(find.text('Tu arquitecto te dejó 2 opciones'), findsOneWidget);
+      expect(find.byKey(const Key('opcionOferta-1')), findsOneWidget);
+      expect(find.byKey(const Key('opcionOferta-2')), findsOneWidget);
+      expect(find.text('Nogal'), findsOneWidget);
+      expect(find.text('Incluye instalación'), findsOneWidget);
+      expect(tester.widget<Text>(find.byKey(const Key('precioContadoOferta'))).data, r'$11,600.00');
+
+      await tocar(tester, const Key('opcionOferta-2'));
+      expect(find.text('Con luz LED'), findsOneWidget);
+      expect(find.text('Nogal'), findsNothing);
+      expect(tester.widget<Text>(find.byKey(const Key('precioContadoOferta'))).data, r'$17,400.00');
+      expect(find.text('Adquirir la opción 2'), findsOneWidget);
+    });
+
+    testWidgets('adquirir la opción 2 no adquiere la 1; se pueden adquirir las dos', (tester) async {
+      await abrir(tester, ofertaOpciones);
+      await tocar(tester, const Key('opcionOferta-2'));
+      await tocar(tester, const Key('adquirirOferta-cita-1#2'));
+      await tocar(tester, const Key('anticipoEfectivo'));
+      expect(find.text(r'Entrega $8,700.00 a Ana López'), findsOneWidget);
+      await tocar(tester, const Key('turnoArquitecto'));
+      for (final d in ['4', '8', '2', '7']) {
+        await tocar(tester, Key('pin-$d'));
+      }
+      await tocar(tester, const Key('pinConfirmar'));
+
+      expect(DemoAnticipos.resultados.value.keys, ['cita-1#2']);
+      expect(find.text('Adquirida'), findsOneWidget);
+      // La opción 1 sigue disponible.
+      await tocar(tester, const Key('opcionOferta-1'));
+      expect(find.text('Adquirida'), findsNothing);
+      expect(find.byKey(const Key('adquirirOferta-cita-1')), findsOneWidget);
+    });
+
+    test('la visita pagada se abona una sola vez por cita', () {
+      DemoPagosVisita.registrar('cita-1', ResultadoPagoVisita(metodo: 'efectivo', fecha: DateTime(2026, 10, 24)));
+      addTearDown(() => DemoPagosVisita.resultados.value = const {});
+      expect(abonoVisita('cita-1', 500, clave: 'cita-1#2'), 500);
+      DemoAnticipos.registrar('cita-1#2', ResultadoAnticipo(metodo: 'efectivo', monto: 1, fecha: DateTime(2026)));
+      expect(abonoVisita('cita-1', 500, clave: 'cita-1'), 0, reason: 'ya se abonó en la opción 2');
+      expect(abonoVisita('cita-1', 500, clave: 'cita-1#2'), 500, reason: 'la misma opción la conserva');
+      expect(citaConCompra('cita-1'), isTrue);
+      expect(citaConCompra('cita-9'), isFalse);
     });
   });
 }

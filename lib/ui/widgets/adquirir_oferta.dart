@@ -111,8 +111,20 @@ num menosAbono(num monto, num abono) {
 
 /// Lo que se abona de la visita al iniciar el proyecto: su monto si ya la
 /// pagó (efectivo o transferencia); 0 si no (entonces simplemente no se cobra).
-num abonoVisita(String citaId, num montoVisita) =>
-    montoVisita > 0 && DemoPagosVisita.resultados.value.containsKey(citaId) ? montoVisita : 0;
+///
+/// A3: la visita se abona UNA vez por cita. Si ya adquirió otra opción de la
+/// misma cita, ahí se abonó: aquí va 0. [clave] es la de la opción que adquiere.
+num abonoVisita(String citaId, num montoVisita, {String? clave}) {
+  if (montoVisita <= 0 || !DemoPagosVisita.resultados.value.containsKey(citaId)) return 0;
+  final propia = clave ?? citaId;
+  final otra = DemoAnticipos.resultados.value.keys
+      .any((k) => k != propia && (k == citaId || k.startsWith('$citaId#')));
+  return otra ? 0 : montoVisita;
+}
+
+/// A3: true si ya adquirió alguna opción de esta cita.
+bool citaConCompra(String citaId) =>
+    DemoAnticipos.resultados.value.keys.any((k) => k == citaId || k.startsWith('$citaId#'));
 
 /// Una forma de pago con tarjeta con el abono de la visita ya descontado del
 /// cobro. El precio del mueble ([OpcionTarjeta.total]) no cambia.
@@ -206,11 +218,11 @@ class _AdquirirOfertaPageState extends State<AdquirirOfertaPage> {
     final factura = _factura || !base.eligeFactura;
     final o = base.variante(factura: factura);
     final pct = o.anticipoPct.round();
-    final abono = abonoVisita(o.citaId, widget.montoVisita);
+    final abono = abonoVisita(o.citaId, widget.montoVisita, clave: o.clave);
     final hoyContado = menosAbono(o.anticipoContado, abono);
     final hoyTarjeta = menosAbono(o.anticipoTarjeta, abono);
     void registrar(String metodo, num monto, {String? arquitecto}) => DemoAnticipos.registrar(
-          o.citaId,
+          o.clave,
           ResultadoAnticipo(
             metodo: metodo,
             monto: monto,
@@ -234,7 +246,7 @@ class _AdquirirOfertaPageState extends State<AdquirirOfertaPage> {
           abono: abono,
           plazoInicial: widget.plazo,
           onPagado: (x) => DemoAnticipos.registrar(
-            o.citaId,
+            o.clave,
             ResultadoAnticipo(
               metodo: 'tarjeta',
               monto: x.cobro,
@@ -441,7 +453,7 @@ class _AdquirirOfertaPageState extends State<AdquirirOfertaPage> {
       }
     }
     void registrar(String metodo, num monto, {String? arquitecto, num? totalMueble}) => DemoAnticipos.registrar(
-          o.citaId,
+          o.clave,
           ResultadoAnticipo(
             metodo: metodo,
             monto: monto,
@@ -598,7 +610,13 @@ class _ApartadoTarjetaPageState extends State<_ApartadoTarjetaPage> {
     final o = widget.oferta;
     try {
       final c = await AppScope.read(context).cotizarAbono(
-        DestinoAbono.oferta(citaId: o.citaId, saldo: o.precioContado, abonoMinimo: 1, factura: widget.factura),
+        DestinoAbono.oferta(
+          citaId: o.citaId,
+          clave: o.clave,
+          saldo: o.precioContado,
+          abonoMinimo: 1,
+          factura: widget.factura,
+        ),
         monto: widget.monto,
       );
       if (mounted) setState(() => _cot = c);
@@ -1019,7 +1037,7 @@ class ResumenCompraOferta extends StatelessWidget {
     final r = resultado;
     final total = r.conTarjeta ? (r.totalMueble ?? o.precioTarjeta) : o.precioContado;
     // Demo: los abonos después del anticipo (en memoria).
-    final abonos = AppScope.maybeOf(context)?.abonosDe(o.citaId) ?? const <AbonoDemo>[];
+    final abonos = AppScope.maybeOf(context)?.abonosDe(o.clave) ?? const <AbonoDemo>[];
     final cuenta = cuentaDemo(o, r, abonos);
     final abonado = abonos.where((a) => a.validado).fold<num>(0, (s, a) => s + a.monto);
     final saldo = cuenta.saldo;
@@ -1029,7 +1047,7 @@ class ResumenCompraOferta extends StatelessWidget {
             ? 'en revisión'
             : 'pagado con Clip';
     return Container(
-      key: Key('compraOferta-${o.citaId}'),
+      key: Key('compraOferta-${o.clave}'),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: MoblarColors.primarySoft,
@@ -1083,7 +1101,7 @@ class ResumenCompraOferta extends StatelessWidget {
           ),
           if (metaFabricacionDe(o, r) case final meta?)
             Dato(
-              key: Key('faltaFabricacion-${o.citaId}'),
+              key: Key('faltaFabricacion-${o.clave}'),
               icono: Icons.precision_manufacturing_outlined,
               texto: cuenta.pagado >= meta
                   ? 'Ya cubriste el ${o.anticipoPct.round()}%: tu proyecto entra a fabricación.'
@@ -1093,12 +1111,13 @@ class ResumenCompraOferta extends StatelessWidget {
           if (o.demo && saldo > 0) ...[
             const SizedBox(height: 10),
             OutlinedButton.icon(
-              key: Key('abonarProyectoOferta-${o.citaId}'),
+              key: Key('abonarProyectoOferta-${o.clave}'),
               onPressed: () => Navigator.of(context).push(
                 MaterialPageRoute<void>(
                   builder: (_) => AbonarProyectoPage(
                     destino: DestinoAbono.oferta(
                       citaId: o.citaId,
+                      clave: o.clave,
                       saldo: saldo,
                       abonoMinimo: o.pagoTarjeta?.abonoMinimo ?? 1000,
                       factura: r.factura,
@@ -1115,7 +1134,7 @@ class ResumenCompraOferta extends StatelessWidget {
             ),
           ],
           TextButton.icon(
-            key: Key('estadoCuentaOferta-${o.citaId}'),
+            key: Key('estadoCuentaOferta-${o.clave}'),
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute<void>(
                 builder: (_) => Scaffold(
@@ -1127,7 +1146,7 @@ class ResumenCompraOferta extends StatelessWidget {
                       // Se reconstruye al abonar (AppScope) para ver el pago al regresar.
                       Builder(
                         builder: (ctx) => EstadoCuentaCompra(
-                          cuenta: cuentaDemo(o, r, AppScope.maybeOf(ctx)?.abonosDe(o.citaId) ?? const []),
+                          cuenta: cuentaDemo(o, r, AppScope.maybeOf(ctx)?.abonosDe(o.clave) ?? const []),
                           metaFabricacion: metaFabricacionDe(o, r),
                           pctFabricacion: o.anticipoPct,
                         ),
@@ -1142,7 +1161,7 @@ class ResumenCompraOferta extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           FilledButton.icon(
-            key: Key('verCompraOferta-${o.citaId}'),
+            key: Key('verCompraOferta-${o.clave}'),
             onPressed: () => showDialog<void>(
               context: context,
               builder: (ctx) => AlertDialog(
@@ -1164,10 +1183,10 @@ class ResumenCompraOferta extends StatelessWidget {
             Align(
               alignment: Alignment.centerRight,
               child: TextButton(
-                key: Key('reiniciarAnticipo-${o.citaId}'),
+                key: Key('reiniciarAnticipo-${o.clave}'),
                 onPressed: () {
-                  DemoAnticipos.reiniciar(o.citaId);
-                  AppScope.maybeRead(context)?.borrarAbonosDemo(o.citaId);
+                  DemoAnticipos.reiniciar(o.clave);
+                  AppScope.maybeRead(context)?.borrarAbonosDemo(o.clave);
                 },
                 child: const Text('Reiniciar demostración'),
               ),
