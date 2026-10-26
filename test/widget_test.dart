@@ -271,7 +271,9 @@ void main() {
     // Solo la primera tarjeta empieza abierta: q2 enseña su resumen hasta tocarla.
     expect(find.byKey(const Key('resumenCotizacion-q2')), findsOneWidget);
     expect(find.textContaining('Venció el'), findsNothing);
-    await tester.tap(find.byKey(const Key('plegarCotizacion-q2')));
+    // Al final de la lista la barra de abajo tapa el encabezado de q2: se
+    // abre con su propio onTap (lo que hace el dedo al tocarlo).
+    tester.widget<InkWell>(find.byKey(const Key('plegarCotizacion-q2'))).onTap!();
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('resumenCotizacion-q2')), findsNothing);
     await tester.scrollUntilVisible(find.textContaining('Venció el'), 200, scrollable: lista);
