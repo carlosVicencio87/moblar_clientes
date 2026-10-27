@@ -32,6 +32,7 @@ class AdquirirOpcionesPage extends StatefulWidget {
     super.key,
     required this.oferta,
     required this.inicial,
+    this.iniciales,
     this.factura = true,
     this.cotizar,
     this.adquirir,
@@ -43,6 +44,9 @@ class AdquirirOpcionesPage extends StatefulWidget {
 
   /// La opción que se marca al abrir (1..3).
   final int inicial;
+
+  /// Varias marcadas al abrir (retomar un pago que no se terminó).
+  final Set<int>? iniciales;
   final bool factura;
 
   /// Inyectables para pruebas.
@@ -55,7 +59,7 @@ class AdquirirOpcionesPage extends StatefulWidget {
 }
 
 class _AdquirirOpcionesPageState extends State<AdquirirOpcionesPage> {
-  late final Set<int> _marcadas = {widget.inicial};
+  late final Set<int> _marcadas = {...?widget.iniciales, if (widget.iniciales == null) widget.inicial};
   late bool _factura = widget.factura;
   String _modalidad = 'fabricacion';
   String _metodo = 'transferencia';
@@ -255,6 +259,20 @@ class _AdquirirOpcionesPageState extends State<AdquirirOpcionesPage> {
           key: const Key('revisarClip'),
           onPressed: _revisar,
           child: const Text('Ya pagué: revisar'),
+        ),
+        const SizedBox(height: 8),
+        TextButton(
+          key: const Key('otraFormaDePago'),
+          onPressed: () {
+            _revision?.cancel();
+            setState(() => _link = null);
+          },
+          child: const Text('No pagué: elegir otra forma de pago'),
+        ),
+        const Text(
+          'Si eliges otra forma, este link deja de contar. Si ya pagaste en Clip, toca «Ya pagué»: no se te cobra dos veces.',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 12, color: MoblarColors.textMuted),
         ),
         const SizedBox(height: 16),
         const Center(child: CircularProgressIndicator()),
@@ -547,6 +565,33 @@ class ParaIniciar extends StatelessWidget {
           const SizedBox(height: 4),
           renglon(anticipo, anticipo ? 'Anticipo del 50 % pagado' : (adquirida ? 'Completa tu anticipo del 50 %' : 'Paga tu anticipo del 50 %')),
         ],
+      ),
+    );
+  }
+}
+
+/// Un pago con tarjeta que se empezó y no se terminó (el cliente abrió Clip y
+/// regresó sin pagar). No aparta nada: puede pagar de nuevo con cualquier forma.
+class PagoSinTerminar extends StatelessWidget {
+  const PagoSinTerminar({super.key, required this.compra});
+
+  final CompraOferta compra;
+
+  @override
+  Widget build(BuildContext context) {
+    final que = compra.opciones.length > 1 ? 'las opciones ${compra.opciones.join(', ')}' : 'la opción ${compra.opciones.first}';
+    return Container(
+      key: const Key('pagoSinTerminar'),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFBEB),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        'Tu pago con tarjeta de ${dinero(compra.cobro ?? compra.pago)} por $que no se completó. '
+        'No se te cobró nada: puedes pagar de nuevo con tarjeta, efectivo o transferencia. '
+        'Si sí lo pagaste en Clip, en unos minutos aparecerá como pagado.',
+        style: const TextStyle(fontSize: 13, color: MoblarColors.textPrimary),
       ),
     );
   }

@@ -230,11 +230,16 @@ class OfertaVisita {
   /// Compras reales de esta oferta (la misma lista en cada opción).
   final List<CompraOferta> compras;
 
-  /// Opciones que ya tienen una compra activa (no rechazada).
+  /// Opciones que ya tienen una compra activa. Un pago con tarjeta que no se
+  /// terminó (abrió Clip y no pagó) NO aparta la opción: se puede volver a
+  /// pagar con cualquier forma (Carlos, 2026-10-27).
   Set<int> get opcionesAdquiridas => {
         for (final c in compras)
-          if (c.activa) ...c.opciones,
+          if (c.activa && !c.tarjetaSinTerminar) ...c.opciones,
       };
+
+  /// Pagos con tarjeta que se empezaron y no se terminaron.
+  List<CompraOferta> get tarjetasSinTerminar => [for (final c in compras) if (c.tarjetaSinTerminar) c];
 
   /// Las compras que incluyen esta opción (la 1 si la oferta no tiene varias).
   List<CompraOferta> comprasDe(int opcion) =>
@@ -465,6 +470,9 @@ class CompraOferta {
   final String? motivoRechazo;
 
   bool get activa => estadoPago != 'rechazado';
+
+  /// Abrió el link de Clip y (todavía) no pagó.
+  bool get tarjetaSinTerminar => metodo == 'tarjeta' && estadoPago == 'pendiente';
   bool get validada => estadoPago == 'validado';
 
   /// Cubre el 50 % para fabricar (a meses, el total).

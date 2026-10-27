@@ -163,7 +163,12 @@ class _TarjetaOfertaVisitaState extends State<TarjetaOfertaVisita> {
     final real = widget.oferta.compraReal;
     final opNum = o.opcion < 1 ? 1 : o.opcion;
     // Compra real (ERP): las compras activas que incluyen esta opción.
-    final comprasOp = real ? [for (final c in widget.oferta.comprasDe(opNum)) if (c.activa) c] : const <CompraOferta>[];
+    final comprasOp = real
+        ? [for (final c in widget.oferta.comprasDe(opNum)) if (c.activa && !c.tarjetaSinTerminar) c]
+        : const <CompraOferta>[];
+    final sinTerminar = real
+        ? [for (final c in widget.oferta.comprasDe(opNum)) if (c.tarjetaSinTerminar) c]
+        : const <CompraOferta>[];
     final adquirida = real ? null : anticipos[o.clave];
     final yaAdquirida = adquirida != null || comprasOp.isNotEmpty;
     // Ya adquirida: los precios de lo que compró; si no, lo que elige ahora.
@@ -331,6 +336,10 @@ class _TarjetaOfertaVisitaState extends State<TarjetaOfertaVisita> {
                   ),
                 ],
                 if (real) ...[
+                  if (sinTerminar.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    PagoSinTerminar(compra: sinTerminar.first),
+                  ],
                   if (comprasOp.isNotEmpty) ...[
                     const SizedBox(height: 12),
                     ResumenComprasReales(compras: comprasOp),
@@ -348,17 +357,21 @@ class _TarjetaOfertaVisitaState extends State<TarjetaOfertaVisita> {
                     _BotonAdquirir(
                       key: Key('adquirirReal-${o.citaId}'),
                       secundario: yaAdquirida,
-                      texto: _ofertas.length < 2
-                          ? 'Adquirir esta cotización'
-                          : yaAdquirida
-                              ? 'Adquirir otra opción'
-                              : 'Adquirir',
+                      texto: sinTerminar.isNotEmpty
+                          ? 'Pagar de nuevo'
+                          : _ofertas.length < 2
+                              ? 'Adquirir esta cotización'
+                              : yaAdquirida
+                                  ? 'Adquirir otra opción'
+                                  : 'Adquirir',
                       onPressed: () => Navigator.of(context).push(
                         MaterialPageRoute<void>(
                           builder: (_) => AdquirirOpcionesPage(
                             oferta: widget.oferta,
                             inicial: yaAdquirida ? (porAdquirir.first.opcion < 1 ? 1 : porAdquirir.first.opcion) : opNum,
-                            factura: factura,
+                            // Retomar un pago con tarjeta que no se terminó: las mismas opciones.
+                            iniciales: sinTerminar.isEmpty ? null : sinTerminar.first.opciones.toSet(),
+                            factura: sinTerminar.isEmpty ? factura : sinTerminar.first.factura,
                           ),
                         ),
                       ),

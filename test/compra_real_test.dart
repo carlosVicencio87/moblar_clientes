@@ -278,4 +278,79 @@ void main() {
     expect(find.text('Tu cotización formal ya está lista (folio 296754A)'), findsOneWidget);
     expect(find.byKey(const Key('firmarCotizacion-p-2')), findsOneWidget);
   });
+
+  group('pago con tarjeta sin terminar (abrió Clip y regresó sin pagar)', () {
+    const sinTerminar = {
+      'id': 'k-3',
+      'fecha': '2026-10-27T17:00:00Z',
+      'opciones': [1, 2],
+      'modalidad': 'apartado',
+      'metodo': 'tarjeta',
+      'estadoPago': 'pendiente',
+      'total': 3480,
+      'pago': 700,
+      'cobro': 725.21,
+    };
+
+    test('no aparta las opciones', () {
+      final o = OfertaVisita.fromJson(oferta(compras: [sinTerminar]));
+      expect(o.opcionesAdquiridas, isEmpty);
+      expect(o.tarjetasSinTerminar.single.id, 'k-3');
+    });
+
+    testWidgets('la tarjeta lo explica y deja pagar de nuevo', (tester) async {
+      await abrirTarjeta(tester, OfertaVisita.fromJson(oferta(compras: [sinTerminar])));
+      expect(find.byKey(const Key('pagoSinTerminar')), findsOneWidget);
+      expect(find.textContaining('No se te cobró nada'), findsOneWidget);
+      expect(find.text('Pagar de nuevo'), findsOneWidget);
+      expect(find.text('Adquirida'), findsNothing);
+      expect(find.byKey(const Key('comprasReales')), findsNothing);
+    });
+
+    testWidgets('desde la espera de Clip se puede elegir otra forma de pago', (tester) async {
+      await abrirPagina(
+        tester,
+        AdquirirOpcionesPage(
+          oferta: OfertaVisita.fromJson(oferta()),
+          inicial: 1,
+          iniciales: const {1, 2},
+          cotizar: (p) async => cot,
+          adquirir: (p) async => ResultadoCompra(
+            compra: CompraOferta(
+              id: 'k-11',
+              fecha: '',
+              opciones: p.opciones,
+              modalidad: p.modalidad,
+              metodo: p.metodo,
+              estadoPago: 'pendiente',
+              total: 3480,
+              pago: 1740,
+            ),
+            link: LinkPagoTarjeta.fromJson(const {
+              'id': '22222222-2222-2222-2222-222222222222',
+              'url': 'https://pago.clip.mx/xyz',
+              'ticket': 't',
+              'neto': 1740,
+              'cobro': 1800,
+            }),
+          ),
+          abrir: (_) async {},
+        ),
+      );
+      final marcada = tester.widget<CheckboxListTile>(find.byKey(const Key('marcarOpcion-2')));
+      expect(marcada.value, isTrue, reason: 'retoma las mismas opciones');
+      await tester.tap(find.byKey(const Key('metodo-tarjeta')));
+      await tester.pumpAndSettle(const Duration(milliseconds: 400));
+      await tester.tap(find.byKey(const Key('confirmarCompra')));
+      for (var i = 0; i < 4; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      expect(find.byKey(const Key('esperandoClip')), findsOneWidget);
+      await tester.ensureVisible(find.byKey(const Key('otraFormaDePago')));
+      await tester.tap(find.byKey(const Key('otraFormaDePago')));
+      await tester.pumpAndSettle(const Duration(milliseconds: 400));
+      expect(find.byKey(const Key('esperandoClip')), findsNothing);
+      expect(find.byKey(const Key('adquirirOpciones')), findsOneWidget);
+    });
+  });
 }
