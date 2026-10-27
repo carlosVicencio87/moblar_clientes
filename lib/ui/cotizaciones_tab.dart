@@ -48,6 +48,7 @@ class CotizacionesTab extends StatelessWidget {
                 nombre: datos.nombre,
                 montoVisita: montoVisitaDe(datos, o.citaId),
                 formal: datos.cotizaciones.where((c) => c.citaId == o.citaId).firstOrNull,
+                formales: [for (final c in datos.cotizaciones) if (c.citaId == o.citaId) c],
                 tieneCompra: datos.compras.any(
                   (k) => datos.cotizaciones.any((c) => c.citaId == o.citaId && c.id == k.id),
                 ),

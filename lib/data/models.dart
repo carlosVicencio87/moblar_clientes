@@ -220,7 +220,25 @@ class OfertaVisita {
     this.notas,
     this.notasGenerales,
     this.opciones = const [],
+    this.compraReal = false,
+    this.compras = const [],
   });
+
+  /// true: adquirir queda en el ERP (POST /citas/:id/adquirir), no en la demo.
+  final bool compraReal;
+
+  /// Compras reales de esta oferta (la misma lista en cada opción).
+  final List<CompraOferta> compras;
+
+  /// Opciones que ya tienen una compra activa (no rechazada).
+  Set<int> get opcionesAdquiridas => {
+        for (final c in compras)
+          if (c.activa) ...c.opciones,
+      };
+
+  /// Las compras que incluyen esta opción (la 1 si la oferta no tiene varias).
+  List<CompraOferta> comprasDe(int opcion) =>
+      [for (final c in compras) if (c.opciones.contains(opcion < 1 ? 1 : opcion)) c];
 
   /// A3: número de opción (1 a 3); 0 = la oferta no tiene varias opciones.
   final int opcion;
@@ -399,7 +417,169 @@ class OfertaVisita {
         pagoTarjeta: j['pagoTarjeta'] is Map<String, dynamic>
             ? PagoTarjetaConfig.fromJson(j['pagoTarjeta'] as Map<String, dynamic>)
             : null,
+        compraReal: j['compraReal'] == true,
+        compras: _lista(j['compras']).map(CompraOferta.fromJson).where((c) => c.id.isNotEmpty).toList(),
       );
+}
+
+/// Compra real de opciones de la oferta (compraOferta.ts del ERP).
+class CompraOferta {
+  const CompraOferta({
+    required this.id,
+    required this.fecha,
+    required this.opciones,
+    required this.modalidad,
+    required this.metodo,
+    required this.estadoPago,
+    required this.total,
+    required this.pago,
+    this.factura = true,
+    this.plazo = 0,
+    this.cobro,
+    this.motivoRechazo,
+  });
+
+  final String id;
+  final String fecha;
+  final List<int> opciones;
+
+  /// fabricacion | apartado | msi
+  final String modalidad;
+
+  /// efectivo | transferencia | tarjeta
+  final String metodo;
+
+  /// pendiente | en_revision | validado | rechazado
+  final String estadoPago;
+  final bool factura;
+  final int plazo;
+
+  /// Contado de lo adquirido.
+  final num total;
+
+  /// Lo que se abona al saldo.
+  final num pago;
+
+  /// Lo cobrado con la comisión de la tarjeta.
+  final num? cobro;
+  final String? motivoRechazo;
+
+  bool get activa => estadoPago != 'rechazado';
+  bool get validada => estadoPago == 'validado';
+
+  /// Cubre el 50 % para fabricar (a meses, el total).
+  bool get cubreAnticipo => validada && (modalidad == 'msi' || pago * 2 >= total - 0.005);
+
+  String get resumen {
+    final que = switch (modalidad) {
+      'msi' => 'A $plazo meses',
+      'apartado' => 'Apartado',
+      _ => 'Anticipo del 50 %',
+    };
+    final como = switch (metodo) {
+      'tarjeta' => 'tarjeta',
+      'transferencia' => 'transferencia',
+      _ => 'efectivo',
+    };
+    final estado = switch (estadoPago) {
+      'validado' => 'pagado',
+      'en_revision' => 'en revisión',
+      'rechazado' => 'rechazado',
+      _ => 'esperando tu pago',
+    };
+    return '$que · $como · $estado';
+  }
+
+  factory CompraOferta.fromJson(Map<String, dynamic> j) => CompraOferta(
+        id: _s(j['id']),
+        fecha: _s(j['fecha']),
+        opciones: j['opciones'] is List
+            ? (j['opciones'] as List).whereType<num>().map((n) => n.toInt()).toList()
+            : const [],
+        modalidad: _s(j['modalidad']),
+        metodo: _s(j['metodo']),
+        estadoPago: _s(j['estadoPago']),
+        factura: j['factura'] != false,
+        plazo: (_n(j['plazo']) ?? 0).toInt(),
+        total: _n(j['total']) ?? 0,
+        pago: _n(j['pago']) ?? 0,
+        cobro: _n(j['cobro']),
+        motivoRechazo: _sn(j['motivoRechazo']),
+      );
+}
+
+/// Desglose de una compra (POST /citas/:id/adquirir con cotizar).
+class CotizacionCompra {
+  const CotizacionCompra({
+    required this.total,
+    required this.pago,
+    required this.cobro,
+    required this.comision,
+    required this.liquida,
+    required this.anticipo,
+    required this.apartadoMinimo,
+    required this.faltaFabricacion,
+  });
+
+  final num total;
+  final num pago;
+  final num cobro;
+  final num comision;
+  final bool liquida;
+  final num anticipo;
+  final num apartadoMinimo;
+  final num faltaFabricacion;
+
+  factory CotizacionCompra.fromJson(Map<String, dynamic> j) => CotizacionCompra(
+        total: _n(j['total']) ?? 0,
+        pago: _n(j['pago']) ?? 0,
+        cobro: _n(j['cobro']) ?? 0,
+        comision: _n(j['comision']) ?? 0,
+        liquida: j['liquida'] == true,
+        anticipo: _n(j['anticipo']) ?? 0,
+        apartadoMinimo: _n(j['apartadoMinimo']) ?? 0,
+        faltaFabricacion: _n(j['faltaFabricacion']) ?? 0,
+      );
+}
+
+/// Lo que pide el cliente al adquirir.
+class PedidoCompra {
+  const PedidoCompra({
+    required this.opciones,
+    required this.modalidad,
+    required this.metodo,
+    this.factura = true,
+    this.plazo = 0,
+    this.monto,
+    this.requestId = '',
+  });
+
+  final List<int> opciones;
+  final String modalidad;
+  final String metodo;
+  final bool factura;
+  final int plazo;
+  final num? monto;
+  final String requestId;
+
+  Map<String, dynamic> toJson({required bool cotizar}) => {
+        'opciones': opciones,
+        'modalidad': modalidad,
+        'metodo': metodo,
+        'factura': factura,
+        'plazo': plazo,
+        'monto': ?monto,
+        if (!cotizar) 'requestId': requestId,
+        'cotizar': cotizar,
+      };
+}
+
+/// Compra registrada; con tarjeta, su link de Clip.
+class ResultadoCompra {
+  const ResultadoCompra({required this.compra, this.link});
+
+  final CompraOferta compra;
+  final LinkPagoTarjeta? link;
 }
 
 /// Pagar con tarjeta: un solo pago (meses = 1) o a meses sin intereses.
@@ -506,7 +686,11 @@ class Cotizacion {
     this.comercial,
     this.citaId,
     this.firmadaEl,
+    this.opcion,
   });
+
+  /// Opción de la oferta a la que corresponde (2026-10-27); null = no se sabe.
+  final int? opcion;
 
   /// 2b: cuándo firmó el cliente su cotización formal (ISO); null = no ha firmado.
   final String? firmadaEl;
@@ -533,6 +717,7 @@ class Cotizacion {
         tienePdf: j['tienePdf'] == true,
         citaId: _sn(j['citaId']),
         firmadaEl: j['firma'] is Map ? _sn((j['firma'] as Map)['fecha']) : null,
+        opcion: _n(j['opcion'])?.toInt(),
         precio: _n(j['precio']),
         comprado: j['comprado'] == true,
         marca: Marca.fromJson(_mapa(j['marca'])),

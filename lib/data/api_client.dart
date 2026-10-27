@@ -327,6 +327,42 @@ class ClienteApi {
     return l;
   }
 
+  /// POST /api/cliente/citas/:id/adquirir — compra real de opciones.
+  Future<Map<String, dynamic>> _adquirir(String token, String citaId, PedidoCompra p, {required bool cotizar}) async {
+    final r = await _enviar(() => _http.post(
+          Uri.parse('$_base/api/cliente/citas/$citaId/adquirir'),
+          headers: _headers(token: token, json: true),
+          body: jsonEncode(p.toJson(cotizar: cotizar)),
+        ));
+    if (r.statusCode == 401) throw const SesionTerminada();
+    final cuerpo = _cuerpo(r);
+    if (r.statusCode == 422) throw AbonoInvalido(_errorDe(cuerpo) ?? 'Revisa lo que elegiste.');
+    if (r.statusCode != 200) {
+      throw ErrorServidor(_errorDe(cuerpo) ?? 'No pudimos registrar tu compra. Intenta de nuevo.');
+    }
+    return cuerpo;
+  }
+
+  Future<CotizacionCompra> cotizarCompra(String token, String citaId, PedidoCompra p) async =>
+      CotizacionCompra.fromJson(await _adquirir(token, citaId, p, cotizar: true));
+
+  Future<ResultadoCompra> adquirir(String token, String citaId, PedidoCompra p) async {
+    final j = await _adquirir(token, citaId, p, cotizar: false);
+    final compra = j['compra'] is Map<String, dynamic> ? CompraOferta.fromJson(j['compra'] as Map<String, dynamic>) : null;
+    if (compra == null || compra.id.isEmpty) {
+      throw const ErrorServidor('No pudimos registrar tu compra. Intenta de nuevo.');
+    }
+    final l = j['link'];
+    LinkPagoTarjeta? link;
+    if (l is Map<String, dynamic>) {
+      link = LinkPagoTarjeta.fromJson({...j, ...l, 'neto': j['pago']});
+      if (link.id.isEmpty || !link.url.startsWith('https://') || link.ticket.isEmpty) {
+        throw const ErrorServidor('No pudimos generar tu pago. Intenta de nuevo.');
+      }
+    }
+    return ResultadoCompra(compra: compra, link: link);
+  }
+
   /// GET /api/cliente/pagos-tarjeta/:id?t= — 404 (link ajeno o función
   /// apagada) se trata como "desconocido".
   Future<EstadoPagoTarjeta> estadoPagoTarjeta(String token, String id, String ticket) async {

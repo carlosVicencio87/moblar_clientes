@@ -172,9 +172,13 @@ List<Compra> todasLasCompras(BuildContext context, Inicio datos) {
 /// La cotización formal de la opción [i] de la oferta [base]: la de su cita,
 /// si corresponde a esa opción (o si no se puede saber a cuál corresponde).
 Cotizacion? formalDeOpcion(Inicio datos, OfertaVisita base, int i) {
-  final f = datos.cotizaciones.where((c) => c.citaId == base.citaId).firstOrNull;
-  if (f == null) return null;
+  final todas = [for (final c in datos.cotizaciones) if (c.citaId == base.citaId) c];
+  if (todas.isEmpty) return null;
   final opciones = base.opciones.isEmpty ? [base] : base.opciones;
-  final de = indiceOpcionFormal(opciones, f);
-  return de == null || de == i ? f : null;
+  if (opciones.length < 2) return todas.first;
+  for (final f in todas) {
+    if (indiceOpcionFormal(opciones, f) == i) return f;
+  }
+  final f = todas.first;
+  return todas.length == 1 && indiceOpcionFormal(opciones, f) == null ? f : null;
 }

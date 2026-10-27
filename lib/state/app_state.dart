@@ -189,6 +189,28 @@ class AppState extends ChangeNotifier {
     return l;
   }
 
+  /// Compra real de opciones de la oferta (2026-10-27).
+  Future<CotizacionCompra> cotizarCompra(String citaId, PedidoCompra p) =>
+      _conToken((t) => api.cotizarCompra(t, citaId, p));
+
+  /// Registra la compra. Con tarjeta, guarda el link como pendiente ANTES de
+  /// abrir Clip (en web Clip puede abrirse en la misma pestaña).
+  Future<ResultadoCompra> adquirir(String citaId, PedidoCompra p) async {
+    final r = await _conToken((t) => api.adquirir(t, citaId, p));
+    final l = r.link;
+    if (l != null) {
+      await pagos.guardar(PagoPendiente(
+        id: l.id,
+        ticket: l.ticket,
+        compraId: 'compra-${r.compra.id}',
+        neto: r.compra.pago,
+        cobro: l.cotizacion.cobro,
+      ));
+    }
+    await refrescar();
+    return r;
+  }
+
   /// Revisa el pago guardado como pendiente (al arrancar la app).
   Future<EstadoPagoTarjeta?> revisarPagoPendiente() async {
     final p = await pagos.leer();

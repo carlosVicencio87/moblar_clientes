@@ -12,6 +12,7 @@ import 'comunes.dart';
 import 'contacto.dart';
 import 'detalle_mueble.dart' show ampliarImagen;
 import 'adquirir_oferta.dart';
+import 'adquirir_real.dart';
 import 'lienzo_firma.dart';
 import 'plegable.dart';
 import 'pago_visita.dart' show AvisoDemo;
@@ -40,7 +41,12 @@ class TarjetaOfertaVisita extends StatefulWidget {
     this.formal,
     this.abierta = true,
     this.tieneCompra = false,
+    this.formales = const [],
   });
+
+  /// Todas las cotizaciones formales de la cita (una por opción levantada,
+  /// 2026-10-27). Vacía = solo [formal].
+  final List<Cotizacion> formales;
 
   /// La cotización formal ya es una compra en "Mi compra" (mismo id de proyecto).
   final bool tieneCompra;
@@ -83,7 +89,10 @@ class _TarjetaOfertaVisitaState extends State<TarjetaOfertaVisita> {
     final elegida = _selUsuario;
     if (elegida != null) return elegida;
     final anticipos = DemoAnticipos.resultados.value;
-    final adquirida = _ofertas.indexWhere((x) => anticipos.containsKey(x.clave));
+    final reales = widget.oferta.opcionesAdquiridas;
+    final adquirida = widget.oferta.compraReal
+        ? _ofertas.indexWhere((x) => reales.contains(x.opcion < 1 ? 1 : x.opcion))
+        : _ofertas.indexWhere((x) => anticipos.containsKey(x.clave));
     return adquirida >= 0 ? adquirida : (_indiceFormal ?? 0);
   }
 
@@ -99,7 +108,30 @@ class _TarjetaOfertaVisitaState extends State<TarjetaOfertaVisita> {
   /// A qué opción corresponde la cotización formal: la del precio que mandó
   /// el arquitecto al completar el levantamiento (antes o después de IVA).
   /// null = no hay formal, hay una sola opción o no se puede saber.
-  int? get _indiceFormal => indiceOpcionFormal(_ofertas, widget.formal);
+  int? get _indiceFormal => indiceOpcionFormal(_ofertas, _formales.firstOrNull);
+
+  List<Cotizacion> get _formales =>
+      widget.formales.isNotEmpty ? widget.formales : [if (widget.formal != null) widget.formal!];
+
+  /// La cotización formal de la opción que se ve: la que trae su número de
+  /// opción o, si no lo trae, la de su precio. Con una sola opción, la que haya.
+  Cotizacion? get _formal {
+    final lista = _formales;
+    if (lista.isEmpty) return null;
+    if (_ofertas.length < 2) return lista.first;
+    final op = _actual.opcion < 1 ? 1 : _actual.opcion;
+    for (final c in lista) {
+      if (c.opcion == op) return c;
+    }
+    for (final c in lista) {
+      if (c.opcion == null && indiceOpcionFormal(_ofertas, c) == _sel) return c;
+    }
+    // Una sola formal sin opción ni precio reconocible: como antes, en todas.
+    if (lista.length == 1 && lista.first.opcion == null && indiceOpcionFormal(_ofertas, lista.first) == null) {
+      return lista.first;
+    }
+    return null;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -128,14 +160,21 @@ class _TarjetaOfertaVisitaState extends State<TarjetaOfertaVisita> {
 
   Widget _tarjeta(BuildContext context, Map<String, ResultadoAnticipo> anticipos) {
     final o = _actual;
-    final adquirida = anticipos[o.clave];
+    final real = widget.oferta.compraReal;
+    final opNum = o.opcion < 1 ? 1 : o.opcion;
+    // Compra real (ERP): las compras activas que incluyen esta opción.
+    final comprasOp = real ? [for (final c in widget.oferta.comprasDe(opNum)) if (c.activa) c] : const <CompraOferta>[];
+    final adquirida = real ? null : anticipos[o.clave];
+    final yaAdquirida = adquirida != null || comprasOp.isNotEmpty;
     // Ya adquirida: los precios de lo que compró; si no, lo que elige ahora.
-    final factura = adquirida?.factura ?? (_factura || !o.eligeFactura);
+    final factura = adquirida?.factura ??
+        (comprasOp.isNotEmpty ? comprasOp.first.factura : (_factura || !o.eligeFactura));
     final v = o.variante(factura: factura);
-    final vencida = !o.vigente && adquirida == null;
+    final vencida = !o.vigente && !yaAdquirida;
     final imagen = o.imagenDiseno;
     final visita = parseFecha(o.fechaVisita);
-    final elige = adquirida == null && !vencida;
+    final elige = !yaAdquirida && !vencida;
+    final porAdquirir = [for (final x in _ofertas) if (!widget.oferta.opcionesAdquiridas.contains(x.opcion < 1 ? 1 : x.opcion)) x];
     return Card(
       key: Key('ofertaVisita-${o.citaId}'),
       clipBehavior: Clip.antiAlias,
@@ -152,7 +191,7 @@ class _TarjetaOfertaVisitaState extends State<TarjetaOfertaVisita> {
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (adquirida != null)
+                    if (yaAdquirida)
                       const EstadoChip(
                         texto: 'Adquirida',
                         color: Color(0xFF065F46),
@@ -177,8 +216,8 @@ class _TarjetaOfertaVisitaState extends State<TarjetaOfertaVisita> {
                 o.muebles.isEmpty ? 'Mueble a la medida' : o.muebles.join(', '),
                 if (_ofertas.length > 1) 'Opción ${o.opcion}',
               ].join(' · '),
-              estado: _estadoResumen(adquirida != null, vencida),
-              estadoColor: widget.formal?.tienePdf == true && !(widget.formal?.firmada ?? false)
+              estado: _estadoResumen(yaAdquirida, vencida),
+              estadoColor: _formal?.tienePdf == true && !(_formal?.firmada ?? false)
                   ? const Color(0xFF065F46)
                   : MoblarColors.textSecondary,
               precio: v.precioContado,
@@ -197,7 +236,9 @@ class _TarjetaOfertaVisitaState extends State<TarjetaOfertaVisita> {
               child: _SelectorOpciones(
                 opciones: _ofertas,
                 seleccion: _sel.clamp(0, _ofertas.length - 1),
-                adquiridas: {for (final x in _ofertas) if (anticipos.containsKey(x.clave)) x.opcion},
+                adquiridas: real
+                    ? {for (final x in _ofertas) if (widget.oferta.opcionesAdquiridas.contains(x.opcion)) x.opcion}
+                    : {for (final x in _ofertas) if (anticipos.containsKey(x.clave)) x.opcion},
                 onElegir: _elegirOpcion,
               ),
             ),
@@ -259,7 +300,7 @@ class _TarjetaOfertaVisitaState extends State<TarjetaOfertaVisita> {
                     child: Text(o.notas!, style: const TextStyle(color: MoblarColors.textSecondary)),
                   ),
                 // Información del mueble, antes de los precios.
-                _InfoMueble(oferta: o, vencida: vencida, mostrarVigencia: adquirida == null),
+                _InfoMueble(oferta: o, vencida: vencida, mostrarVigencia: !yaAdquirida),
                 if (o.notasGenerales != null)
                   Dato(
                     key: const Key('notasGeneralesOferta'),
@@ -289,7 +330,41 @@ class _TarjetaOfertaVisitaState extends State<TarjetaOfertaVisita> {
                     onElegir: (p) => setState(() => _plazo = p),
                   ),
                 ],
-                if (adquirida != null) ...[
+                if (real) ...[
+                  if (comprasOp.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    ResumenComprasReales(compras: comprasOp),
+                  ],
+                  if (yaAdquirida || (_formal?.tienePdf ?? false)) ...[
+                    const SizedBox(height: 12),
+                    ParaIniciar(
+                      firmada: _formal?.firmada ?? false,
+                      anticipo: comprasOp.any((c) => c.cubreAnticipo),
+                      adquirida: yaAdquirida,
+                    ),
+                  ],
+                  if (o.adquirible && !vencida && porAdquirir.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    _BotonAdquirir(
+                      key: Key('adquirirReal-${o.citaId}'),
+                      secundario: yaAdquirida,
+                      texto: _ofertas.length < 2
+                          ? 'Adquirir esta cotización'
+                          : yaAdquirida
+                              ? 'Adquirir otra opción'
+                              : 'Adquirir',
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => AdquirirOpcionesPage(
+                            oferta: widget.oferta,
+                            inicial: yaAdquirida ? (porAdquirir.first.opcion < 1 ? 1 : porAdquirir.first.opcion) : opNum,
+                            factura: factura,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ] else if (adquirida != null) ...[
                   const SizedBox(height: 12),
                   ResumenCompraOferta(oferta: v, resultado: adquirida),
                 ] else if (o.adquirible) ...[
@@ -311,9 +386,9 @@ class _TarjetaOfertaVisitaState extends State<TarjetaOfertaVisita> {
                   ),
                 ],
                 // La cotización formal va en la opción a la que corresponde.
-                if ((!vencida || widget.formal != null) && (_indiceFormal == null || _indiceFormal == _sel)) ...[
+                if ((!vencida || _formal != null) && (_formales.length != 1 || _formal != null)) ...[
                   const SizedBox(height: 12),
-                  TarjetaCotizacionFormal(formal: widget.formal, tieneCompra: widget.tieneCompra),
+                  TarjetaCotizacionFormal(formal: _formal, tieneCompra: widget.tieneCompra),
                 ],
                 const SizedBox(height: 8),
                 BotonPreguntar(
@@ -333,9 +408,8 @@ class _TarjetaOfertaVisitaState extends State<TarjetaOfertaVisita> {
 
   /// La línea de estado con la tarjeta cerrada: lo siguiente que le toca.
   String _estadoResumen(bool adquirida, bool vencida) {
-    final f = widget.formal;
-    final formalAqui = _indiceFormal == null || _indiceFormal == _sel;
-    if (f != null && f.tienePdf && formalAqui) {
+    final f = _formal;
+    if (f != null && f.tienePdf) {
       return f.firmada ? 'Cotización formal firmada' : 'Tu cotización formal está lista: léela y fírmala';
     }
     if (adquirida) return 'Adquirida · tu arquitecto prepara tu cotización formal';
@@ -344,11 +418,33 @@ class _TarjetaOfertaVisitaState extends State<TarjetaOfertaVisita> {
   }
 }
 
+class _BotonAdquirir extends StatelessWidget {
+  const _BotonAdquirir({super.key, required this.secundario, required this.texto, required this.onPressed});
+
+  final bool secundario;
+  final String texto;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    const icono = Icon(Icons.shopping_bag_outlined);
+    return secundario
+        ? OutlinedButton.icon(onPressed: onPressed, icon: icono, label: Text(texto))
+        : FilledButton.icon(onPressed: onPressed, icon: icono, label: Text(texto));
+  }
+}
+
 /// La opción de [opciones] que corresponde a la cotización [formal]: la de su
 /// precio (antes de IVA, o con IVA). null si hay una sola opción, si no hay
 /// formal o si ningún precio coincide.
 int? indiceOpcionFormal(List<OfertaVisita> opciones, Cotizacion? formal) {
   if (formal == null || opciones.length < 2) return null;
+  // La que trae su número de opción (2026-10-27) no se adivina por el precio.
+  final op = formal.opcion;
+  if (op != null) {
+    final i = opciones.indexWhere((o) => o.opcion == op);
+    return i >= 0 ? i : null;
+  }
   final precio = formal.comercial?.precio ?? formal.precio;
   if (precio == null) return null;
   bool igual(num a, num b) => (a - b).abs() < 0.5;
