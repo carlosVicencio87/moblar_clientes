@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -216,6 +217,53 @@ void main() {
         client: MockClient((_) async => _json({'error': 'x'}, 404)),
       );
       expect(() => no.comprobantePago('tok', 'p'), throwsA(isA<ErrorServidor>()));
+    });
+  });
+
+  group('comprobante de transferencia', () {
+    test('pide la URL, sube el archivo y confirma', () async {
+      final pasos = <String>[];
+      final api = ClienteApi(
+        base: 'https://ejemplo.test',
+        bypass: '',
+        client: MockClient((r) async {
+          if (r.method == 'PUT') {
+            pasos.add('PUT ${r.url.host} ${r.headers['Content-Type']} ${r.bodyBytes.length}');
+            expect(r.headers.containsKey('Authorization'), isFalse, reason: 'el token no va al almacenamiento');
+            return http.Response('{}', 200);
+          }
+          final b = jsonDecode(r.body) as Map<String, dynamic>;
+          pasos.add('POST ${r.url.path} ${b.keys.join(',')}');
+          return b.containsKey('ruta')
+              ? _json({'ok': true}, 200)
+              : _json({'ruta': 'compras/k-1/comprobante-1.pdf', 'url': 'https://almacen.test/subir?token=x'}, 200);
+        }),
+      );
+      await api.subirComprobante('tok', 'k-1', Uint8List.fromList([1, 2, 3]), 'pdf');
+      expect(pasos, [
+        'POST /api/cliente/compras/k-1/comprobante extension',
+        'PUT almacen.test application/pdf 3',
+        'POST /api/cliente/compras/k-1/comprobante ruta',
+      ]);
+    });
+
+    test('si la subida falla, no confirma', () async {
+      var confirmo = false;
+      final api = ClienteApi(
+        base: 'https://ejemplo.test',
+        bypass: '',
+        client: MockClient((r) async {
+          if (r.method == 'PUT') return http.Response('no', 400);
+          final b = jsonDecode(r.body) as Map<String, dynamic>;
+          if (b.containsKey('ruta')) confirmo = true;
+          return _json({'ruta': 'r', 'url': 'https://almacen.test/x'}, 200);
+        }),
+      );
+      await expectLater(
+        api.subirComprobante('tok', 'k-1', Uint8List.fromList([1]), 'jpg'),
+        throwsA(isA<ErrorServidor>()),
+      );
+      expect(confirmo, isFalse);
     });
   });
 }

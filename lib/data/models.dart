@@ -442,6 +442,7 @@ class CompraOferta {
     this.plazo = 0,
     this.cobro,
     this.motivoRechazo,
+    this.comprobante = false,
   });
 
   final String id;
@@ -469,7 +470,13 @@ class CompraOferta {
   final num? cobro;
   final String? motivoRechazo;
 
+  /// Ya subió el comprobante de su transferencia.
+  final bool comprobante;
+
   bool get activa => estadoPago != 'rechazado';
+
+  /// Transferencia en revisión que todavía no trae su comprobante.
+  bool get faltaComprobante => metodo == 'transferencia' && estadoPago == 'en_revision' && !comprobante;
 
   /// Abrió el link de Clip y (todavía) no pagó.
   bool get tarjetaSinTerminar => metodo == 'tarjeta' && estadoPago == 'pendiente';
@@ -490,8 +497,8 @@ class CompraOferta {
       _ => 'efectivo',
     };
     final estado = switch (estadoPago) {
-      'validado' => 'pagado',
-      'en_revision' => 'en revisión',
+      'validado' => metodo == 'efectivo' ? 'pagado a tu arquitecto' : 'pagado',
+      'en_revision' => metodo == 'transferencia' && !comprobante ? 'falta tu comprobante' : 'en revisión',
       'rechazado' => 'rechazado',
       _ => 'esperando tu pago',
     };
@@ -513,6 +520,7 @@ class CompraOferta {
         pago: _n(j['pago']) ?? 0,
         cobro: _n(j['cobro']),
         motivoRechazo: _sn(j['motivoRechazo']),
+        comprobante: j['comprobante'] == true,
       );
 }
 
@@ -560,6 +568,7 @@ class PedidoCompra {
     this.plazo = 0,
     this.monto,
     this.requestId = '',
+    this.pin,
   });
 
   final List<int> opciones;
@@ -570,6 +579,9 @@ class PedidoCompra {
   final num? monto;
   final String requestId;
 
+  /// Efectivo: el PIN que escribe el arquitecto al recibir el dinero.
+  final String? pin;
+
   Map<String, dynamic> toJson({required bool cotizar}) => {
         'opciones': opciones,
         'modalidad': modalidad,
@@ -578,6 +590,7 @@ class PedidoCompra {
         'plazo': plazo,
         'monto': ?monto,
         if (!cotizar) 'requestId': requestId,
+        if (!cotizar && pin != null) 'pin': pin,
         'cotizar': cotizar,
       };
 }

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
@@ -80,9 +81,9 @@ class ClienteApi {
         if (_bypass.isNotEmpty) 'x-vercel-protection-bypass': _bypass,
       };
 
-  Future<http.Response> _enviar(Future<http.Response> Function() peticion) async {
+  Future<http.Response> _enviar(Future<http.Response> Function() peticion, {Duration? limite}) async {
     try {
-      return await peticion().timeout(_timeout);
+      return await peticion().timeout(limite ?? _timeout);
     } on TimeoutException {
       throw const SinConexion();
     } on http.ClientException {
@@ -363,6 +364,37 @@ class ClienteApi {
     return ResultadoCompra(compra: compra, link: link);
   }
 
+  /// Comprobante de una transferencia (2026-10-28), en tres pasos:
+  /// 1) el ERP da una URL firmada; 2) el archivo sube DIRECTO al almacenamiento;
+  /// 3) el ERP confirma que llegó y lo pone en la compra (Pagos lo ve).
+  Future<void> subirComprobante(String token, String compraId, Uint8List bytes, String extension) async {
+    final ruta = Uri.parse('$_base/api/cliente/compras/$compraId/comprobante');
+    const fallo = 'No pudimos subir tu comprobante. Intenta de nuevo.';
+    final r = await _enviar(() => _http.post(
+          ruta,
+          headers: _headers(token: token, json: true),
+          body: jsonEncode({'extension': extension}),
+        ));
+    if (r.statusCode == 401) throw const SesionTerminada();
+    final cuerpo = _cuerpo(r);
+    if (r.statusCode != 200) throw ErrorServidor(_errorDe(cuerpo) ?? fallo);
+    final url = cuerpo['url'];
+    final guardado = cuerpo['ruta'];
+    if (url is! String || !url.startsWith('http') || guardado is! String) throw const ErrorServidor(fallo);
+    final subida = await _enviar(
+      () => _http.put(Uri.parse(url), headers: {'Content-Type': tipoComprobante(extension)}, body: bytes),
+      limite: const Duration(minutes: 2),
+    );
+    if (subida.statusCode < 200 || subida.statusCode >= 300) throw const ErrorServidor(fallo);
+    final c = await _enviar(() => _http.post(
+          ruta,
+          headers: _headers(token: token, json: true),
+          body: jsonEncode({'ruta': guardado}),
+        ));
+    if (c.statusCode == 401) throw const SesionTerminada();
+    if (c.statusCode != 200) throw ErrorServidor(_errorDe(_cuerpo(c)) ?? fallo);
+  }
+
   /// GET /api/cliente/pagos-tarjeta/:id?t= — 404 (link ajeno o función
   /// apagada) se trata como "desconocido".
   Future<EstadoPagoTarjeta> estadoPagoTarjeta(String token, String id, String ticket) async {
@@ -379,3 +411,12 @@ class ClienteApi {
     return EstadoPagoTarjeta.fromJson(cuerpo);
   }
 }
+
+/// Tipo MIME del comprobante (el almacenamiento solo acepta estos).
+String tipoComprobante(String extension) => switch (extension.toLowerCase()) {
+      'pdf' => 'application/pdf',
+      'png' => 'image/png',
+      'webp' => 'image/webp',
+      'heic' => 'image/heic',
+      _ => 'image/jpeg',
+    };

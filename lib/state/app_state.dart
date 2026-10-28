@@ -211,6 +211,12 @@ class AppState extends ChangeNotifier {
     return r;
   }
 
+  /// Sube el comprobante de una transferencia y refresca la cuenta.
+  Future<void> subirComprobante(String compraId, Uint8List bytes, String extension) async {
+    await _conToken((t) => api.subirComprobante(t, compraId, bytes, extension));
+    await refrescar();
+  }
+
   /// Revisa el pago guardado como pendiente (al arrancar la app).
   Future<EstadoPagoTarjeta?> revisarPagoPendiente() async {
     final p = await pagos.leer();

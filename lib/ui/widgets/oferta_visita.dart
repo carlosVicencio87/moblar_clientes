@@ -98,6 +98,22 @@ class _TarjetaOfertaVisitaState extends State<TarjetaOfertaVisita> {
 
   late bool _abierta = widget.abierta;
 
+  /// Transferencia registrada sin comprobante: subirlo desde aquí.
+  Future<void> _subirComprobante(CompraOferta c) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final app = AppScope.read(context);
+    final a = await elegirComprobante(context);
+    if (a == null) return;
+    try {
+      await app.subirComprobante(c.id, a.bytes, a.extension);
+      messenger.showSnackBar(const SnackBar(content: Text('Recibimos tu comprobante. Te avisamos en cuanto validemos tu pago.')));
+    } on SesionTerminada {
+      // AppState ya regresó al cliente a la pantalla de ingreso.
+    } on ApiException catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(e.mensaje)));
+    }
+  }
+
   /// Las opciones de la oferta; con una sola, la oferta misma.
   List<OfertaVisita> get _ofertas =>
       widget.oferta.opciones.isEmpty ? [widget.oferta] : widget.oferta.opciones;
@@ -342,7 +358,7 @@ class _TarjetaOfertaVisitaState extends State<TarjetaOfertaVisita> {
                   ],
                   if (comprasOp.isNotEmpty) ...[
                     const SizedBox(height: 12),
-                    ResumenComprasReales(compras: comprasOp),
+                    ResumenComprasReales(compras: comprasOp, onSubirComprobante: _subirComprobante),
                   ],
                   if (yaAdquirida || (_formal?.tienePdf ?? false)) ...[
                     const SizedBox(height: 12),

@@ -1,7 +1,10 @@
 import 'dart:async';
 import 'dart:math';
+import 'dart:typed_data';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../data/api_client.dart' show ApiException, SesionTerminada;
 import '../../data/models.dart';
@@ -21,6 +24,51 @@ import 'comunes.dart';
 
 const _plazosMsi = [3, 6, 9, 12, 18, 24];
 
+/// El comprobante de una transferencia (foto o PDF), ya leído.
+class ArchivoComprobante {
+  const ArchivoComprobante({required this.nombre, required this.bytes, required this.extension});
+
+  final String nombre;
+  final Uint8List bytes;
+
+  /// jpg | png | webp | heic | pdf
+  final String extension;
+}
+
+const extensionesComprobante = ['jpg', 'jpeg', 'png', 'webp', 'heic', 'pdf'];
+const maxComprobanteBytes = 10 * 1024 * 1024;
+
+/// Revisa tipo y tamaño. null = válido; si no, el mensaje para el cliente.
+String? problemaComprobante(String nombre, int bytes) {
+  final punto = nombre.lastIndexOf('.');
+  final ext = punto < 0 ? '' : nombre.substring(punto + 1).toLowerCase();
+  if (!extensionesComprobante.contains(ext)) return 'Sube una foto (JPG o PNG) o un PDF.';
+  if (bytes <= 0) return 'El archivo está vacío.';
+  if (bytes > maxComprobanteBytes) return 'El archivo pesa más de 10 MB. Sube una captura de pantalla.';
+  return null;
+}
+
+/// Abre el selector del teléfono. null si el cliente cancela; si el archivo no
+/// sirve, avisa y regresa null.
+Future<ArchivoComprobante?> elegirComprobante(BuildContext context) async {
+  final messenger = ScaffoldMessenger.of(context);
+  final r = await FilePicker.pickFiles(
+    type: FileType.custom,
+    allowedExtensions: extensionesComprobante,
+    withData: true,
+  );
+  final f = r?.files.firstOrNull;
+  if (f == null) return null;
+  final bytes = f.bytes;
+  final problema = bytes == null ? 'No pudimos leer el archivo.' : problemaComprobante(f.name, bytes.length);
+  if (problema != null) {
+    messenger.showSnackBar(SnackBar(content: Text(problema)));
+    return null;
+  }
+  final ext = f.name.substring(f.name.lastIndexOf('.') + 1).toLowerCase();
+  return ArchivoComprobante(nombre: f.name, bytes: bytes!, extension: ext == 'jpeg' ? 'jpg' : ext);
+}
+
 String _nuevoRequestId() {
   final r = Random.secure();
   const letras = 'abcdefghijklmnopqrstuvwxyz0123456789';
@@ -37,6 +85,8 @@ class AdquirirOpcionesPage extends StatefulWidget {
     this.cotizar,
     this.adquirir,
     this.abrir,
+    this.elegirArchivo,
+    this.subirComprobante,
   });
 
   /// La oferta completa (con sus opciones y compras).
@@ -53,6 +103,8 @@ class AdquirirOpcionesPage extends StatefulWidget {
   final Future<CotizacionCompra> Function(PedidoCompra p)? cotizar;
   final Future<ResultadoCompra> Function(PedidoCompra p)? adquirir;
   final Future<void> Function(Uri url)? abrir;
+  final Future<ArchivoComprobante?> Function()? elegirArchivo;
+  final Future<void> Function(String compraId, ArchivoComprobante a)? subirComprobante;
 
   @override
   State<AdquirirOpcionesPage> createState() => _AdquirirOpcionesPageState();
@@ -65,6 +117,8 @@ class _AdquirirOpcionesPageState extends State<AdquirirOpcionesPage> {
   String _metodo = 'transferencia';
   int _plazo = 12;
   final _monto = TextEditingController();
+  final _pin = TextEditingController();
+  ArchivoComprobante? _archivo;
   String _requestId = _nuevoRequestId();
 
   CotizacionCompra? _cot;
@@ -89,7 +143,17 @@ class _AdquirirOpcionesPageState extends State<AdquirirOpcionesPage> {
         plazo: _modalidad == 'msi' ? _plazo : 0,
         monto: _modalidad == 'apartado' ? num.tryParse(_monto.text.replaceAll(RegExp(r'[^0-9]'), '')) : null,
         requestId: _requestId,
+        pin: _metodoActual == 'efectivo' ? _pin.text : null,
       );
+
+  String get _metodoActual => _modalidad == 'msi' ? 'tarjeta' : _metodo;
+
+  /// Transferencia: con su comprobante. Efectivo: con el PIN del arquitecto.
+  bool get _completo => switch (_metodoActual) {
+        'transferencia' => _archivo != null,
+        'efectivo' => RegExp(r'^\d{4}$').hasMatch(_pin.text),
+        _ => true,
+      };
 
   @override
   void initState() {
@@ -102,6 +166,7 @@ class _AdquirirOpcionesPageState extends State<AdquirirOpcionesPage> {
     _espera?.cancel();
     _revision?.cancel();
     _monto.dispose();
+    _pin.dispose();
     super.dispose();
   }
 
@@ -151,11 +216,16 @@ class _AdquirirOpcionesPageState extends State<AdquirirOpcionesPage> {
     }
   }
 
+  Future<void> _adjuntar() async {
+    final a = widget.elegirArchivo != null ? await widget.elegirArchivo!() : await elegirComprobante(context);
+    if (a != null && mounted) setState(() => _archivo = a);
+  }
+
   Future<void> _confirmar() async {
-    if (_cot == null || _enviando) return;
+    if (_cot == null || _enviando || !_completo) return;
     setState(() => _enviando = true);
     final messenger = ScaffoldMessenger.of(context);
-    final app = widget.adquirir == null ? AppScope.read(context) : null;
+    final app = AppScope.maybeRead(context);
     try {
       final r = widget.adquirir != null
           ? await widget.adquirir!(_pedido)
@@ -163,11 +233,27 @@ class _AdquirirOpcionesPageState extends State<AdquirirOpcionesPage> {
       if (!mounted) return;
       final link = r.link;
       if (link == null) {
-        messenger.showSnackBar(SnackBar(
-          content: Text(r.compra.metodo == 'tarjeta'
-              ? 'Tu compra ya estaba registrada.'
-              : 'Registramos tu compra. Te avisamos en cuanto validemos tu pago.'),
-        ));
+        var aviso = switch (r.compra.metodo) {
+          'tarjeta' => 'Tu compra ya estaba registrada.',
+          'efectivo' => '¡Listo! Tu arquitecto confirmó tu pago en efectivo.',
+          _ => 'Recibimos tu comprobante. Te avisamos en cuanto validemos tu pago.',
+        };
+        final archivo = _archivo;
+        if (r.compra.metodo == 'transferencia' && archivo != null && !r.compra.comprobante) {
+          try {
+            if (widget.subirComprobante != null) {
+              await widget.subirComprobante!(r.compra.id, archivo);
+            } else if (app != null) {
+              await app.subirComprobante(r.compra.id, archivo.bytes, archivo.extension);
+            }
+          } on SesionTerminada {
+            return;
+          } on ApiException {
+            aviso = 'Registramos tu compra, pero tu comprobante no se subió. Súbelo desde tu cotización.';
+          }
+        }
+        if (!mounted) return;
+        messenger.showSnackBar(SnackBar(content: Text(aviso)));
         Navigator.of(context).pop(true);
         return;
       }
@@ -180,6 +266,8 @@ class _AdquirirOpcionesPageState extends State<AdquirirOpcionesPage> {
     } on SesionTerminada {
       // AppState ya regresó al cliente a la pantalla de ingreso.
     } on ApiException catch (e) {
+      // Un PIN equivocado se borra para que el arquitecto lo escriba de nuevo.
+      if (_metodoActual == 'efectivo') _pin.clear();
       messenger.showSnackBar(SnackBar(content: Text(e.mensaje)));
     } finally {
       if (mounted) setState(() => _enviando = false);
@@ -418,11 +506,45 @@ class _AdquirirOpcionesPageState extends State<AdquirirOpcionesPage> {
           ),
           const SizedBox(height: 8),
         ],
-        if (metodo == 'efectivo' && c != null)
+        if (metodo == 'transferencia' && c != null) ...[
+          OutlinedButton.icon(
+            key: const Key('adjuntarComprobante'),
+            onPressed: _enviando ? null : _adjuntar,
+            icon: Icon(_archivo == null ? Icons.attach_file : Icons.check_circle_outline),
+            label: Text(_archivo == null ? 'Adjuntar comprobante' : 'Cambiar comprobante'),
+          ),
+          const SizedBox(height: 4),
           Text(
-            'Entrégale ${dinero(c.pago)} a tu arquitecto. Lo confirmamos y te avisamos.',
+            _archivo?.nombre ?? 'Una captura o foto de tu transferencia, o el PDF del banco (máx. 10 MB).',
+            key: const Key('nombreComprobante'),
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 12, color: MoblarColors.textMuted),
+          ),
+          const SizedBox(height: 4),
+        ],
+        if (metodo == 'efectivo' && c != null) ...[
+          Text(
+            'Entrégale ${dinero(c.pago)} a tu arquitecto. Él escribe aquí su PIN para confirmar que lo recibió.',
             style: const TextStyle(color: MoblarColors.textSecondary),
           ),
+          const SizedBox(height: 8),
+          TextField(
+            key: const Key('pinArquitecto'),
+            controller: _pin,
+            obscureText: true,
+            keyboardType: TextInputType.number,
+            maxLength: 4,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 24, letterSpacing: 12),
+            onChanged: (_) => setState(() {}),
+            decoration: const InputDecoration(
+              labelText: 'PIN de tu arquitecto',
+              counterText: '',
+              border: OutlineInputBorder(),
+            ),
+          ),
+        ],
         if (metodo == 'tarjeta')
           const Text(
             'Sin comisión pagando en efectivo o por transferencia.',
@@ -431,14 +553,14 @@ class _AdquirirOpcionesPageState extends State<AdquirirOpcionesPage> {
         const SizedBox(height: 12),
         FilledButton.icon(
           key: const Key('confirmarCompra'),
-          onPressed: c == null || _enviando || _cotizando ? null : _confirmar,
+          onPressed: c == null || _enviando || _cotizando || !_completo ? null : _confirmar,
           icon: _enviando
               ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
               : Icon(metodo == 'tarjeta' ? Icons.credit_card : Icons.check),
           label: Text(switch (metodo) {
             'tarjeta' => c == null ? 'Pagar con Clip' : 'Pagar ${dinero(c.cobro)} con Clip',
             'transferencia' => 'Ya hice la transferencia',
-            _ => 'Confirmar',
+            _ => 'Confirmar pago en efectivo',
           }),
         ),
       ],
@@ -502,9 +624,12 @@ class _Renglon extends StatelessWidget {
 
 /// Las compras reales de esta opción: qué pagó, cómo y en qué va.
 class ResumenComprasReales extends StatelessWidget {
-  const ResumenComprasReales({super.key, required this.compras});
+  const ResumenComprasReales({super.key, required this.compras, this.onSubirComprobante});
 
   final List<CompraOferta> compras;
+
+  /// Transferencia sin comprobante: subirlo después.
+  final Future<void> Function(CompraOferta c)? onSubirComprobante;
 
   @override
   Widget build(BuildContext context) {
@@ -519,6 +644,16 @@ class ResumenComprasReales extends StatelessWidget {
               icono: c.validada ? Icons.check_circle_outline : Icons.schedule,
               texto: '${c.opciones.length > 1 ? 'Opciones ${c.opciones.join(', ')}' : 'Opción ${c.opciones.first}'}'
                   ' · ${dinero(c.pago)} · ${c.resumen}',
+            ),
+          ),
+        for (final c in compras.where((c) => c.faltaComprobante && onSubirComprobante != null))
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              key: Key('subirComprobante-${c.id}'),
+              onPressed: () => onSubirComprobante!(c),
+              icon: const Icon(Icons.upload_file),
+              label: const Text('Subir comprobante'),
             ),
           ),
       ],
