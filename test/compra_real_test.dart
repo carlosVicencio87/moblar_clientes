@@ -276,7 +276,7 @@ void main() {
     expect(o.compras.last.resumen, endsWith('pagado a tu arquitecto'));
   });
 
-  testWidgets('a meses: solo tarjeta y con el plazo; abre el link real de Clip', (tester) async {
+  testWidgets('todo el mueble a meses: solo tarjeta y con el plazo; abre el link real de Clip', (tester) async {
     Uri? abierto;
     PedidoCompra? registrado;
     await abrirPagina(
@@ -319,21 +319,66 @@ void main() {
         abrir: (u) async => abierto = u,
       ),
     );
-    await tester.tap(find.byKey(const Key('modo-msi')));
+    await tester.tap(find.byKey(const Key('modo-liquidar')));
     await tester.pumpAndSettle(const Duration(milliseconds: 400));
-    expect(find.byKey(const Key('metodo-efectivo')), findsNothing, reason: 'a meses solo con tarjeta');
+    await tester.tap(find.byKey(const Key('metodo-meses')));
+    await tester.pumpAndSettle(const Duration(milliseconds: 400));
     await tester.tap(find.byKey(const Key('plazo-6')));
     await tester.pumpAndSettle(const Duration(milliseconds: 400));
     expect(find.text(r'Pagar $2,900.00 con Clip'), findsOneWidget);
+    expect(find.byKey(const Key('mensualidadCompra')), findsOneWidget);
     await tester.tap(find.byKey(const Key('confirmarCompra')));
     for (var i = 0; i < 4; i++) {
       await tester.pump(const Duration(milliseconds: 50));
     }
-    expect(registrado?.modalidad, 'msi');
+    expect(registrado?.modalidad, 'liquidar');
     expect(registrado?.metodo, 'tarjeta');
     expect(registrado?.plazo, 6);
     expect(abierto.toString(), 'https://pago.clip.mx/abc');
     expect(find.byKey(const Key('esperandoClip')), findsOneWidget);
+  });
+
+  testWidgets('el 50 % también a meses; apartar no ofrece meses', (tester) async {
+    final pedidos = <PedidoCompra>[];
+    await abrirPagina(
+      tester,
+      AdquirirOpcionesPage(
+        oferta: OfertaVisita.fromJson(oferta()),
+        inicial: 1,
+        cotizar: (p) async {
+          pedidos.add(p);
+          return cot;
+        },
+      ),
+    );
+    await tester.tap(find.byKey(const Key('metodo-meses')));
+    await tester.pumpAndSettle(const Duration(milliseconds: 400));
+    await tester.tap(find.byKey(const Key('plazo-3')));
+    await tester.pumpAndSettle(const Duration(milliseconds: 400));
+    expect(pedidos.last.modalidad, 'fabricacion');
+    expect(pedidos.last.metodo, 'tarjeta');
+    expect(pedidos.last.plazo, 3);
+
+    await tester.tap(find.byKey(const Key('modo-apartado')));
+    await tester.pumpAndSettle(const Duration(milliseconds: 400));
+    expect(find.byKey(const Key('metodo-meses')), findsNothing);
+    expect(find.byKey(const Key('plazo-3')), findsNothing);
+    await tester.enterText(find.byKey(const Key('montoApartadoReal')), '500');
+    await tester.pumpAndSettle(const Duration(milliseconds: 400));
+    expect(pedidos.last.modalidad, 'apartado');
+    expect(pedidos.last.metodo, 'tarjeta', reason: 'pasa a una exhibición');
+    expect(pedidos.last.plazo, 0);
+  });
+
+  test('resumen de las modalidades nuevas', () {
+    CompraOferta c(String m, int plazo) => CompraOferta(
+          id: 'x', fecha: '', opciones: const [1], modalidad: m, metodo: 'tarjeta',
+          estadoPago: 'validado', plazo: plazo, total: 2000, pago: m == 'fabricacion' ? 1000 : 2000);
+    expect(c('liquidar', 0).resumen, startsWith('Pago total · tarjeta'));
+    expect(c('liquidar', 6).resumen, startsWith('Pago total a 6 meses'));
+    expect(c('fabricacion', 12).resumen, startsWith('Anticipo del 50 % a 12 meses'));
+    expect(c('liquidar', 0).cubreAnticipo, isTrue);
+    expect(c('fabricacion', 12).cubreAnticipo, isTrue);
   });
 
   testWidgets('apartar: pide el monto antes de cotizar', (tester) async {

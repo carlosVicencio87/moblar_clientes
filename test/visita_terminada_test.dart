@@ -247,4 +247,60 @@ void main() {
       expect(find.byType(PagarVisitaPage), findsOneWidget);
     });
   });
+
+  group('con la compra real (2026-10-28)', () {
+    final real = OfertaVisita.fromJson({
+      ...ofertaJson,
+      'compraReal': true,
+      'compras': const [],
+      'opciones': [
+        {...ofertaJson, 'numero': 1, 'notas': 'Nogal'},
+        {...ofertaJson, 'numero': 2, 'notas': 'Con luz LED'},
+      ],
+    });
+
+    testWidgets('al terminar la visita se ve la oferta nueva: opciones, cuánto y cómo', (tester) async {
+      tester.view.physicalSize = const Size(1080, 3400);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(MaterialApp(home: VisitaTerminadaPage(cita: cita(), oferta: real)));
+      await tester.pumpAndSettle();
+      expect(find.text('Tu visita terminó'), findsOneWidget);
+      expect(find.text('Ana López terminó tu visita'), findsOneWidget);
+      expect(find.byKey(const Key('adquirirOpciones')), findsOneWidget);
+      expect(find.byKey(const Key('marcarOpcion-1')), findsOneWidget);
+      expect(find.byKey(const Key('marcarOpcion-2')), findsOneWidget);
+      expect(find.byKey(const Key('modo-liquidar')), findsOneWidget);
+      expect(find.byKey(const Key('metodo-meses')), findsOneWidget);
+      expect(find.byKey(const Key('finVisitaIniciar')), findsNothing, reason: 'ya no pasa por la oferta vieja');
+      expect(find.byKey(const Key('finVisitaPagar')), findsOneWidget);
+      expect(find.byKey(const Key('finVisitaDespues')), findsOneWidget);
+    });
+
+    test('con una opción ya adquirida no vuelve a aparecer', () {
+      final datos = Inicio.fromJson({
+        'contacto': const {},
+        'citas': [citaJson()],
+        'ofertasVisita': [
+          {
+            ...ofertaJson,
+            'compraReal': true,
+            'compras': [
+              {'id': 'k-1', 'fecha': '', 'opciones': [1], 'modalidad': 'fabricacion', 'metodo': 'transferencia',
+               'estadoPago': 'en_revision', 'total': 10000, 'pago': 5000},
+            ],
+          },
+        ],
+      });
+      expect(visitaPorCubrir(datos, DateTime.now()), isNull);
+      final sinCompra = Inicio.fromJson({
+        'contacto': const {},
+        'citas': [citaJson()],
+        'ofertasVisita': [
+          {...ofertaJson, 'compraReal': true, 'compras': const []},
+        ],
+      });
+      expect(visitaPorCubrir(sinCompra, DateTime.now()), isNotNull);
+    });
+  });
 }

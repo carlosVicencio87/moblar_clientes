@@ -449,7 +449,7 @@ class CompraOferta {
   final String fecha;
   final List<int> opciones;
 
-  /// fabricacion | apartado | msi
+  /// liquidar (todo) | fabricacion (50 %) | apartado; msi = todo a meses (anterior).
   final String modalidad;
 
   /// efectivo | transferencia | tarjeta
@@ -483,13 +483,13 @@ class CompraOferta {
   bool get validada => estadoPago == 'validado';
 
   /// Cubre el 50 % para fabricar (a meses, el total).
-  bool get cubreAnticipo => validada && (modalidad == 'msi' || pago * 2 >= total - 0.005);
+  bool get cubreAnticipo => validada && (modalidad == 'msi' || modalidad == 'liquidar' || pago * 2 >= total - 0.005);
 
   String get resumen {
     final que = switch (modalidad) {
-      'msi' => 'A $plazo meses',
+      'msi' || 'liquidar' => plazo > 0 ? 'Pago total a $plazo meses' : 'Pago total',
       'apartado' => 'Apartado',
-      _ => 'Anticipo del 50 %',
+      _ => plazo > 0 ? 'Anticipo del 50 % a $plazo meses' : 'Anticipo del 50 %',
     };
     final como = switch (metodo) {
       'tarjeta' => 'tarjeta',

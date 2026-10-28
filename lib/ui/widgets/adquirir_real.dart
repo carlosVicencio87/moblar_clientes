@@ -41,21 +41,48 @@ const maxComprobanteBytes = 10 * 1024 * 1024;
 String? problemaComprobante(String nombre, int bytes) {
   final punto = nombre.lastIndexOf('.');
   final ext = punto < 0 ? '' : nombre.substring(punto + 1).toLowerCase();
-  if (!extensionesComprobante.contains(ext)) return 'Sube una foto (JPG o PNG) o un PDF.';
+  if (!extensionesComprobante.contains(ext)) return 'Sube una captura de pantalla (JPG o PNG) o un PDF.';
   if (bytes <= 0) return 'El archivo está vacío.';
   if (bytes > maxComprobanteBytes) return 'El archivo pesa más de 10 MB. Sube una captura de pantalla.';
   return null;
 }
 
-/// Abre el selector del teléfono. null si el cliente cancela; si el archivo no
-/// sirve, avisa y regresa null.
+/// Primero pregunta qué va a subir (Carlos, 2026-10-28): una captura de
+/// pantalla (se abre la galería del teléfono, donde están las capturas) o el
+/// PDF del banco (se abre el explorador de archivos). null si el cliente
+/// cancela; si el archivo no sirve, avisa y regresa null.
 Future<ArchivoComprobante?> elegirComprobante(BuildContext context) async {
   final messenger = ScaffoldMessenger.of(context);
-  final r = await FilePicker.pickFiles(
-    type: FileType.custom,
-    allowedExtensions: extensionesComprobante,
-    withData: true,
+  final pdf = await showModalBottomSheet<bool>(
+    context: context,
+    showDragHandle: true,
+    builder: (ctx) => SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            key: const Key('comprobanteCaptura'),
+            leading: const Icon(Icons.image_outlined),
+            title: const Text('Captura de pantalla o foto'),
+            subtitle: const Text('De tu galería'),
+            onTap: () => Navigator.of(ctx).pop(false),
+          ),
+          ListTile(
+            key: const Key('comprobantePdf'),
+            leading: const Icon(Icons.picture_as_pdf_outlined),
+            title: const Text('PDF del banco'),
+            subtitle: const Text('De tus archivos'),
+            onTap: () => Navigator.of(ctx).pop(true),
+          ),
+          const SizedBox(height: 8),
+        ],
+      ),
+    ),
   );
+  if (pdf == null) return null;
+  final r = pdf
+      ? await FilePicker.pickFiles(type: FileType.custom, allowedExtensions: const ['pdf'], withData: true)
+      : await FilePicker.pickFiles(type: FileType.image, withData: true);
   final f = r?.files.firstOrNull;
   if (f == null) return null;
   final bytes = f.bytes;
@@ -86,6 +113,9 @@ class AdquirirOpcionesPage extends StatefulWidget {
     this.abrir,
     this.elegirArchivo,
     this.subirComprobante,
+    this.titulo = 'Adquirir',
+    this.encabezado = const [],
+    this.pie = const [],
   });
 
   /// La oferta completa (con sus opciones y compras).
@@ -105,6 +135,12 @@ class AdquirirOpcionesPage extends StatefulWidget {
   final Future<ArchivoComprobante?> Function()? elegirArchivo;
   final Future<void> Function(String compraId, ArchivoComprobante a)? subirComprobante;
 
+  /// Para usar esta misma pantalla al terminar la visita (Carlos, 2026-10-28):
+  /// título propio, lo que va antes de las opciones y lo que va al final.
+  final String titulo;
+  final List<Widget> encabezado;
+  final List<Widget> pie;
+
   @override
   State<AdquirirOpcionesPage> createState() => _AdquirirOpcionesPageState();
 }
@@ -112,7 +148,11 @@ class AdquirirOpcionesPage extends StatefulWidget {
 class _AdquirirOpcionesPageState extends State<AdquirirOpcionesPage> {
   late final Set<int> _marcadas = {...?widget.iniciales, if (widget.iniciales == null) widget.inicial};
   late bool _factura = widget.factura;
+  /// Cuánto paga hoy: liquidar (todo) | fabricacion (50 %) | apartado.
   String _modalidad = 'fabricacion';
+
+  /// transferencia | efectivo | tarjeta (una exhibición) | meses (tarjeta a
+  /// meses sin intereses: para todo o el 50 %, nunca para apartar).
   String _metodo = 'transferencia';
   int _plazo = 12;
   final _monto = TextEditingController();
@@ -137,15 +177,16 @@ class _AdquirirOpcionesPageState extends State<AdquirirOpcionesPage> {
   PedidoCompra get _pedido => PedidoCompra(
         opciones: (_marcadas.toList()..sort()),
         modalidad: _modalidad,
-        metodo: _modalidad == 'msi' ? 'tarjeta' : _metodo,
+        metodo: _metodoActual,
         factura: _factura,
-        plazo: _modalidad == 'msi' ? _plazo : 0,
+        plazo: _aMeses ? _plazo : 0,
         monto: _modalidad == 'apartado' ? num.tryParse(_monto.text.replaceAll(RegExp(r'[^0-9]'), '')) : null,
         requestId: _requestId,
         pin: _metodoActual == 'efectivo' ? _pin.text : null,
       );
 
-  String get _metodoActual => _modalidad == 'msi' ? 'tarjeta' : _metodo;
+  bool get _aMeses => _metodo == 'meses' && _modalidad != 'apartado';
+  String get _metodoActual => _metodo == 'meses' ? 'tarjeta' : _metodo;
 
   /// Transferencia: con su comprobante. Efectivo: con el PIN del arquitecto.
   bool get _completo => switch (_metodoActual) {
@@ -191,12 +232,14 @@ class _AdquirirOpcionesPageState extends State<AdquirirOpcionesPage> {
       });
       return;
     }
+    final app = AppScope.maybeRead(context);
+    if (widget.cotizar == null && app == null) return;
     final vuelta = ++_vuelta;
     setState(() => _cotizando = true);
     try {
       final c = widget.cotizar != null
           ? await widget.cotizar!(_pedido)
-          : await AppScope.read(context).cotizarCompra(widget.oferta.citaId, _pedido);
+          : await app!.cotizarCompra(widget.oferta.citaId, _pedido);
       if (!mounted || vuelta != _vuelta) return;
       setState(() {
         _cot = c;
@@ -311,7 +354,7 @@ class _AdquirirOpcionesPageState extends State<AdquirirOpcionesPage> {
   Widget build(BuildContext context) {
     final link = _link;
     return Scaffold(
-      appBar: AppBar(title: const Text('Adquirir')),
+      appBar: AppBar(title: Text(widget.titulo)),
       body: link != null ? _esperandoClip(link) : _formulario(),
     );
   }
@@ -372,11 +415,12 @@ class _AdquirirOpcionesPageState extends State<AdquirirOpcionesPage> {
     final adquiridas = o.opcionesAdquiridas;
     final c = _cot;
     final t = o.transferencia;
-    final metodo = _modalidad == 'msi' ? 'tarjeta' : _metodo;
+    final metodo = _metodoActual;
     return ListView(
       key: const Key('adquirirOpciones'),
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       children: [
+        ...widget.encabezado,
         if (_ofertas.length > 1) ...[
           const _Titulo('¿Qué opciones quieres?'),
           for (final x in _ofertas)
@@ -403,14 +447,23 @@ class _AdquirirOpcionesPageState extends State<AdquirirOpcionesPage> {
             onChanged: (v) => _cambiar(() => _factura = v),
             title: const Text('Requiero factura'),
           ),
-        const _Titulo('¿Cómo quieres iniciar?'),
+        const _Titulo('¿Cuánto pagas hoy?'),
         Wrap(
           spacing: 8,
           runSpacing: 8,
           children: [
-            _Eleccion(clave: 'modo-fabricacion', texto: 'Iniciar fabricación · 50 %', elegida: _modalidad == 'fabricacion', onTap: () => _cambiar(() => _modalidad = 'fabricacion')),
-            _Eleccion(clave: 'modo-apartado', texto: 'Apartar', elegida: _modalidad == 'apartado', onTap: () => _cambiar(() => _modalidad = 'apartado')),
-            _Eleccion(clave: 'modo-msi', texto: 'A meses sin intereses', elegida: _modalidad == 'msi', onTap: () => _cambiar(() => _modalidad = 'msi')),
+            _Eleccion(clave: 'modo-liquidar', texto: 'Todo el mueble', elegida: _modalidad == 'liquidar', onTap: () => _cambiar(() => _modalidad = 'liquidar')),
+            _Eleccion(clave: 'modo-fabricacion', texto: '50 % · inicia fabricación', elegida: _modalidad == 'fabricacion', onTap: () => _cambiar(() => _modalidad = 'fabricacion')),
+            _Eleccion(
+              clave: 'modo-apartado',
+              texto: 'Apartar',
+              elegida: _modalidad == 'apartado',
+              // Apartar no va a meses: pasa a tarjeta en una exhibición.
+              onTap: () => _cambiar(() {
+                _modalidad = 'apartado';
+                if (_metodo == 'meses') _metodo = 'tarjeta';
+              }),
+            ),
           ],
         ),
         if (_modalidad == 'apartado') ...[
@@ -427,7 +480,19 @@ class _AdquirirOpcionesPageState extends State<AdquirirOpcionesPage> {
             ),
           ),
         ],
-        if (_modalidad == 'msi') ...[
+        const _Titulo('¿Cómo pagas?'),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _Eleccion(clave: 'metodo-transferencia', texto: 'Transferencia', elegida: _metodo == 'transferencia', onTap: () => _cambiar(() => _metodo = 'transferencia')),
+            _Eleccion(clave: 'metodo-efectivo', texto: 'Efectivo', elegida: _metodo == 'efectivo', onTap: () => _cambiar(() => _metodo = 'efectivo')),
+            _Eleccion(clave: 'metodo-tarjeta', texto: 'Tarjeta · una exhibición', elegida: _metodo == 'tarjeta', onTap: () => _cambiar(() => _metodo = 'tarjeta')),
+            if (_modalidad != 'apartado')
+              _Eleccion(clave: 'metodo-meses', texto: 'Tarjeta a meses sin intereses', elegida: _metodo == 'meses', onTap: () => _cambiar(() => _metodo = 'meses')),
+          ],
+        ),
+        if (_aMeses) ...[
           const SizedBox(height: 12),
           Wrap(
             spacing: 8,
@@ -435,18 +500,6 @@ class _AdquirirOpcionesPageState extends State<AdquirirOpcionesPage> {
             children: [
               for (final m in _plazosMsi)
                 _Eleccion(clave: 'plazo-$m', texto: '$m meses', elegida: _plazo == m, onTap: () => _cambiar(() => _plazo = m)),
-            ],
-          ),
-        ],
-        if (_modalidad != 'msi') ...[
-          const _Titulo('¿Cómo pagas?'),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _Eleccion(clave: 'metodo-transferencia', texto: 'Transferencia', elegida: _metodo == 'transferencia', onTap: () => _cambiar(() => _metodo = 'transferencia')),
-              _Eleccion(clave: 'metodo-efectivo', texto: 'Efectivo', elegida: _metodo == 'efectivo', onTap: () => _cambiar(() => _metodo = 'efectivo')),
-              _Eleccion(clave: 'metodo-tarjeta', texto: 'Tarjeta', elegida: _metodo == 'tarjeta', onTap: () => _cambiar(() => _metodo = 'tarjeta')),
             ],
           ),
         ],
@@ -469,10 +522,16 @@ class _AdquirirOpcionesPageState extends State<AdquirirOpcionesPage> {
                   if (c.cobro != c.pago) ...[
                     const Divider(height: 20),
                     _Renglon(
-                      _modalidad == 'msi' ? 'Se cargará a tu tarjeta ($_plazo meses)' : 'Se cargará a tu tarjeta',
+                      _aMeses ? 'Se cargará a tu tarjeta ($_plazo meses)' : 'Se cargará a tu tarjeta',
                       dinero(c.cobro),
                       fuerte: true,
                     ),
+                    if (_aMeses)
+                      Text(
+                        '$_plazo pagos de ${dinero(c.cobro / _plazo)} sin intereses',
+                        key: const Key('mensualidadCompra'),
+                        style: const TextStyle(fontSize: 13, color: MoblarColors.textSecondary),
+                      ),
                   ],
                   if (c.faltaFabricacion > 0 && !c.liquida) ...[
                     const SizedBox(height: 8),
@@ -514,7 +573,7 @@ class _AdquirirOpcionesPageState extends State<AdquirirOpcionesPage> {
           ),
           const SizedBox(height: 4),
           Text(
-            _archivo?.nombre ?? 'Una captura o foto de tu transferencia, o el PDF del banco (máx. 10 MB).',
+            _archivo?.nombre ?? 'Una captura de pantalla de tu transferencia o el PDF del banco (máx. 10 MB).',
             key: const Key('nombreComprobante'),
             textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 12, color: MoblarColors.textMuted),
@@ -562,6 +621,7 @@ class _AdquirirOpcionesPageState extends State<AdquirirOpcionesPage> {
             _ => 'Confirmar pago en efectivo',
           }),
         ),
+        ...widget.pie,
       ],
     );
   }

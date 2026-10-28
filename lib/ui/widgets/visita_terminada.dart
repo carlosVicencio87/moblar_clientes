@@ -8,6 +8,7 @@ import '../../state/app_state.dart';
 import '../../theme.dart';
 import '../../util/formato.dart';
 import 'adquirir_oferta.dart';
+import 'adquirir_real.dart';
 import 'pago_visita.dart';
 
 // ---------------------------------------------------------------------------
@@ -46,6 +47,7 @@ bool _mismoDia(DateTime a, DateTime b) => a.year == b.year && a.month == b.month
   for (final o in datos.ofertasVisita) {
     if (omitir.contains(o.citaId) || !o.adquirible) continue;
     if (citaConCompra(o.citaId)) continue;
+    if (o.compraReal && o.opcionesAdquiridas.isNotEmpty) continue;
     if (DemoPagosVisita.resultados.value.containsKey(o.citaId)) continue;
     Cita? cita;
     for (final c in datos.citas) {
@@ -170,8 +172,58 @@ class VisitaTerminadaPage extends StatelessWidget {
     if (cubierta) Navigator.of(context).pop();
   }
 
+  /// Con la compra real (2026-10-28): al terminar la visita el cliente ve
+  /// directo la oferta nueva —sus opciones, cuánto paga hoy y cómo—, la misma
+  /// pantalla de «Adquirir». Abajo, pagar solo la visita o decidir después.
+  Widget _ofertaNueva(BuildContext context) {
+    final pago = cita.pagoVisita!;
+    final o = oferta;
+    final nombre = cita.arquitecto ?? o.arquitecto;
+    final primera = o.opciones.isEmpty ? 1 : (o.opciones.first.opcion < 1 ? 1 : o.opciones.first.opcion);
+    return AdquirirOpcionesPage(
+      key: const Key('visitaTerminada'),
+      oferta: o,
+      inicial: primera,
+      titulo: 'Tu visita terminó',
+      encabezado: [
+        if (o.demo || pago.demo) ...[
+          const AvisoDemo(),
+          const SizedBox(height: 16),
+        ],
+        Text(
+          nombre == null ? 'Tu arquitecto terminó tu visita' : '$nombre terminó tu visita',
+          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700, height: 1.25),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'Te dejó la propuesta para ${muebleDe(o)}. Elige tus opciones y cómo quieres pagar.',
+          style: const TextStyle(color: MoblarColors.textSecondary),
+        ),
+      ],
+      pie: [
+        const SizedBox(height: 20),
+        _Eleccion(
+          clave: const Key('finVisitaPagar'),
+          icono: Icons.payments_outlined,
+          titulo: 'Por ahora, pagar solo mi visita · ${dinero(pago.monto)}',
+          texto: 'Tu propuesta queda en Cotizaciones para cuando quieras adquirirla.',
+          onTap: () => _ir(context, PagarVisitaPage(cita: cita, pago: pago)),
+        ),
+        const SizedBox(height: 4),
+        Center(
+          child: TextButton(
+            key: const Key('finVisitaDespues'),
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Decidir después'),
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (oferta.compraReal) return _ofertaNueva(context);
     final pago = cita.pagoVisita!;
     final o = oferta;
     final nombre = cita.arquitecto ?? o.arquitecto;
