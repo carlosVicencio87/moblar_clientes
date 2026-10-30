@@ -260,7 +260,7 @@ void main() {
     });
 
     testWidgets('al terminar la visita se ve la oferta nueva: opciones, cuánto y cómo', (tester) async {
-      tester.view.physicalSize = const Size(1080, 3400);
+      tester.view.physicalSize = const Size(1080, 7200);
       tester.view.devicePixelRatio = 3;
       addTearDown(tester.view.reset);
       await tester.pumpWidget(MaterialApp(home: VisitaTerminadaPage(cita: cita(), oferta: real)));

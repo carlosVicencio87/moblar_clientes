@@ -102,7 +102,7 @@ void main() {
   });
 
   Future<void> abrirPagina(WidgetTester tester, Widget pagina) async {
-    tester.view.physicalSize = const Size(1080, 3400);
+    tester.view.physicalSize = const Size(1080, 7200);
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.reset);
     await tester.pumpWidget(MaterialApp(home: pagina));
