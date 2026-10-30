@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../state/app_scope.dart';
 import '../theme.dart';
+import 'avisos_page.dart';
 import 'citas_tab.dart';
 import 'compras_tab.dart';
 import 'compras_demo.dart';
@@ -142,6 +143,17 @@ class _HomeShellState extends State<HomeShell> {
         // Neutral (Carlos, 2026-10-26): el cliente puede venir de cualquier empresa.
         title: const Text('Tu visita', style: TextStyle(fontWeight: FontWeight.w700)),
         actions: [
+          if (datos != null)
+            CampanaAvisos(
+              onIr: (destino) {
+                final s = switch (destino) {
+                  'compra' => Seccion.compra,
+                  'citas' => Seccion.citas,
+                  _ => Seccion.cotizaciones,
+                };
+                setState(() => _seccion = secciones.contains(s) ? s : Seccion.cotizaciones);
+              },
+            ),
           IconButton(
             tooltip: 'Cerrar sesión',
             icon: const Icon(Icons.logout),

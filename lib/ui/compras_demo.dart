@@ -133,6 +133,122 @@ CuentaCompra conAbonosDemo(CuentaCompra c, List<AbonoDemo> abonos) {
   );
 }
 
+/// Cotizaciones formales de la cita para una opción: la que trae ese número,
+/// o (oferta de una sola opción) la que haya.
+List<Cotizacion> _formalesDe(Inicio datos, OfertaVisita base, int opcion) {
+  final deCita = [for (final c in datos.cotizaciones) if (c.citaId == base.citaId) c];
+  final exactas = [for (final c in deCita) if (c.opcion == opcion) c];
+  if (exactas.isNotEmpty) return exactas;
+  final sinOpcion = [for (final c in deCita) if (c.opcion == null) c];
+  return base.opciones.length < 2 ? sinOpcion : const [];
+}
+
+/// ¿Alguna de estas opciones ya es un proyecto en marcha del ERP (sale en
+/// `compras`)? Entonces manda esa tarjeta y no la de la compra de la app.
+bool _yaEnErp(Inicio datos, OfertaVisita base, CompraOferta k) {
+  final proyectos = {for (final c in datos.compras) c.id};
+  for (final f in datos.cotizaciones) {
+    if (f.citaId != base.citaId || !proyectos.contains(f.id)) continue;
+    if (f.opcion == null || k.opciones.contains(f.opcion)) return true;
+  }
+  return false;
+}
+
+/// "Mi compra" de una compra REAL hecha en la app (2026-10-29): qué adquirió,
+/// cuánto pagó, en qué va (pago → cotización formal → firma → anticipo) y su
+/// estado de cuenta. Cuando el taller programa el proyecto, el ERP lo manda en
+/// `compras` y esta tarjeta deja su lugar a la del proyecto.
+Compra compraDeLaApp(Inicio datos, OfertaVisita base, CompraOferta k) {
+  final opciones = [...k.opciones]..sort();
+  final formales = [for (final n in opciones) _formalesDe(datos, base, n)];
+  final lista = formales.every((l) => l.any((f) => f.tienePdf));
+  final firmada = lista && formales.every((l) => l.any((f) => f.tienePdf && f.firmada));
+  final validada = k.validada;
+  final cubre = k.cubreAnticipo;
+  final meta = k.modalidad == 'apartado' ? ((k.total / 2) * 100).ceil() / 100 : null;
+  final falta = meta == null ? 0 : ((meta - (validada ? k.pago : 0)) * 100).round() / 100;
+  final String mensaje;
+  if (k.faltaComprobante) {
+    mensaje = 'Falta tu comprobante: súbelo en Cotizaciones para que validemos tu transferencia.';
+  } else if (!validada) {
+    mensaje = 'Estamos validando tu pago. Te avisaremos en cuanto quede confirmado.';
+  } else if (!lista) {
+    mensaje = 'Recibimos tu pago. Tu arquitecto está preparando tu cotización formal; '
+        'te avisaremos en cuanto esté lista.';
+  } else if (!firmada) {
+    mensaje = 'Tu cotización formal está lista. Fírmala en Cotizaciones para que empecemos tu proyecto.';
+  } else if (!cubre) {
+    mensaje = 'Firmaste tu cotización. Proyecto apartado: te faltan ${dinero(falta)} para iniciar la fabricación (50 %).';
+  } else {
+    mensaje = 'Firmaste tu cotización y tu anticipo está cubierto. En cuanto el taller programe tu proyecto, '
+        'verás aquí cada etapa.';
+  }
+  final listo = validada && firmada && cubre;
+  final codigo = formales.expand((l) => l).map((f) => f.codigo).whereType<String>().firstOrNull;
+  final nombre = muebleDe(base) == 'tu mueble' ? 'Mueble a la medida' : muebleDe(base);
+  final cuales = base.opciones.length < 2
+      ? ''
+      : (opciones.length > 1 ? ' · Opciones ${opciones.join(' y ')}' : ' · Opción ${opciones.first}');
+  final pagado = validada ? k.pago : 0;
+  final enRevision = validada ? 0 : k.pago;
+  final saldo = ((k.total - pagado) * 100).round() / 100;
+  final subtotal = k.factura ? ((k.total / 1.16) * 100).round() / 100 : k.total;
+  return Compra(
+    id: 'app-${k.id}',
+    codigo: codigo,
+    mueble: '$nombre$cuales',
+    compraAppId: k.id,
+    lineaTiempo: LineaTiempo(
+      etapaActual: 0,
+      mensaje: mensaje,
+      porcentaje: listo ? _etapas[0].$4 : 0,
+      etapas: [
+        for (var i = 0; i < _etapas.length; i++)
+          EtapaLineaTiempo(
+            clave: _etapas[i].$1,
+            titulo: _etapas[i].$2,
+            descripcion: _etapas[i].$3,
+            situacion: i == 0 ? Situacion.actual : Situacion.pendiente,
+            desde: i == 0 ? k.fecha : null,
+            meta: _etapas[i].$4,
+          ),
+      ],
+    ),
+    instalacion: null,
+    pagos: Pagos(total: k.total, pagado: pagado, saldo: saldo < 0 ? 0 : saldo),
+    marca: base.marca,
+    cuenta: CuentaCompra(
+      subtotal: subtotal,
+      iva: ((k.total - subtotal) * 100).round() / 100,
+      total: k.total,
+      pagado: pagado,
+      enRevision: enRevision,
+      saldo: saldo < 0 ? 0 : saldo,
+      conFactura: k.factura,
+      pagos: [
+        PagoCliente(
+          id: k.id,
+          fecha: k.fecha,
+          monto: k.pago,
+          concepto: k.resumen.split(' · ').first,
+          metodo: k.metodo,
+          validado: validada,
+        ),
+      ],
+    ),
+    metaFabricacion: meta,
+  );
+}
+
+/// Las compras de la app que van en "Mi compra": activas, sin el pago con
+/// tarjeta que no se terminó, y solo mientras no sean un proyecto en marcha.
+List<Compra> comprasDeLaApp(Inicio datos) => [
+      for (final base in datos.ofertasVisita)
+        if (base.compraReal)
+          for (final k in base.compras)
+            if (k.activa && !k.tarjetaSinTerminar && !_yaEnErp(datos, base, k)) compraDeLaApp(datos, base, k),
+    ];
+
 /// Compras reales (con sus abonos de demo a la vista) + las de la demo.
 List<Compra> todasLasCompras(BuildContext context, Inicio datos) {
   final app = AppScope.of(context);
@@ -166,7 +282,7 @@ List<Compra> todasLasCompras(BuildContext context, Inicio datos) {
             formal: formalDeOpcion(datos, base, i),
           ),
   ];
-  return [...demo, ...reales];
+  return [...comprasDeLaApp(datos), ...demo, ...reales];
 }
 
 /// La cotización formal de la opción [i] de la oferta [base]: la de su cita,

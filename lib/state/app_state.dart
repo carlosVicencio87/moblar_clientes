@@ -13,9 +13,41 @@ enum EstadoApp { arrancando, sinSesion, conSesion }
 /// regenerado por la operadora, pase vencido), la sesión se borra y el cliente
 /// regresa a la pantalla de ingreso con un aviso.
 class AppState extends ChangeNotifier {
-  AppState({required this.api, required this.store, PagoPendienteStore? pagos, DemoStore? demo})
+  AppState({required this.api, required this.store, PagoPendienteStore? pagos, DemoStore? demo, AvisosStore? avisos})
       : pagos = pagos ?? MemoryPagoPendienteStore(),
-        demo = demo ?? MemoryDemoStore();
+        demo = demo ?? MemoryDemoStore(),
+        avisosStore = avisos ?? MemoryAvisosStore();
+
+  /// Hasta dónde vio el cliente sus avisos (sobrevive a cerrar la app).
+  final AvisosStore avisosStore;
+  DateTime? _avisosVistos;
+  bool _avisosLeidos = false;
+
+  /// Avisos que llegaron después de la última vez que abrió el centro.
+  int get avisosNuevos {
+    final vistos = _avisosVistos;
+    return (datos?.avisos ?? const <Aviso>[])
+        .where((a) => vistos == null || (a.momento?.isAfter(vistos) ?? false))
+        .length;
+  }
+
+  /// Al abrir el centro de avisos: todo lo que hay queda visto.
+  Future<void> marcarAvisosVistos() async {
+    final lista = datos?.avisos ?? const <Aviso>[];
+    if (lista.isEmpty) return;
+    final ultimo = lista.map((a) => a.momento!).reduce((a, b) => a.isAfter(b) ? a : b);
+    if (_avisosVistos != null && !ultimo.isAfter(_avisosVistos!)) return;
+    _avisosVistos = ultimo;
+    await avisosStore.guardar(ultimo.toUtc().toIso8601String());
+    notifyListeners();
+  }
+
+  Future<void> _leerAvisosVistos() async {
+    if (_avisosLeidos) return;
+    _avisosLeidos = true;
+    final v = await avisosStore.leer();
+    _avisosVistos = v == null ? null : DateTime.tryParse(v);
+  }
 
   /// Estado de la demostración guardado en el teléfono (ver PersistenciaDemo).
   final DemoStore demo;
@@ -67,6 +99,7 @@ class AppState extends ChangeNotifier {
     errorCarga = null;
     notifyListeners();
     try {
+      await _leerAvisosVistos();
       datos = await api.inicio(token);
     } on SesionTerminada catch (e) {
       await _cerrar(aviso: e.mensaje);
@@ -293,6 +326,10 @@ class AppState extends ChangeNotifier {
     avisoPago = null;
     abonosDemo.clear();
     await demo.borrar();
+    // Otro cliente puede entrar en este teléfono: sus avisos empiezan de cero.
+    _avisosVistos = null;
+    _avisosLeidos = true;
+    await avisosStore.borrar();
     this.aviso = aviso;
     await store.borrar();
     await pagos.borrar();

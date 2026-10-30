@@ -96,8 +96,9 @@ class CompraDetallePage extends StatelessWidget {
                     ),
                   ],
                 ],
-                // La compra de la demo no existe en el ERP: no hay detalle que pedir.
-                if (!compra.esDemo) ...[
+                // La compra de la demo no existe en el ERP, y la de la app todavía
+                // no es un proyecto en marcha: no hay detalle que pedir.
+                if (!compra.esDemo && !compra.esCompraApp) ...[
                   const SizedBox(height: 16),
                   DetalleMueble(proyectoId: compra.id),
                 ],

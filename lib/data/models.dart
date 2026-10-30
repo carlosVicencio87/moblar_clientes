@@ -1013,12 +1013,18 @@ class Compra {
     this.demoCitaId,
     this.demoClave,
     this.metaFabricacion,
+    this.compraAppId,
   });
 
   final String id;
   final String? codigo;
   final String? mueble;
   final LineaTiempo lineaTiempo;
+
+  /// Compra REAL hecha en la app (2026-10-29) que todavía no es un proyecto en
+  /// marcha del ERP: el id de la compra. null = compra del ERP o demo.
+  final String? compraAppId;
+  bool get esCompraApp => compraAppId != null;
 
   /// Abonar en efectivo o transferencia como demostración (Preview); null = no.
   final AbonoDemoConfig? abonoDemo;
@@ -1030,7 +1036,7 @@ class Compra {
   /// Demo: la llave de la compra (la cita, o la cita y la opción; A3).
   final String? demoClave;
 
-  /// Demo: cuánto hay que haber pagado para iniciar la fabricación (50%).
+  /// Cuánto hay que haber pagado para iniciar la fabricación (50%).
   final num? metaFabricacion;
   bool get esDemo => demoCitaId != null;
   final Instalacion? instalacion;
@@ -1102,7 +1108,11 @@ class Inicio {
     required this.cotizaciones,
     required this.compras,
     this.ofertasVisita = const [],
+    this.avisos = const [],
   });
+
+  /// Centro de avisos (2026-10-29), del más nuevo al más viejo.
+  final List<Aviso> avisos;
 
   final String? nombre;
   final Contacto contacto;
@@ -1131,6 +1141,30 @@ class Inicio {
             .map(OfertaVisita.fromJson)
             .where((o) => o.completa)
             .toList(),
+        avisos: _lista(j['avisos']).map(Aviso.fromJson).where((a) => a.id.isNotEmpty && a.momento != null).toList(),
+      );
+}
+
+/// Un aviso del centro de avisos (lo arma el ERP con lo que ya tiene fecha).
+class Aviso {
+  const Aviso({required this.id, required this.fecha, required this.titulo, required this.texto, required this.destino});
+
+  final String id;
+  final String fecha;
+  final String titulo;
+  final String texto;
+
+  /// citas | cotizaciones | compra
+  final String destino;
+
+  DateTime? get momento => DateTime.tryParse(fecha);
+
+  factory Aviso.fromJson(Map<String, dynamic> j) => Aviso(
+        id: _s(j['id']),
+        fecha: _s(j['fecha']),
+        titulo: _s(j['titulo']),
+        texto: _s(j['texto']),
+        destino: _s(j['destino']),
       );
 }
 

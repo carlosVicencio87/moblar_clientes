@@ -16,6 +16,7 @@ void main() {
     store: SecureSessionStore(),
     pagos: SecurePagoPendienteStore(),
     demo: SecureDemoStore(),
+    avisos: SecureAvisosStore(),
   )..arrancar();
   runApp(MoblarClientesApp(state: state));
 }

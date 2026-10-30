@@ -149,3 +149,50 @@ class MemoryDemoStore implements DemoStore {
   @override
   Future<void> borrar() async => json = null;
 }
+
+/// Hasta qué momento el cliente ya vio sus avisos (ISO 8601).
+abstract class AvisosStore {
+  Future<String?> leer();
+  Future<void> guardar(String iso);
+  Future<void> borrar();
+}
+
+class SecureAvisosStore implements AvisosStore {
+  SecureAvisosStore([FlutterSecureStorage? storage]) : _storage = storage ?? const FlutterSecureStorage();
+
+  final FlutterSecureStorage _storage;
+  static const _clave = 'moblar_cliente_avisos_vistos';
+
+  @override
+  Future<String?> leer() async {
+    try {
+      return await _storage.read(key: _clave);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  @override
+  Future<void> guardar(String iso) async {
+    try {
+      await _storage.write(key: _clave, value: iso);
+    } catch (_) {}
+  }
+
+  @override
+  Future<void> borrar() async {
+    try {
+      await _storage.delete(key: _clave);
+    } catch (_) {}
+  }
+}
+
+class MemoryAvisosStore implements AvisosStore {
+  String? iso;
+  @override
+  Future<String?> leer() async => iso;
+  @override
+  Future<void> guardar(String v) async => iso = v;
+  @override
+  Future<void> borrar() async => iso = null;
+}
