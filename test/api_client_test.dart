@@ -266,4 +266,36 @@ void main() {
       expect(confirmo, isFalse);
     });
   });
+
+  group('solicitarInstalacion', () {
+    test('200 devuelve la fecha y pega al proyecto correcto con el token', () async {
+      late http.Request recibida;
+      final api = ClienteApi(
+        base: 'https://ejemplo.test',
+        bypass: '',
+        client: MockClient((r) async {
+          recibida = r;
+          return _json({'solicitadaAt': '2026-11-10T16:00:00Z', 'nueva': true}, 200);
+        }),
+      );
+      expect(await api.solicitarInstalacion('tok', 'p-1'), '2026-11-10T16:00:00Z');
+      expect(recibida.method, 'POST');
+      expect(recibida.url.toString(), 'https://ejemplo.test/api/cliente/proyectos/p-1/instalacion');
+      expect(recibida.headers['Authorization'], 'Bearer tok');
+    });
+
+    test('409 (no está listo) es error con el mensaje del servidor; 401 cierra sesión', () async {
+      final api = ClienteApi(
+        base: 'https://ejemplo.test',
+        bypass: '',
+        client: MockClient((_) async => _json({'error': 'Tu mueble todavía no está listo para agendar la instalación.'}, 409)),
+      );
+      await expectLater(
+        api.solicitarInstalacion('tok', 'p-1'),
+        throwsA(isA<ErrorServidor>().having((e) => e.mensaje, 'mensaje', contains('todavía no está listo'))),
+      );
+      final api401 = ClienteApi(base: 'https://ejemplo.test', bypass: '', client: MockClient((_) async => _json({}, 401)));
+      await expectLater(api401.solicitarInstalacion('tok', 'p-1'), throwsA(isA<SesionTerminada>()));
+    });
+  });
 }

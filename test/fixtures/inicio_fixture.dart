@@ -56,17 +56,17 @@ const inicioJson = r'''
       "codigo": "P-0001",
       "mueble": "Closet",
       "lineaTiempo": {
-        "etapaActual": 5,
+        "etapaActual": 4,
         "porcentaje": 100,
-        "mensaje": "¡Tu mueble está instalado! Gracias por tu confianza.",
+        "mensaje": "¡Tu mueble quedó instalado! Gracias por tu confianza.",
         "etapas": [
-          {"clave": "pedido", "titulo": "Pedido confirmado", "descripcion": "Recibimos tu pedido.", "situacion": "hecha", "desde": "2026-06-01T12:00:00Z"},
-          {"clave": "diseno", "titulo": "Diseño técnico", "descripcion": "d", "situacion": "hecha", "desde": null},
-          {"clave": "fabricacion", "titulo": "Fabricación", "descripcion": "f", "situacion": "hecha", "desde": null},
-          {"clave": "calidad", "titulo": "Control de calidad", "descripcion": "c", "situacion": "hecha", "desde": null},
-          {"clave": "instalacion", "titulo": "Instalación", "descripcion": "i", "situacion": "hecha", "desde": "2026-09-04T18:00:00Z"},
-          {"clave": "entregado", "titulo": "Entregado", "descripcion": "e", "situacion": "hecha", "desde": "2026-09-04T18:00:00Z"}
-        ]
+          {"clave": "pedido", "titulo": "Pedido confirmado", "descripcion": "Recibimos tu pedido.", "situacion": "hecha", "desde": "2026-06-01T12:00:00Z", "meta": 10},
+          {"clave": "diseno", "titulo": "Diseño técnico", "descripcion": "d", "situacion": "hecha", "desde": null, "meta": 65},
+          {"clave": "fabricacion", "titulo": "Fabricación", "descripcion": "f", "situacion": "hecha", "desde": null, "meta": 92},
+          {"clave": "calidad", "titulo": "Control de calidad", "descripcion": "c", "situacion": "hecha", "desde": null, "meta": 99},
+          {"clave": "listo", "titulo": "¡Tu mueble está listo!", "descripcion": "l", "situacion": "hecha", "desde": "2026-09-01T18:00:00Z", "meta": 100}
+        ],
+        "instalacion": {"clave": "instalado", "titulo": "Instalado", "mensaje": "¡Tu mueble quedó instalado! Gracias por tu confianza.", "puedeSolicitar": false, "solicitadaAt": null}
       },
       "instalacion": {"fecha": "2026-09-04", "horario": "11:00"},
       "pagos": {"total": null, "pagado": null, "saldo": null},
@@ -85,9 +85,9 @@ const inicioJson = r'''
           {"clave": "diseno", "titulo": "Diseño técnico", "descripcion": "d", "situacion": "hecha", "desde": "2026-09-05T12:00:00Z"},
           {"clave": "fabricacion", "titulo": "Fabricación", "descripcion": "Tu mueble se está fabricando en nuestro taller.", "situacion": "actual", "desde": "2026-09-20T12:00:00Z"},
           {"clave": "calidad", "titulo": "Control de calidad", "descripcion": "c", "situacion": "pendiente", "desde": null},
-          {"clave": "instalacion", "titulo": "Instalación", "descripcion": "i", "situacion": "pendiente", "desde": null},
-          {"clave": "entregado", "titulo": "Entregado", "descripcion": "e", "situacion": "pendiente", "desde": null}
-        ]
+          {"clave": "listo", "titulo": "¡Tu mueble está listo!", "descripcion": "l", "situacion": "pendiente", "desde": null}
+        ],
+        "instalacion": null
       },
       "instalacion": null,
       "pagos": {"total": null, "pagado": null, "saldo": null},

@@ -250,6 +250,13 @@ class AppState extends ChangeNotifier {
     await refrescar();
   }
 
+  /// "Quiero agendar mi instalación" (mueble listo): un asesor le llamará.
+  /// Refresca para que la compra muestre "Solicitud recibida".
+  Future<void> solicitarInstalacion(String compraId) async {
+    await _conToken((t) => api.solicitarInstalacion(t, compraId));
+    await refrescar();
+  }
+
   /// Revisa el pago guardado como pendiente (al arrancar la app).
   Future<EstadoPagoTarjeta?> revisarPagoPendiente() async {
     final p = await pagos.leer();

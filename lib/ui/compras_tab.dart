@@ -142,7 +142,7 @@ class TarjetaCompra extends StatelessWidget {
   }
 }
 
-/// Etapa + porcentaje grande + seguimiento en miniatura (las 6 etapas).
+/// Etapa + porcentaje grande + seguimiento en miniatura (las 5 etapas).
 class AvanceCompra extends StatelessWidget {
   const AvanceCompra({super.key, required this.linea});
 

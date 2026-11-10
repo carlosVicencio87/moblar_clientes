@@ -17,13 +17,14 @@ import 'widgets/oferta_visita.dart' show indiceOpcionFormal;
 // Con el anticipo todavía no empieza nada (Carlos, 2026-10-26): primero el
 // arquitecto termina la cotización formal y el cliente la firma. Con la firma
 // y el 50 % cubierto empieza el proyecto.
+// Misma escala que el ERP (Carlos, 2026-11-10): el 100 % es "tu mueble está
+// listo"; la instalación va aparte.
 const _etapas = [
   ('cotizacion', 'Cotización formal', 'Tu arquitecto prepara tu cotización formal; tú la revisas y la firmas.', 10),
-  ('diseno', 'Diseño técnico', 'Estamos preparando los planos de fabricación de tu mueble.', 35),
-  ('fabricacion', 'Fabricación', 'Tu mueble se está fabricando en nuestro taller.', 70),
-  ('calidad', 'Control de calidad', 'Revisamos cada pieza antes de enviarla.', 80),
-  ('instalacion', 'Instalación', 'Estamos preparando la instalación de tu mueble.', 95),
-  ('entregado', 'Entregado', '¡Tu mueble está instalado! Gracias por tu confianza.', 100),
+  ('diseno', 'Diseño técnico', 'Estamos preparando los planos de fabricación de tu mueble.', 65),
+  ('fabricacion', 'Fabricación', 'Tu mueble se está fabricando en nuestro taller.', 92),
+  ('calidad', 'Control de calidad', 'Revisamos cada pieza antes de entregarla.', 99),
+  ('listo', '¡Tu mueble está listo!', 'Tu mueble está listo. Agenda tu instalación con nuestro asesor.', 100),
 ];
 
 /// La compra de la demo para una oferta adquirida. [formal] es su cotización

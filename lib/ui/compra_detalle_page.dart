@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../data/api_client.dart' show ApiException;
 import '../data/models.dart';
 import '../state/app_scope.dart';
 import '../theme.dart';
@@ -13,7 +14,8 @@ import 'widgets/pago_visita.dart' show AvisoDemo;
 import 'widgets/contacto.dart';
 import 'widgets/detalle_mueble.dart';
 
-/// Seguimiento de un mueble: línea de tiempo vertical con las 6 etapas.
+/// Seguimiento de un mueble: línea de tiempo vertical con las 5 etapas (el
+/// 100 % es "tu mueble está listo") y, aparte, la instalación.
 ///
 /// Recibe el id y no la compra para leerla siempre del estado: si el cliente
 /// jala para actualizar, la línea de tiempo se redibuja con lo nuevo.
@@ -63,6 +65,10 @@ class CompraDetallePage extends StatelessWidget {
                   const SizedBox(height: 12),
                 ],
                 _Encabezado(compra: compra),
+                if (compra.lineaTiempo.instalacion != null && !compra.esDemo) ...[
+                  const SizedBox(height: 16),
+                  TarjetaInstalacion(compraId: compra.id, estado: compra.lineaTiempo.instalacion!),
+                ],
                 const SizedBox(height: 16),
                 Card(
                   child: Padding(
@@ -143,7 +149,8 @@ class _Encabezado extends StatelessWidget {
                     '${fechaLarga(fechaInst)}'
                     '${inst?.horario != null ? ', ${horaLegible(inst!.horario)}' : ''}',
               ),
-            if (compra.lineaTiempo.mensaje.isNotEmpty) ...[
+            // Con el mueble listo, el mensaje lo da la tarjeta de instalación.
+            if (compra.lineaTiempo.mensaje.isNotEmpty && (compra.lineaTiempo.instalacion == null || compra.esDemo)) ...[
               const SizedBox(height: 12),
               Container(
                 width: double.infinity,
@@ -360,6 +367,86 @@ class _Ayuda extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             BotonesContacto(contacto: contacto, mensaje: mensajeProyecto(compra, nombre)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+
+/// La instalación, aparte de la barra (2026-11-10). Con el mueble listo, el
+/// botón "Quiero agendar mi instalación" deja la solicitud para que un asesor
+/// le llame; después muestra en qué va (solicitada, programada, en camino…).
+class TarjetaInstalacion extends StatefulWidget {
+  const TarjetaInstalacion({super.key, required this.compraId, required this.estado});
+
+  final String compraId;
+  final EstadoInstalacion estado;
+
+  @override
+  State<TarjetaInstalacion> createState() => _TarjetaInstalacionState();
+}
+
+class _TarjetaInstalacionState extends State<TarjetaInstalacion> {
+  bool _enviando = false;
+
+  Future<void> _solicitar() async {
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _enviando = true);
+    try {
+      await AppScope.read(context).solicitarInstalacion(widget.compraId);
+      messenger.showSnackBar(const SnackBar(content: Text('Listo: un asesor te llamará para agendar tu instalación.')));
+    } on ApiException catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(e.mensaje)));
+    } finally {
+      if (mounted) setState(() => _enviando = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final e = widget.estado;
+    final verde = e.terminada || e.clave == 'programada' || e.clave == 'en_ruta' || e.clave == 'instalando';
+    return Card(
+      key: const Key('tarjetaInstalacion'),
+      color: verde ? const Color(0xFFECFDF5) : const Color(0xFFF0FDF4),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  e.terminada ? Icons.check_circle_outline : Icons.local_shipping_outlined,
+                  color: const Color(0xFF065F46),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    e.titulo,
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF065F46)),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(e.mensaje, style: const TextStyle(color: MoblarColors.textSecondary)),
+            if (e.puedeSolicitar) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  key: const Key('solicitarInstalacion'),
+                  onPressed: _enviando ? null : _solicitar,
+                  icon: _enviando
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.event_available_outlined),
+                  label: const Text('Quiero agendar mi instalación'),
+                ),
+              ),
+            ],
           ],
         ),
       ),

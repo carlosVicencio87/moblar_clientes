@@ -244,6 +244,24 @@ class ClienteApi {
     return firma['fecha'] as String;
   }
 
+  /// POST /api/cliente/proyectos/:id/instalacion — "Quiero agendar mi
+  /// instalación" (mueble listo): un asesor le llama. Regresa cuándo quedó la
+  /// solicitud (ISO). Si ya la había pedido, regresa la misma.
+  Future<String> solicitarInstalacion(String token, String compraId) async {
+    final r = await _enviar(() => _http.post(
+          Uri.parse('$_base/api/cliente/proyectos/$compraId/instalacion'),
+          headers: _headers(token: token, json: true),
+          body: '{}',
+        ));
+    if (r.statusCode == 401) throw const SesionTerminada();
+    final cuerpo = _cuerpo(r);
+    final at = cuerpo['solicitadaAt'];
+    if (r.statusCode != 200 || at is! String) {
+      throw ErrorServidor(_errorDe(cuerpo) ?? 'No pudimos enviar tu solicitud. Intenta de nuevo.');
+    }
+    return at;
+  }
+
   /// POST /api/cliente/proyectos/:id/pago-tarjeta — con [cotizar] solo el
   /// desglose; sin él, el servidor genera el link de Clip.
   Future<Map<String, dynamic>> _pagoTarjeta(

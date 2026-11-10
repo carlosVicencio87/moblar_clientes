@@ -50,7 +50,9 @@ void main() {
   test('línea de tiempo: entregado y en curso', () {
     final entregado = inicio.compras.first.lineaTiempo;
     expect(entregado.entregado, isTrue);
-    expect(entregado.tituloActual, 'Entregado');
+    expect(entregado.tituloActual, '¡Tu mueble está listo!');
+    expect(entregado.listo, isTrue);
+    expect(entregado.instalacion!.clave, 'instalado');
 
     final curso = inicio.compras.last.lineaTiempo;
     expect(curso.entregado, isFalse);
@@ -59,7 +61,6 @@ void main() {
       Situacion.hecha,
       Situacion.hecha,
       Situacion.actual,
-      Situacion.pendiente,
       Situacion.pendiente,
       Situacion.pendiente,
     ]);
@@ -72,10 +73,10 @@ void main() {
     final sinPct = Map<String, dynamic>.from(
       (jsonDecode(inicioJson) as Map<String, dynamic>)['compras'][1]['lineaTiempo'] as Map,
     )..remove('porcentaje');
-    // 2 hechas + la actual a la mitad, de 6 → 41.
-    expect(LineaTiempo.fromJson(sinPct).porcentaje, 41);
+    // 2 hechas + la actual a la mitad, de 5 → 50.
+    expect(LineaTiempo.fromJson(sinPct).porcentaje, 50);
     expect(LineaTiempo.fromJson({...sinPct, 'porcentaje': 140}).porcentaje, 100);
-    expect(LineaTiempo.fromJson({...sinPct, 'porcentaje': 'x'}).porcentaje, 41);
+    expect(LineaTiempo.fromJson({...sinPct, 'porcentaje': 'x'}).porcentaje, 50);
   });
 
   test('habilidades del arquitecto: estrellas solo si hay datos', () {
@@ -113,9 +114,37 @@ void main() {
     expect(vacio.incluye, ['Luces']);
   });
 
+  test('listo pero sin instalar: 100 %, no entregado, se puede pedir que agenden', () {
+    final lt = LineaTiempo.fromJson({
+      'etapaActual': 4,
+      'porcentaje': 100,
+      'mensaje': 'Tu mueble pasó control de calidad.',
+      'etapas': [
+        for (final c in ['pedido', 'diseno', 'fabricacion', 'calidad', 'listo'])
+          {'clave': c, 'titulo': c, 'descripcion': '', 'situacion': 'hecha', 'desde': null},
+      ],
+      'instalacion': {
+        'clave': 'por_agendar',
+        'titulo': 'Instalación por agendar',
+        'mensaje': 'Tu mueble está listo. Agenda tu instalación con nuestro asesor.',
+        'puedeSolicitar': true,
+        'solicitadaAt': null,
+      },
+    });
+    expect(lt.porcentaje, 100);
+    expect(lt.listo, isTrue);
+    expect(lt.entregado, isFalse);
+    expect(lt.instalacion!.puedeSolicitar, isTrue);
+    final pedida = lt.conInstalacion(lt.instalacion!.solicitada('2026-11-10T16:00:00Z'));
+    expect(pedida.instalacion!.clave, 'solicitada');
+    expect(pedida.instalacion!.puedeSolicitar, isFalse);
+    expect(EstadoInstalacion.fromJsonOrNull('no'), isNull);
+  });
+
   test('meta de cada etapa: la del servidor o la de respaldo', () {
     final etapas = inicio.compras.last.lineaTiempo.etapas;
-    expect(etapas.map((e) => e.meta), [15, 35, 70, 80, 95, 100]);
+    // Sin `meta` del servidor: la de respaldo (escala 2026-11-10).
+    expect(etapas.map((e) => e.meta), [10, 65, 92, 99, 100]);
     final delServidor = EtapaLineaTiempo.fromJson({'clave': 'pedido', 'meta': 12});
     expect(delServidor.meta, 12);
     expect(EtapaLineaTiempo.fromJson({'clave': 'otra'}).meta, isNull);

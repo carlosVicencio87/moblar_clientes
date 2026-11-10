@@ -899,15 +899,15 @@ class EtapaLineaTiempo {
   final String? desde; // ISO o null
   final int? _meta;
 
-  /// Porcentajes al terminar cada etapa (decisión de Carlos, 2026-10-01).
-  /// Respaldo si el servidor todavía no manda `meta`.
+  /// Porcentajes al terminar cada etapa (escala de Carlos, 2026-11-10: el
+  /// 100 % es "tu mueble está listo"; la instalación va aparte). Respaldo si
+  /// el servidor todavía no manda `meta`.
   static const metasPorOmision = {
-    'pedido': 15,
-    'diseno': 35,
-    'fabricacion': 70,
-    'calidad': 80,
-    'instalacion': 95,
-    'entregado': 100,
+    'pedido': 10,
+    'diseno': 65,
+    'fabricacion': 92,
+    'calidad': 99,
+    'listo': 100,
   };
 
   /// Porcentaje al terminar esta etapa (se pinta junto a su bolita).
@@ -927,18 +927,70 @@ class EtapaLineaTiempo {
       );
 }
 
+/// La instalación, fuera del porcentaje (2026-11-10). Solo existe con el
+/// mueble listo.
+class EstadoInstalacion {
+  const EstadoInstalacion({
+    required this.clave,
+    required this.titulo,
+    required this.mensaje,
+    required this.puedeSolicitar,
+    this.solicitadaAt,
+  });
+
+  /// por_agendar · solicitada · programada · en_ruta · instalando · instalado · garantia
+  final String clave;
+  final String titulo;
+  final String mensaje;
+
+  /// true = mostrar el botón "Quiero agendar mi instalación".
+  final bool puedeSolicitar;
+  final String? solicitadaAt;
+
+  bool get terminada => clave == 'instalado' || clave == 'garantia';
+
+  /// Tras tocar el botón, sin esperar a recargar.
+  EstadoInstalacion solicitada(String at) => EstadoInstalacion(
+        clave: 'solicitada',
+        titulo: 'Solicitud recibida',
+        mensaje: 'Recibimos tu solicitud. Un asesor te contactará para agendar la fecha de tu instalación.',
+        puedeSolicitar: false,
+        solicitadaAt: at,
+      );
+
+  static EstadoInstalacion? fromJsonOrNull(Object? v) {
+    if (v is! Map<String, dynamic>) return null;
+    final clave = _sn(v['clave']);
+    if (clave == null) return null;
+    return EstadoInstalacion(
+      clave: clave,
+      titulo: _s(v['titulo']),
+      mensaje: _s(v['mensaje']),
+      puedeSolicitar: v['puedeSolicitar'] == true,
+      solicitadaAt: _sn(v['solicitadaAt']),
+    );
+  }
+}
+
 class LineaTiempo {
   const LineaTiempo({
     required this.etapaActual,
     required this.mensaje,
     required this.etapas,
     int? porcentaje,
+    this.instalacion,
   }) : _porcentaje = porcentaje;
 
   final int etapaActual;
   final String mensaje;
   final List<EtapaLineaTiempo> etapas;
   final int? _porcentaje;
+
+  /// La instalación (aparte de la barra); null mientras el mueble no está listo.
+  final EstadoInstalacion? instalacion;
+
+  LineaTiempo conInstalacion(EstadoInstalacion i) =>
+      LineaTiempo(etapaActual: etapaActual, mensaje: mensaje, etapas: etapas, porcentaje: _porcentaje, instalacion: i);
 
   /// Avance 0–100 que calcula el ERP (tramos por estado + días en el
   /// estado). Si el servidor aún no lo manda, se estima por etapas.
@@ -951,7 +1003,12 @@ class LineaTiempo {
     return ((hechas + 0.5) / etapas.length * 100).floor().clamp(0, 99).toInt();
   }
 
-  bool get entregado => etapas.isNotEmpty && etapas.every((e) => e.situacion == Situacion.hecha);
+  /// La barra llegó al 100 %: el mueble está listo.
+  bool get listo => etapas.isNotEmpty && etapas.every((e) => e.situacion == Situacion.hecha);
+
+  /// Ya quedó instalado (o en post-venta). Sin dato de instalación (servidor
+  /// anterior), basta con que esté listo.
+  bool get entregado => listo && (instalacion == null || instalacion!.terminada);
 
   /// Título de la etapa en la que está (o la última si ya se entregó).
   String get tituloActual {
@@ -965,6 +1022,7 @@ class LineaTiempo {
         mensaje: _s(j['mensaje']),
         etapas: _lista(j['etapas']).map(EtapaLineaTiempo.fromJson).toList(),
         porcentaje: _n(j['porcentaje'])?.round(),
+        instalacion: EstadoInstalacion.fromJsonOrNull(j['instalacion']),
       );
 }
 
