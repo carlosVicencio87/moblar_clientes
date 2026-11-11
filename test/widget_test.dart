@@ -119,12 +119,13 @@ void main() {
     Finder enDetalle(Finder f) => find.descendant(of: find.byType(CompraDetallePage), matching: f);
     expect(enDetalle(find.byKey(const Key('avancePorcentaje'))), findsNothing);
     expect(enDetalle(find.byKey(const Key('seguimientoMini'))), findsNothing);
+    // Escala 2026-11-10: pedido 10, diseño 65, fabricación (actual, 58), calidad 99, listo 100.
     expect(enDetalle(find.text('58%')), findsOneWidget);
-    expect(enDetalle(find.text('15%')), findsOneWidget);
-    expect(enDetalle(find.text('35%')), findsOneWidget);
-    expect(enDetalle(find.text('80%')), findsOneWidget);
-    expect(enDetalle(find.text('95%')), findsOneWidget);
+    expect(enDetalle(find.text('10%')), findsOneWidget);
+    expect(enDetalle(find.text('65%')), findsOneWidget);
+    expect(enDetalle(find.text('99%')), findsOneWidget);
     expect(enDetalle(find.text('100%')), findsOneWidget);
+    expect(enDetalle(find.text('15%')), findsNothing);
     expect(find.byType(LineaTiempoVertical), findsOneWidget);
     expect(find.text('Control de calidad'), findsOneWidget);
     // Tonos y lo que incluye, pedidos al servidor al abrir el detalle.

@@ -169,7 +169,9 @@ Compra compraDeLaApp(Inicio datos, OfertaVisita base, CompraOferta k) {
   final meta = k.modalidad == 'apartado' ? ((k.total / 2) * 100).ceil() / 100 : null;
   final falta = meta == null ? 0 : ((meta - (validada ? k.pago : 0)) * 100).round() / 100;
   final String mensaje;
-  if (k.faltaComprobante) {
+  if (k.msiEnCurso) {
+    mensaje = k.msi!.mensaje;
+  } else if (k.faltaComprobante) {
     mensaje = 'Falta tu comprobante: súbelo en Cotizaciones para que validemos tu transferencia.';
   } else if (!validada) {
     mensaje = 'Estamos validando tu pago. Te avisaremos en cuanto quede confirmado.';
@@ -199,6 +201,7 @@ Compra compraDeLaApp(Inicio datos, OfertaVisita base, CompraOferta k) {
     codigo: codigo,
     mueble: '$nombre$cuales',
     compraAppId: k.id,
+    msi: k.msiEnCurso ? k.msi : null,
     lineaTiempo: LineaTiempo(
       etapaActual: 0,
       mensaje: mensaje,

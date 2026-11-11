@@ -244,6 +244,21 @@ class AppState extends ChangeNotifier {
     return r;
   }
 
+  /// «Pagar ahora» de una compra a meses autorizada: genera el link (o regresa
+  /// el que sigue vivo) y lo deja como pago pendiente para revisarlo.
+  Future<LinkPagoTarjeta> pagarMsi(String compraId) async {
+    final r = await _conToken((t) => api.pagarMsi(t, compraId));
+    final l = r.link!;
+    await pagos.guardar(PagoPendiente(
+      id: l.id,
+      ticket: l.ticket,
+      compraId: 'compra-${r.compra.id}',
+      neto: r.compra.pago,
+      cobro: l.cotizacion.cobro,
+    ));
+    return l;
+  }
+
   /// Sube el comprobante de una transferencia y refresca la cuenta.
   Future<void> subirComprobante(String compraId, Uint8List bytes, String extension) async {
     await _conToken((t) => api.subirComprobante(t, compraId, bytes, extension));

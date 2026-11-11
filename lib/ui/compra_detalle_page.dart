@@ -9,6 +9,7 @@ import 'abonar_proyecto_page.dart';
 import 'compras_demo.dart';
 import 'estado_cuenta.dart';
 import 'widgets/adquirir_oferta.dart' show DemoAnticipos, ResultadoAnticipo;
+import 'widgets/adquirir_real.dart' show TarjetaMsi;
 import 'widgets/comunes.dart';
 import 'widgets/pago_visita.dart' show AvisoDemo;
 import 'widgets/contacto.dart';
@@ -65,6 +66,10 @@ class CompraDetallePage extends StatelessWidget {
                   const SizedBox(height: 12),
                 ],
                 _Encabezado(compra: compra),
+                if (compra.msi != null && compra.compraAppId != null) ...[
+                  const SizedBox(height: 16),
+                  TarjetaMsi(compraId: compra.compraAppId!, msi: compra.msi!),
+                ],
                 if (compra.lineaTiempo.instalacion != null && !compra.esDemo) ...[
                   const SizedBox(height: 16),
                   TarjetaInstalacion(compraId: compra.id, estado: compra.lineaTiempo.instalacion!),

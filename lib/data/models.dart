@@ -427,6 +427,51 @@ class OfertaVisita {
       );
 }
 
+/// Pago a meses sin intereses (2026-11-10): antes de generar el link de Clip,
+/// dos super admin y el arquitecto lo autorizan con su PIN. Lo que dice el
+/// ERP (msiParaCliente en cobroMsi.ts).
+class MsiCompra {
+  const MsiCompra({
+    required this.estado,
+    required this.titulo,
+    required this.mensaje,
+    this.puedePagar = false,
+    this.pagarAntesDe,
+    this.enCola = false,
+  });
+
+  /// en_revision | lista | link_activo | rechazada | vencida | pagada | cancelada
+  final String estado;
+  final String titulo;
+  final String mensaje;
+
+  /// Puede tocar «Pagar ahora».
+  final bool puedePagar;
+  final String? pagarAntesDe;
+
+  /// Llegó fuera de horario: la revisión empieza al abrir.
+  final bool enCola;
+
+  bool get enRevision => estado == 'en_revision';
+
+  /// Todavía cuenta: en revisión o autorizado para pagar.
+  bool get enCurso => estado == 'en_revision' || estado == 'lista' || estado == 'link_activo';
+
+  static MsiCompra? fromJson(Object? v) {
+    if (v is! Map<String, dynamic>) return null;
+    final e = _s(v['estado']);
+    if (e.isEmpty) return null;
+    return MsiCompra(
+      estado: e,
+      titulo: _s(v['titulo']),
+      mensaje: _s(v['mensaje']),
+      puedePagar: v['puedePagar'] == true,
+      pagarAntesDe: _sn(v['pagarAntesDe']),
+      enCola: v['enCola'] == true,
+    );
+  }
+}
+
 /// Compra real de opciones de la oferta (compraOferta.ts del ERP).
 class CompraOferta {
   const CompraOferta({
@@ -443,11 +488,15 @@ class CompraOferta {
     this.cobro,
     this.motivoRechazo,
     this.comprobante = false,
+    this.msi,
   });
 
   final String id;
   final String fecha;
   final List<int> opciones;
+
+  /// A meses: la autorización del cobro (null = no aplica).
+  final MsiCompra? msi;
 
   /// liquidar (todo) | fabricacion (50 %) | apartado; msi = todo a meses (anterior).
   final String modalidad;
@@ -478,8 +527,11 @@ class CompraOferta {
   /// Transferencia en revisión que todavía no trae su comprobante.
   bool get faltaComprobante => metodo == 'transferencia' && estadoPago == 'en_revision' && !comprobante;
 
+  /// A meses en revisión o autorizado: cuenta como adquirida mientras paga.
+  bool get msiEnCurso => estadoPago == 'pendiente' && (msi?.enCurso ?? false);
+
   /// Abrió el link de Clip y (todavía) no pagó.
-  bool get tarjetaSinTerminar => metodo == 'tarjeta' && estadoPago == 'pendiente';
+  bool get tarjetaSinTerminar => metodo == 'tarjeta' && estadoPago == 'pendiente' && !msiEnCurso;
   bool get validada => estadoPago == 'validado';
 
   /// Cubre el 50 % para fabricar (a meses, el total).
@@ -500,7 +552,7 @@ class CompraOferta {
       'validado' => metodo == 'efectivo' ? 'pagado a tu arquitecto' : 'pagado',
       'en_revision' => metodo == 'transferencia' && !comprobante ? 'falta tu comprobante' : 'en revisión',
       'rechazado' => 'rechazado',
-      _ => 'esperando tu pago',
+      _ => msiEnCurso ? (msi!.enRevision ? 'en revisión' : 'link de pago listo') : 'esperando tu pago',
     };
     return '$que · $como · $estado';
   }
@@ -521,6 +573,7 @@ class CompraOferta {
         cobro: _n(j['cobro']),
         motivoRechazo: _sn(j['motivoRechazo']),
         comprobante: j['comprobante'] == true,
+        msi: MsiCompra.fromJson(j['msi']),
       );
 }
 
@@ -1072,9 +1125,13 @@ class Compra {
     this.demoClave,
     this.metaFabricacion,
     this.compraAppId,
+    this.msi,
   });
 
   final String id;
+
+  /// Compra de la app a meses (2026-11-10): la autorización del cobro.
+  final MsiCompra? msi;
   final String? codigo;
   final String? mueble;
   final LineaTiempo lineaTiempo;

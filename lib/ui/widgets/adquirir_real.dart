@@ -274,6 +274,13 @@ class _AdquirirOpcionesPageState extends State<AdquirirOpcionesPage> {
           : await app!.adquirir(widget.oferta.citaId, _pedido);
       if (!mounted) return;
       final link = r.link;
+      final msi = r.compra.msi;
+      if (link == null && msi != null) {
+        // A meses: se revisa antes de generar el link (3 firmas con PIN).
+        messenger.showSnackBar(SnackBar(content: Text(msi.mensaje), duration: const Duration(seconds: 8)));
+        Navigator.of(context).pop(true);
+        return;
+      }
       if (link == null) {
         var aviso = switch (r.compra.metodo) {
           'tarjeta' => 'Tu compra ya estaba registrada.',
@@ -608,6 +615,16 @@ class _AdquirirOpcionesPageState extends State<AdquirirOpcionesPage> {
             'Sin comisión pagando en efectivo o por transferencia.',
             style: TextStyle(fontSize: 12, color: MoblarColors.textMuted),
           ),
+        if (metodo == 'tarjeta' && _aMeses)
+          const Padding(
+            key: Key('avisoRevisionMsi'),
+            padding: EdgeInsets.only(top: 4),
+            child: Text(
+              'Por tu seguridad revisamos cada pago a meses antes de generar tu link '
+              '(lunes a sábado de 8:00 a 18:00). Te avisamos cuando esté listo para pagar.',
+              style: TextStyle(fontSize: 12, color: MoblarColors.textMuted),
+            ),
+          ),
         const SizedBox(height: 12),
         FilledButton.icon(
           key: const Key('confirmarCompra'),
@@ -616,6 +633,7 @@ class _AdquirirOpcionesPageState extends State<AdquirirOpcionesPage> {
               ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
               : Icon(metodo == 'tarjeta' ? Icons.credit_card : Icons.check),
           label: Text(switch (metodo) {
+            'tarjeta' when _aMeses => 'Solicitar pago a $_plazo meses',
             'tarjeta' => c == null ? 'Pagar con Clip' : 'Pagar ${dinero(c.cobro)} con Clip',
             'transferencia' => 'Ya hice la transferencia',
             _ => 'Confirmar pago en efectivo',
@@ -705,6 +723,11 @@ class ResumenComprasReales extends StatelessWidget {
                   ' · ${dinero(c.pago)} · ${c.resumen}',
             ),
           ),
+        for (final c in compras.where((c) => c.msiEnCurso))
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: TarjetaMsi(compraId: c.id, msi: c.msi!),
+          ),
         for (final c in compras.where((c) => c.faltaComprobante && onSubirComprobante != null))
           Align(
             alignment: Alignment.centerLeft,
@@ -786,6 +809,126 @@ class PagoSinTerminar extends StatelessWidget {
         'No se te cobró nada: puedes pagar de nuevo con tarjeta, efectivo o transferencia. '
         'Si sí lo pagaste en Clip, en unos minutos aparecerá como pagado.',
         style: const TextStyle(fontSize: 13, color: MoblarColors.textPrimary),
+      ),
+    );
+  }
+}
+
+/// Pago a meses sin intereses (2026-11-10): antes del link de Clip, dos super
+/// admin y tu arquitecto lo autorizan. Mientras tanto, "en revisión"; ya
+/// autorizado, «Pagar ahora» genera el link (30 minutos) con los montos
+/// autorizados.
+class TarjetaMsi extends StatefulWidget {
+  const TarjetaMsi({super.key, required this.compraId, required this.msi, this.pagar, this.abrir});
+
+  final String compraId;
+  final MsiCompra msi;
+
+  /// Para pruebas: en vez de AppState.pagarMsi y abrir el navegador.
+  final Future<LinkPagoTarjeta> Function(String compraId)? pagar;
+  final Future<void> Function(Uri uri)? abrir;
+
+  @override
+  State<TarjetaMsi> createState() => _TarjetaMsiState();
+}
+
+class _TarjetaMsiState extends State<TarjetaMsi> {
+  bool _creando = false;
+  bool _abierto = false;
+  bool _revisando = false;
+  String? _error;
+
+  Future<void> _pagar() async {
+    if (_creando) return;
+    setState(() {
+      _creando = true;
+      _error = null;
+    });
+    final app = AppScope.maybeRead(context);
+    try {
+      final l = widget.pagar != null ? await widget.pagar!(widget.compraId) : await app!.pagarMsi(widget.compraId);
+      if (!mounted) return;
+      setState(() => _abierto = true);
+      final uri = Uri.parse(l.url);
+      if (widget.abrir != null) {
+        await widget.abrir!(uri);
+      } else {
+        // Después de esperar al servidor, en web se abre en la misma pestaña
+        // (una pestaña nueva la bloquearía el navegador).
+        await abrirEnlace(context, uri, trasEspera: true);
+      }
+    } on SesionTerminada {
+      // AppState ya regresó al cliente a la pantalla de ingreso.
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _error = e.mensaje);
+    } finally {
+      if (mounted) setState(() => _creando = false);
+    }
+  }
+
+  Future<void> _yaPague() async {
+    final app = AppScope.maybeRead(context);
+    if (app == null || _revisando) return;
+    setState(() => _revisando = true);
+    try {
+      await app.revisarPagoPendiente();
+      await app.refrescar();
+    } finally {
+      if (mounted) setState(() => _revisando = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final m = widget.msi;
+    final lista = m.puedePagar;
+    final color = lista ? const Color(0xFF065F46) : const Color(0xFF92400E);
+    return Container(
+      key: Key('tarjetaMsi-${widget.compraId}'),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: lista ? const Color(0xFFD1FAE5) : const Color(0xFFFFFBEB),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(children: [
+            Icon(lista ? Icons.credit_card : Icons.hourglass_top, color: color, size: 20),
+            const SizedBox(width: 8),
+            Expanded(child: Text(m.titulo, style: TextStyle(fontWeight: FontWeight.w700, color: color))),
+          ]),
+          const SizedBox(height: 6),
+          Text(m.mensaje, style: const TextStyle(fontSize: 13, color: MoblarColors.textPrimary)),
+          if (lista) ...[
+            const SizedBox(height: 10),
+            FilledButton.icon(
+              key: const Key('pagarMsi'),
+              onPressed: _creando ? null : _pagar,
+              icon: _creando
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.lock_outline),
+              label: Text(_abierto || m.estado == 'link_activo' ? 'Abrir mi pago otra vez' : 'Pagar ahora'),
+            ),
+            if (_abierto) ...[
+              const SizedBox(height: 6),
+              const Text(
+                'Se abrió tu pago seguro de Clip. Al terminar regresa aquí: te avisamos en cuanto lo confirmemos.',
+                style: TextStyle(fontSize: 12, color: MoblarColors.textSecondary),
+              ),
+              TextButton(
+                key: const Key('yaPagueMsi'),
+                onPressed: _revisando ? null : _yaPague,
+                child: const Text('Ya pagué'),
+              ),
+            ],
+          ],
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(_error!, key: const Key('errorMsi'), style: const TextStyle(color: Color(0xFF991B1B), fontSize: 13)),
+            ),
+        ],
       ),
     );
   }

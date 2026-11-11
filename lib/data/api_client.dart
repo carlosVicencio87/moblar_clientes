@@ -382,6 +382,29 @@ class ClienteApi {
     return ResultadoCompra(compra: compra, link: link);
   }
 
+  /// POST /api/cliente/compras/:id/pagar-msi — «Pagar ahora» de una compra a
+  /// meses ya autorizada (2026-11-10). El link se genera aquí, con los montos
+  /// autorizados, y dura 30 minutos.
+  Future<ResultadoCompra> pagarMsi(String token, String compraId) async {
+    final r = await _enviar(() => _http.post(
+          Uri.parse('$_base/api/cliente/compras/$compraId/pagar-msi'),
+          headers: _headers(token: token, json: true),
+          body: '{}',
+        ));
+    if (r.statusCode == 401) throw const SesionTerminada();
+    final j = _cuerpo(r);
+    final compra = j['compra'] is Map<String, dynamic> ? CompraOferta.fromJson(j['compra'] as Map<String, dynamic>) : null;
+    final l = j['link'];
+    if (r.statusCode != 200 || compra == null || l is! Map<String, dynamic>) {
+      throw ErrorServidor(_errorDe(j) ?? 'No pudimos generar tu link de pago. Intenta de nuevo.');
+    }
+    final link = LinkPagoTarjeta.fromJson({...l, 'neto': compra.pago, 'cobro': compra.cobro ?? compra.pago});
+    if (link.id.isEmpty || !link.url.startsWith('https://') || link.ticket.isEmpty) {
+      throw const ErrorServidor('No pudimos generar tu link de pago. Intenta de nuevo.');
+    }
+    return ResultadoCompra(compra: compra, link: link);
+  }
+
   /// Comprobante de una transferencia (2026-10-28), en tres pasos:
   /// 1) el ERP da una URL firmada; 2) el archivo sube DIRECTO al almacenamiento;
   /// 3) el ERP confirma que llegó y lo pone en la compra (Pagos lo ve).

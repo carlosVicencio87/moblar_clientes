@@ -325,7 +325,9 @@ void main() {
     await tester.pumpAndSettle(const Duration(milliseconds: 400));
     await tester.tap(find.byKey(const Key('plazo-6')));
     await tester.pumpAndSettle(const Duration(milliseconds: 400));
-    expect(find.text(r'Pagar $2,900.00 con Clip'), findsOneWidget);
+    // A meses se SOLICITA: el link sale hasta que lo autorizan (2026-11-10).
+    expect(find.text('Solicitar pago a 6 meses'), findsOneWidget);
+    expect(find.byKey(const Key('avisoRevisionMsi')), findsOneWidget);
     expect(find.byKey(const Key('mensualidadCompra')), findsOneWidget);
     await tester.tap(find.byKey(const Key('confirmarCompra')));
     for (var i = 0; i < 4; i++) {
@@ -336,6 +338,81 @@ void main() {
     expect(registrado?.plazo, 6);
     expect(abierto.toString(), 'https://pago.clip.mx/abc');
     expect(find.byKey(const Key('esperandoClip')), findsOneWidget);
+  });
+
+  testWidgets('a meses: el ERP lo deja en revisión, sin link (3 firmas con PIN)', (tester) async {
+    Uri? abierto;
+    // Encima de un home: al cerrarse la página, el aviso queda en el home.
+    Future<void> abrirEncima(WidgetTester tester, Widget pagina) async {
+      tester.view.physicalSize = const Size(1080, 7200);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: TextButton(
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute<bool>(builder: (_) => pagina)),
+              child: const Text('abrir'),
+            ),
+          ),
+        ),
+      ));
+      await tester.tap(find.text('abrir'));
+      await tester.pumpAndSettle(const Duration(milliseconds: 400));
+    }
+
+    await abrirEncima(
+      tester,
+      AdquirirOpcionesPage(
+        oferta: OfertaVisita.fromJson(oferta()),
+        inicial: 2,
+        cotizar: (p) async => const CotizacionCompra(
+          total: 2320,
+          pago: 2320,
+          cobro: 2900,
+          comision: 580,
+          liquida: true,
+          anticipo: 1160,
+          apartadoMinimo: 232,
+          faltaFabricacion: 0,
+        ),
+        adquirir: (p) async => ResultadoCompra(
+          compra: CompraOferta.fromJson(const {
+            'id': 'k-11',
+            'fecha': '',
+            'opciones': [2],
+            'modalidad': 'liquidar',
+            'metodo': 'tarjeta',
+            'estadoPago': 'pendiente',
+            'plazo': 6,
+            'total': 2320,
+            'pago': 2320,
+            'cobro': 2900,
+            'msi': {
+              'estado': 'en_revision',
+              'titulo': 'En revisión',
+              'mensaje': 'Estamos revisando tu pago a meses sin intereses.',
+            },
+          }),
+        ),
+        abrir: (u) async => abierto = u,
+      ),
+    );
+    await tester.tap(find.byKey(const Key('modo-liquidar')));
+    await tester.pumpAndSettle(const Duration(milliseconds: 400));
+    await tester.tap(find.byKey(const Key('metodo-meses')));
+    await tester.pumpAndSettle(const Duration(milliseconds: 400));
+    await tester.tap(find.byKey(const Key('plazo-6')));
+    await tester.pumpAndSettle(const Duration(milliseconds: 400));
+    await tester.tap(find.byKey(const Key('confirmarCompra')));
+    for (var i = 0; i < 4; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    expect(abierto, isNull, reason: 'sin autorización no hay link');
+    expect(find.byKey(const Key('esperandoClip')), findsNothing);
+    await tester.pumpAndSettle();
+    expect(find.text('abrir'), findsOneWidget, reason: 'regresa a donde estaba');
+    expect(find.text('Estamos revisando tu pago a meses sin intereses.'), findsOneWidget);
   });
 
   testWidgets('el 50 % también a meses; apartar no ofrece meses', (tester) async {
