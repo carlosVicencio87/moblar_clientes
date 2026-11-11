@@ -525,7 +525,6 @@ class _AdquirirOpcionesPageState extends State<AdquirirOpcionesPage> {
                 children: [
                   _Renglon('Total de tu proyecto', dinero(c.total)),
                   _Renglon(c.liquida ? 'Lo liquidas hoy' : 'Pagas hoy', dinero(c.pago)),
-                  if (c.comision > 0) _Renglon('Comisión de la tarjeta', dinero(c.comision)),
                   if (c.cobro != c.pago) ...[
                     const Divider(height: 20),
                     _Renglon(
@@ -610,11 +609,6 @@ class _AdquirirOpcionesPageState extends State<AdquirirOpcionesPage> {
             ),
           ),
         ],
-        if (metodo == 'tarjeta')
-          const Text(
-            'Sin comisión pagando en efectivo o por transferencia.',
-            style: TextStyle(fontSize: 12, color: MoblarColors.textMuted),
-          ),
         if (metodo == 'tarjeta' && _aMeses)
           const Padding(
             key: Key('avisoRevisionMsi'),

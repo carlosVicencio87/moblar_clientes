@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -6,6 +8,7 @@ import '../state/app_scope.dart';
 import '../theme.dart';
 import '../util/formato.dart';
 import 'abono_tarjeta_page.dart';
+import 'widgets/adquirir_real.dart' show ArchivoComprobante;
 import 'widgets/comunes.dart';
 import 'widgets/pago_visita.dart' show AvisoDemo, EfectivoPinPage, TransferenciaPagoPage;
 
@@ -14,11 +17,18 @@ import 'widgets/pago_visita.dart' show AvisoDemo, EfectivoPinPage, Transferencia
 // adquirir. El cliente escribe cuánto (o liquida su saldo) y elige:
 //   - Efectivo: lo recibe el arquitecto y lo confirma con SU PIN.
 //   - Transferencia: datos de la cuenta de Moblar + comprobante → en revisión.
-//   - Tarjeta: link de Clip; se suma la comisión (la paga el cliente).
-// Efectivo y transferencia solo en la demostración (Preview): se ven en el
-// estado de cuenta como abonos de demostración y NO se guardan en el ERP. En
-// producción se registrarán en Pagos cuando gerencia lo apruebe.
+//   - Tarjeta: link de Clip (un solo pago).
+// Desde 2026-11-11 (gerencia) los tres son REALES (`opciones`): efectivo y
+// tarjeta entran validados a los pagos del proyecto; la transferencia entra
+// en revisión y la valida Pagos. El cliente no ve comisión.
+// Sin `opciones` (Preview viejo) queda la demostración que no guarda nada.
 // ---------------------------------------------------------------------------
+
+String _nuevoRequestId() {
+  final r = Random.secure();
+  const letras = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  return 'abono-${List.generate(20, (_) => letras[r.nextInt(letras.length)]).join()}';
+}
 
 class AbonarProyectoPage extends StatefulWidget {
   const AbonarProyectoPage({
@@ -28,9 +38,13 @@ class AbonarProyectoPage extends StatefulWidget {
     this.transferencia,
     this.arquitecto,
     this.demo = false,
+    this.opciones,
   });
 
   final DestinoAbono destino;
+
+  /// Formas de abonar de verdad (ERP); null = demostración.
+  final OpcionesAbono? opciones;
 
   /// Hay pago con tarjeta (Clip configurado).
   final bool tarjeta;
@@ -49,6 +63,9 @@ class AbonarProyectoPage extends StatefulWidget {
 class _AbonarProyectoPageState extends State<AbonarProyectoPage> {
   final _monto = TextEditingController();
   bool _liquidar = false;
+
+  /// Un abono = un requestId: si el teléfono reintenta, el ERP no lo duplica.
+  String _requestId = _nuevoRequestId();
 
   num get _saldo => widget.destino.saldo;
 
@@ -82,25 +99,50 @@ class _AbonarProyectoPageState extends State<AbonarProyectoPage> {
   }
 
   void _registrar(num monto, String metodo, {required bool validado}) {
+    if (widget.opciones != null) {
+      // Real: el ERP ya lo registró; el siguiente abono es otro.
+      _requestId = _nuevoRequestId();
+      return;
+    }
     AppScope.read(context).registrarAbonoDemo(
       widget.destino.claveLocal,
       AbonoDemo(fecha: DateTime.now(), monto: monto, metodo: metodo, validado: validado),
     );
   }
 
+  Future<String> _efectivoReal(String pin, num monto) => AppScope.read(context).abonoEfectivo(
+        widget.destino.id,
+        monto: _liquidar ? null : monto,
+        liquidar: _liquidar,
+        pin: pin,
+        requestId: _requestId,
+      );
+
+  Future<String> _transferenciaReal(ArchivoComprobante a, num monto) => AppScope.read(context).abonoTransferencia(
+        widget.destino.id,
+        monto: _liquidar ? null : monto,
+        liquidar: _liquidar,
+        requestId: _requestId,
+        bytes: a.bytes,
+        extension: a.extension,
+      );
+
   @override
   Widget build(BuildContext context) {
     final m = _elegido;
-    final demo = widget.demo;
-    final efectivo = demo;
-    final transferencia = demo ? widget.transferencia : null;
+    final real = widget.opciones;
+    final demo = real == null && widget.demo;
+    final efectivo = real != null ? real.efectivo : demo;
+    final transferencia = real != null ? real.transferencia : (demo ? widget.transferencia : null);
+    final arquitecto = real != null ? real.arquitecto : widget.arquitecto;
+    final conTarjeta = real != null ? real.tarjeta != null : widget.tarjeta;
     return Scaffold(
       appBar: AppBar(title: const Text('Abonar a mi proyecto')),
       body: ListView(
         key: const Key('paginaAbonarProyecto'),
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: [
-          if (widget.demo) ...[
+          if (demo) ...[
             const AvisoDemo(),
             const SizedBox(height: 16),
           ],
@@ -141,14 +183,15 @@ class _AbonarProyectoPageState extends State<AbonarProyectoPage> {
               clave: const Key('abonoEfectivo'),
               icono: Icons.payments_outlined,
               titulo: m == null ? 'Efectivo' : 'Efectivo · ${dinero(m)}',
-              texto: 'Se lo entregas a tu arquitecto y él lo confirma con su PIN en tu pantalla. Sin comisión.',
+              texto: 'Se lo entregas a tu arquitecto y él lo confirma con su PIN en tu pantalla.',
               onTap: m == null
                   ? null
                   : () => _abrir(EfectivoPinPage(
                         titulo: 'Abono en efectivo',
                         monto: m,
-                        arquitecto: widget.arquitecto,
-                        demo: widget.demo,
+                        arquitecto: arquitecto,
+                        demo: demo,
+                        confirmarReal: real == null ? null : (pin) => _efectivoReal(pin, m),
                         onConfirmado: () => _registrar(m, 'Efectivo', validado: true),
                       )),
             ),
@@ -157,25 +200,25 @@ class _AbonarProyectoPageState extends State<AbonarProyectoPage> {
               clave: const Key('abonoTransferencia'),
               icono: Icons.account_balance_outlined,
               titulo: m == null ? 'Transferencia' : 'Transferencia · ${dinero(m)}',
-              texto: 'Te damos los datos de la cuenta y subes tu comprobante. Sin comisión.',
+              texto: 'Te damos los datos de la cuenta y subes tu comprobante.',
               onTap: m == null
                   ? null
                   : () => _abrir(TransferenciaPagoPage(
                         titulo: 'Abono por transferencia',
                         monto: m,
                         datos: transferencia,
-                        demo: widget.demo,
+                        demo: demo,
                         paraQue: 'del abono a tu mueble',
+                        enviarReal: real == null ? null : (a) => _transferenciaReal(a, m),
                         onEnviado: (_) => _registrar(m, 'Transferencia', validado: false),
                       )),
             ),
-          if (widget.tarjeta)
+          if (conTarjeta)
             _Forma(
               clave: const Key('abonoTarjeta'),
               icono: Icons.credit_card,
               titulo: 'Tarjeta',
-              texto: 'Débito o crédito en un solo pago, en la página segura de Clip. '
-                  'Se suma la comisión de la tarjeta.',
+              texto: 'Débito o crédito en un solo pago, en la página segura de Clip.',
               onTap: m == null
                   ? null
                   : () => _abrir(AbonoTarjetaPage(
@@ -187,7 +230,7 @@ class _AbonarProyectoPageState extends State<AbonarProyectoPage> {
           if (!efectivo && transferencia == null)
             const Dato(
               icono: Icons.info_outline,
-              texto: 'Para abonar por transferencia o depósito sin comisión, escríbenos y te damos los datos.',
+              texto: 'Para abonar por transferencia o depósito, escríbenos y te damos los datos.',
             ),
         ],
       ),

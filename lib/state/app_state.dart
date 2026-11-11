@@ -259,6 +259,28 @@ class AppState extends ChangeNotifier {
     return l;
   }
 
+  /// Abono en efectivo con el PIN del arquitecto (2026-11-11). Refresca la cuenta.
+  Future<String> abonoEfectivo(String proyectoId, {num? monto, bool liquidar = false, required String pin, required String requestId}) async {
+    final m = await _conToken((t) => api.abonoEfectivo(t, proyectoId, monto: monto, liquidar: liquidar, pin: pin, requestId: requestId));
+    await refrescar();
+    return m;
+  }
+
+  /// Abono por transferencia con su comprobante (2026-11-11). Refresca la cuenta.
+  Future<String> abonoTransferencia(
+    String proyectoId, {
+    num? monto,
+    bool liquidar = false,
+    required String requestId,
+    required Uint8List bytes,
+    required String extension,
+  }) async {
+    final m = await _conToken((t) => api.abonoTransferencia(t, proyectoId,
+        monto: monto, liquidar: liquidar, requestId: requestId, bytes: bytes, extension: extension));
+    await refrescar();
+    return m;
+  }
+
   /// Sube el comprobante de una transferencia y refresca la cuenta.
   Future<void> subirComprobante(String compraId, Uint8List bytes, String extension) async {
     await _conToken((t) => api.subirComprobante(t, compraId, bytes, extension));

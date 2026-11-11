@@ -1121,6 +1121,7 @@ class Compra {
     this.cuenta,
     this.pagoTarjeta,
     this.abonoDemo,
+    this.abonar,
     this.demoCitaId,
     this.demoClave,
     this.metaFabricacion,
@@ -1143,6 +1144,9 @@ class Compra {
 
   /// Abonar en efectivo o transferencia como demostración (Preview); null = no.
   final AbonoDemoConfig? abonoDemo;
+
+  /// Abonar de verdad desde la app (2026-11-11); null = no se puede abonar.
+  final OpcionesAbono? abonar;
 
   /// Compra de la DEMOSTRACIÓN armada en la app (oferta adquirida): la cita de
   /// la oferta. null = compra real del ERP.
@@ -1181,7 +1185,40 @@ class Compra {
         abonoDemo: j['abonoDemo'] is Map<String, dynamic>
             ? AbonoDemoConfig.fromJson(j['abonoDemo'] as Map<String, dynamic>)
             : null,
+        abonar: OpcionesAbono.fromJson(j['abonar']),
       );
+}
+
+/// Formas de abonar a un proyecto desde la app (2026-11-11). Cada una es null
+/// si no está disponible.
+class OpcionesAbono {
+  const OpcionesAbono({this.tarjeta, this.efectivo = false, this.arquitecto, this.transferencia});
+
+  /// Con tarjeta (link de Clip), con su abono mínimo.
+  final PagoTarjetaConfig? tarjeta;
+
+  /// En efectivo: lo recibe el arquitecto y lo confirma con su PIN.
+  final bool efectivo;
+  final String? arquitecto;
+
+  /// Cuenta de Moblar para transferir (y subir el comprobante).
+  final DatosTransferencia? transferencia;
+
+  bool get alguna => tarjeta != null || efectivo || transferencia != null;
+
+  static OpcionesAbono? fromJson(Object? v) {
+    if (v is! Map<String, dynamic>) return null;
+    final ef = v['efectivo'];
+    final o = OpcionesAbono(
+      tarjeta: v['tarjeta'] is Map<String, dynamic> ? PagoTarjetaConfig.fromJson(v['tarjeta'] as Map<String, dynamic>) : null,
+      efectivo: ef is Map<String, dynamic>,
+      arquitecto: ef is Map<String, dynamic> ? _sn(ef['arquitecto']) : null,
+      transferencia: v['transferencia'] is Map<String, dynamic>
+          ? DatosTransferencia.fromJson(v['transferencia'] as Map<String, dynamic>)
+          : null,
+    );
+    return o.alguna ? o : null;
+  }
 }
 
 /// Abonos de demostración a una compra real (solo Preview).
@@ -1562,7 +1599,7 @@ class DestinoAbono {
         claveLocal = c.id,
         oferta = false,
         saldo = c.cuenta?.saldo ?? 0,
-        abonoMinimo = c.pagoTarjeta?.abonoMinimo ?? 1000,
+        abonoMinimo = c.abonar?.tarjeta?.abonoMinimo ?? c.pagoTarjeta?.abonoMinimo ?? 1000,
         factura = true;
 
   const DestinoAbono.oferta({

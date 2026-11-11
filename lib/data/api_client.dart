@@ -436,6 +436,83 @@ class ClienteApi {
     if (c.statusCode != 200) throw ErrorServidor(_errorDe(_cuerpo(c)) ?? fallo);
   }
 
+  /// POST /api/cliente/proyectos/:id/abonos — abono en EFECTIVO confirmado con
+  /// el PIN del arquitecto (2026-11-11). Regresa el mensaje del ERP.
+  Future<String> abonoEfectivo(
+    String token,
+    String proyectoId, {
+    num? monto,
+    bool liquidar = false,
+    required String pin,
+    required String requestId,
+  }) async {
+    final r = await _enviar(() => _http.post(
+          Uri.parse('$_base/api/cliente/proyectos/$proyectoId/abonos'),
+          headers: _headers(token: token, json: true),
+          body: jsonEncode({
+            'metodo': 'efectivo',
+            if (monto != null && !liquidar) 'monto': monto,
+            'liquidar': liquidar,
+            'pin': pin,
+            'requestId': requestId,
+          }),
+        ));
+    if (r.statusCode == 401) throw const SesionTerminada();
+    final j = _cuerpo(r);
+    if (r.statusCode != 200) throw ErrorServidor(_errorDe(j) ?? 'No pudimos registrar tu abono. Intenta de nuevo.');
+    return (j['mensaje'] as String?) ?? 'Listo: registramos tu abono.';
+  }
+
+  /// Abono por TRANSFERENCIA con su comprobante (2026-11-11), en tres pasos:
+  /// 1) el ERP registra el abono y da una URL firmada; 2) el archivo sube
+  /// DIRECTO al almacenamiento; 3) el ERP confirma y lo manda a Pagos.
+  Future<String> abonoTransferencia(
+    String token,
+    String proyectoId, {
+    num? monto,
+    bool liquidar = false,
+    required String requestId,
+    required Uint8List bytes,
+    required String extension,
+  }) async {
+    const fallo = 'No pudimos subir tu comprobante. Intenta de nuevo.';
+    final r = await _enviar(() => _http.post(
+          Uri.parse('$_base/api/cliente/proyectos/$proyectoId/abonos'),
+          headers: _headers(token: token, json: true),
+          body: jsonEncode({
+            'metodo': 'transferencia',
+            if (monto != null && !liquidar) 'monto': monto,
+            'liquidar': liquidar,
+            'requestId': requestId,
+            'extension': extension,
+          }),
+        ));
+    if (r.statusCode == 401) throw const SesionTerminada();
+    final j = _cuerpo(r);
+    if (r.statusCode != 200) throw ErrorServidor(_errorDe(j) ?? fallo);
+    if (j['yaRecibido'] == true) return (j['mensaje'] as String?) ?? 'Ya recibimos tu comprobante.';
+    final abonoId = j['abonoId'];
+    final url = j['url'];
+    final ruta = j['ruta'];
+    if (abonoId is! String || url is! String || !url.startsWith('http') || ruta is! String) {
+      throw const ErrorServidor(fallo);
+    }
+    final subida = await _enviar(
+      () => _http.put(Uri.parse(url), headers: {'Content-Type': tipoComprobante(extension)}, body: bytes),
+      limite: const Duration(minutes: 2),
+    );
+    if (subida.statusCode < 200 || subida.statusCode >= 300) throw const ErrorServidor(fallo);
+    final c = await _enviar(() => _http.post(
+          Uri.parse('$_base/api/cliente/abonos/$abonoId/comprobante'),
+          headers: _headers(token: token, json: true),
+          body: jsonEncode({'ruta': ruta}),
+        ));
+    if (c.statusCode == 401) throw const SesionTerminada();
+    final cj = _cuerpo(c);
+    if (c.statusCode != 200) throw ErrorServidor(_errorDe(cj) ?? fallo);
+    return (cj['mensaje'] as String?) ?? 'Recibimos tu comprobante. Te avisamos en cuanto validemos tu abono.';
+  }
+
   /// GET /api/cliente/pagos-tarjeta/:id?t= — 404 (link ajeno o función
   /// apagada) se trata como "desconocido".
   Future<EstadoPagoTarjeta> estadoPagoTarjeta(String token, String id, String ticket) async {

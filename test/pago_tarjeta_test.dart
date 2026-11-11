@@ -207,16 +207,17 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    testWidgets('escribe el abono y ve el desglose; recuerda que sin tarjeta no hay comisión', (tester) async {
+    testWidgets('escribe el abono y ve lo que se aplica y el total, sin desglosar comisión', (tester) async {
       await abrir(tester);
-      expect(find.byKey(const Key('sinComision')), findsOneWidget);
+      expect(find.byKey(const Key('sinComision')), findsNothing);
       expect(find.text(r'$6,000.00'), findsWidgets);
       await tester.enterText(find.byKey(const Key('montoAbono')), '5000');
       await tester.pump();
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('desgloseAbono')), findsOneWidget);
       expect(find.text(r'$5,000.00'), findsOneWidget);
-      expect(find.text(r'$180.28'), findsOneWidget);
+      expect(find.text(r'$180.28'), findsNothing);
+      expect(find.text('Total con tarjeta'), findsOneWidget);
       expect(find.text(r'Pagar $5,180.28 con tarjeta'), findsOneWidget);
     });
 

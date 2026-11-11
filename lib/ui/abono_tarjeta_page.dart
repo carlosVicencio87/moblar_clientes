@@ -15,11 +15,11 @@ import 'widgets/comunes.dart';
 // Abonar con tarjeta (Carlos, 2026-10-08/09; claude/CLIP_LINK_PAGO_PLAN.md).
 //
 // El cliente escribe cuánto quiere abonar (o liquida su saldo) y ve en vivo
-// el desglose que calcula el servidor: lo que se aplica a su saldo, la
-// comisión de la tarjeta (la paga él) y lo que se le carga. Al confirmar, el
+// lo que calcula el servidor: lo que se aplica a su saldo y el total que se le
+// carga a la tarjeta (sin desglosar comisión: 2026-11-11). Al confirmar, el
 // ERP genera un link de Clip con ese monto exacto y se abre la página segura
 // de Clip. Solo un pago (sin MSI): los MSI son para el precio total al
-// adquirir. Con transferencia o depósito no hay comisión, y se le recuerda.
+// adquirir.
 //
 // Sirve para una compra del ERP o, en la demostración, para la oferta de la
 // visita ya adquirida ([DestinoAbono]).
@@ -206,24 +206,6 @@ class _AbonoTarjetaPageState extends State<AbonoTarjetaPage> {
             key: const Key('saldoAbono'),
             style: const TextStyle(fontSize: 28, height: 1.1, fontWeight: FontWeight.w700, color: MoblarColors.primaryDark),
           ),
-          const SizedBox(height: 12),
-          Container(
-            key: const Key('sinComision'),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: const Color(0xFFD1FAE5), borderRadius: BorderRadius.circular(10)),
-            child: const Row(
-              children: [
-                Icon(Icons.savings_outlined, color: Color(0xFF065F46)),
-                SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Sin comisión pagando por transferencia o depósito. Con tarjeta se suma la comisión del banco.',
-                    style: TextStyle(color: Color(0xFF065F46)),
-                  ),
-                ),
-              ],
-            ),
-          ),
           const SizedBox(height: 16),
           if (_link == null) ..._formulario() else ..._enCurso(_link!),
         ],
@@ -277,9 +259,8 @@ class _AbonoTarjetaPageState extends State<AbonoTarjetaPage> {
             child: Column(
               children: [
                 _Fila(c.liquida ? 'Se liquida tu saldo' : 'Se aplica a tu saldo', dinero(c.neto)),
-                _Fila('Comisión de la tarjeta', dinero(c.comision)),
                 const Divider(height: 20),
-                _Fila('Se cargará a tu tarjeta', dinero(c.cobro), fuerte: true),
+                _Fila('Total con tarjeta', dinero(c.cobro), fuerte: true),
               ],
             ),
           ),

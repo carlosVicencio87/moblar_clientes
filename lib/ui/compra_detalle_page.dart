@@ -47,7 +47,7 @@ class CompraDetallePage extends StatelessWidget {
     final datos = state.datos;
     final compra = datos == null ? null : todasLasCompras(context, datos).where((c) => c.id == compraId).firstOrNull;
     final puedeAbonar = compra != null &&
-        (compra.pagoTarjeta != null || compra.abonoDemo != null) &&
+        (compra.abonar != null || compra.pagoTarjeta != null || compra.abonoDemo != null) &&
         (compra.cuenta?.saldo ?? 0) > 0;
 
     return Scaffold(
@@ -84,9 +84,8 @@ class CompraDetallePage extends StatelessWidget {
                 if (compra.cuenta != null) ...[
                   const SizedBox(height: 16),
                   EstadoCuentaCompra(cuenta: compra.cuenta!, metaFabricacion: compra.metaFabricacion),
-                  // Tarjeta (link de Clip) y, solo en la demostración, efectivo y
-                  // transferencia. En producción, efectivo y transferencia de una
-                  // compra real se registrarán en Pagos (con aprobación de gerencia).
+                  // Tarjeta, efectivo con PIN y transferencia: reales desde
+                  // 2026-11-11 (`abonar`); la demo solo si no viene del ERP.
                   if (puedeAbonar) ...[
                     const SizedBox(height: 8),
                     OutlinedButton.icon(
@@ -99,6 +98,7 @@ class CompraDetallePage extends StatelessWidget {
                             transferencia: compra.abonoDemo?.transferencia,
                             arquitecto: compra.abonoDemo?.arquitecto,
                             demo: compra.abonoDemo != null,
+                            opciones: compra.abonar,
                           ),
                         ),
                       ),

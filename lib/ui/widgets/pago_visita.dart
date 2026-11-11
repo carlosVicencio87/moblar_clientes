@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../data/api_client.dart' show ApiException, SesionTerminada;
 import '../../data/models.dart';
 import '../../theme.dart';
 import '../../util/formato.dart';
 import '../../state/app_scope.dart';
 import '../navegacion.dart';
 import 'adquirir_oferta.dart' show DemoAnticipos, ResultadoAnticipo;
+import 'adquirir_real.dart' show ArchivoComprobante, elegirComprobante;
 import 'comunes.dart';
 
 // ---------------------------------------------------------------------------
@@ -465,11 +467,20 @@ class TransferenciaPagoPage extends StatefulWidget {
     required this.paraQue,
     required this.onEnviado,
     this.titulo = 'Pagar por transferencia',
+    this.enviarReal,
+    this.elegirArchivo,
   });
 
   final num monto;
   final DatosTransferencia datos;
   final bool demo;
+
+  /// De verdad (2026-11-11): sube el comprobante al ERP y regresa su mensaje.
+  /// null = demostración (no sale del teléfono).
+  final Future<String> Function(ArchivoComprobante archivo)? enviarReal;
+
+  /// Para pruebas: en vez de abrir la galería.
+  final Future<ArchivoComprobante?> Function()? elegirArchivo;
 
   /// "de tu visita", "del anticipo de tu mueble": completa la frase del concepto.
   final String paraQue;
@@ -485,17 +496,52 @@ class TransferenciaPagoPage extends StatefulWidget {
 class _TransferenciaPagoPageState extends State<TransferenciaPagoPage> {
   /// En la demo no se abre la galería: se simula el archivo elegido.
   String? _archivo;
+  ArchivoComprobante? _real;
+  bool _enviando = false;
+  String? _error;
 
-  void _elegirComprobante() {
-    setState(() => _archivo = 'comprobante_${widget.datos.concepto.toLowerCase()}.jpg');
+  Future<void> _elegirComprobante() async {
+    if (widget.enviarReal == null) {
+      setState(() => _archivo = 'comprobante_${widget.datos.concepto.toLowerCase()}.jpg');
+      return;
+    }
+    final a = widget.elegirArchivo != null ? await widget.elegirArchivo!() : await elegirComprobante(context);
+    if (a == null || !mounted) return;
+    setState(() {
+      _real = a;
+      _archivo = a.nombre;
+      _error = null;
+    });
   }
 
-  void _enviar() {
-    widget.onEnviado(_archivo);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Comprobante enviado. Lo revisamos y te confirmamos.')),
-    );
-    Navigator.of(context).pop(true);
+  Future<void> _enviar() async {
+    final real = widget.enviarReal;
+    if (real == null) {
+      widget.onEnviado(_archivo);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Comprobante enviado. Lo revisamos y te confirmamos.')),
+      );
+      Navigator.of(context).pop(true);
+      return;
+    }
+    if (_real == null || _enviando) return;
+    setState(() {
+      _enviando = true;
+      _error = null;
+    });
+    try {
+      final m = await real(_real!);
+      if (!mounted) return;
+      widget.onEnviado(_archivo);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+      Navigator.of(context).pop(true);
+    } on SesionTerminada {
+      // AppState ya regresó al cliente a la pantalla de ingreso.
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _error = e.mensaje);
+    } finally {
+      if (mounted) setState(() => _enviando = false);
+    }
   }
 
   @override
@@ -595,7 +641,10 @@ class _TransferenciaPagoPageState extends State<TransferenciaPagoPage> {
                           IconButton(
                             tooltip: 'Quitar',
                             icon: const Icon(Icons.close),
-                            onPressed: () => setState(() => _archivo = null),
+                            onPressed: () => setState(() {
+                              _archivo = null;
+                              _real = null;
+                            }),
                           ),
                         ],
                       ),
@@ -605,10 +654,17 @@ class _TransferenciaPagoPageState extends State<TransferenciaPagoPage> {
             ),
           ),
           const SizedBox(height: 20),
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(_error!, key: const Key('errorTransferencia'), style: const TextStyle(color: MoblarColors.danger)),
+            ),
           FilledButton(
             key: const Key('enviarComprobante'),
-            onPressed: _archivo == null ? null : _enviar,
-            child: const Text('Enviar comprobante'),
+            onPressed: _archivo == null || _enviando ? null : _enviar,
+            child: _enviando
+                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Text('Enviar comprobante'),
           ),
           const SizedBox(height: 8),
           const Text(
@@ -713,6 +769,7 @@ class EfectivoPinPage extends StatefulWidget {
     required this.demo,
     required this.onConfirmado,
     this.titulo = 'Pagar en efectivo',
+    this.confirmarReal,
   });
 
   final num monto;
@@ -720,6 +777,10 @@ class EfectivoPinPage extends StatefulWidget {
   final bool demo;
   final String titulo;
   final VoidCallback onConfirmado;
+
+  /// De verdad (2026-11-11): el ERP valida el PIN del arquitecto y registra el
+  /// pago; regresa su mensaje. null = demostración.
+  final Future<String> Function(String pin)? confirmarReal;
 
   @override
   State<EfectivoPinPage> createState() => _EfectivoPinPageState();
@@ -746,7 +807,36 @@ class _EfectivoPinPageState extends State<EfectivoPinPage> {
     setState(() => _pin = _pin.substring(0, _pin.length - 1));
   }
 
-  void _confirmar() {
+  bool _validando = false;
+
+  Future<void> _confirmar() async {
+    final real = widget.confirmarReal;
+    if (real != null) {
+      if (_validando) return;
+      setState(() {
+        _validando = true;
+        _error = null;
+      });
+      try {
+        final m = await real(_pin);
+        if (!mounted) return;
+        widget.onConfirmado();
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+        Navigator.of(context).pop(true);
+      } on SesionTerminada {
+        // AppState ya regresó al cliente a la pantalla de ingreso.
+      } on ApiException catch (e) {
+        if (mounted) {
+          setState(() {
+            _pin = '';
+            _error = e.mensaje;
+          });
+        }
+      } finally {
+        if (mounted) setState(() => _validando = false);
+      }
+      return;
+    }
     // DEMO: sin servidor. Cualquier PIN de 4 dígitos sirve, salvo 0000 para
     // poder enseñar el error. El real se valida en el ERP contra el PIN del
     // arquitecto asignado a esta cita.
@@ -855,14 +945,15 @@ class _EfectivoPinPageState extends State<EfectivoPinPage> {
               ),
           ],
         ),
-        SizedBox(
-          height: 28,
+        ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 28),
           child: Center(
             child: _error == null
                 ? null
                 : Text(
                     _error!,
                     key: const Key('errorPin'),
+                    textAlign: TextAlign.center,
                     style: const TextStyle(color: MoblarColors.danger, fontWeight: FontWeight.w600),
                   ),
           ),
@@ -890,7 +981,7 @@ class _EfectivoPinPageState extends State<EfectivoPinPage> {
                       clave: const Key('pinConfirmar'),
                       icono: Icons.check,
                       resaltada: true,
-                      onTap: _pin.length == largoPin ? _confirmar : null,
+                      onTap: _pin.length == largoPin && !_validando ? _confirmar : null,
                     ),
                   ],
                 ),
