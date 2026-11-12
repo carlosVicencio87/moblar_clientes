@@ -973,7 +973,7 @@ class _Precios extends StatelessWidget {
             children: [
               _Renglon(
                 clave: const Key('descuentoContadoOferta'),
-                etiqueta: 'Descuento por pago de contado',
+                etiqueta: 'Aprovecha tu descuento de contado',
                 valor: '−${dinero(o.descuento)} (${o.descuentoPct.toStringAsFixed(1)}%)',
                 fuerte: true,
               ),
@@ -1069,7 +1069,7 @@ class _Renglon extends StatelessWidget {
 }
 
 /// "Otras opciones de pago": contado y, con tarjeta, un solo pago y cada plazo
-/// de MSI con su total (Clip cobra menos comisión entre menos meses). Se puede
+/// de MSI con su total (a meses, siempre el precio de lista; 2026-11-12). Se puede
 /// elegir una; la elección pasa a "Inicia tu proyecto".
 class _OtrasOpciones extends StatelessWidget {
   const _OtrasOpciones({required this.oferta, required this.plazo, required this.onElegir});
@@ -1121,7 +1121,7 @@ class _OtrasOpciones extends StatelessWidget {
           const Padding(
             padding: EdgeInsets.only(top: 4),
             child: Text(
-              'Con tarjeta, entre menos meses, menor precio.',
+              'A meses sin intereses pagas el precio de lista; de contado aprovechas tu descuento.',
               style: TextStyle(fontSize: 12, color: MoblarColors.textMuted),
             ),
           ),

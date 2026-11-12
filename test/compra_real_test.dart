@@ -242,6 +242,57 @@ void main() {
     expect(find.byKey(const Key('metodo-tarjeta')), findsOneWidget);
   });
 
+  testWidgets('de contado: lista tachada y su descuento; a meses, el precio de lista sin descuento (2026-11-12)', (tester) async {
+    const conLista = CotizacionCompra(
+      total: 406,
+      pago: 203,
+      cobro: 203,
+      comision: 0,
+      liquida: false,
+      anticipo: 203,
+      apartadoMinimo: 40.6,
+      faltaFabricacion: 0,
+      lista: 624.61,
+      descuentoPct: 35,
+      totalCobro: 406,
+    );
+    const aMeses = CotizacionCompra(
+      total: 406,
+      pago: 203,
+      cobro: 312.31,
+      comision: 109.31,
+      liquida: false,
+      anticipo: 203,
+      apartadoMinimo: 40.6,
+      faltaFabricacion: 0,
+      lista: 624.61,
+      descuentoPct: 35,
+      totalCobro: 624.61,
+    );
+    var meses = false;
+    await abrirPagina(
+      tester,
+      AdquirirOpcionesPage(
+        oferta: OfertaVisita.fromJson(oferta()),
+        inicial: 1,
+        cotizar: (p) async => meses ? aMeses : conLista,
+        adquirir: (p) async => throw UnimplementedError(),
+      ),
+    );
+    expect(find.byKey(const Key('listaTachadaCompra')), findsOneWidget);
+    expect(find.text('Aprovecha tu 35 % de descuento pagando en efectivo o transferencia.'), findsOneWidget);
+    expect(find.text(r'$406.00'), findsWidgets);
+
+    meses = true;
+    await tester.tap(find.byKey(const Key('metodo-meses')));
+    await tester.pumpAndSettle(const Duration(milliseconds: 400));
+    expect(find.byKey(const Key('listaTachadaCompra')), findsNothing);
+    expect(find.byKey(const Key('descuentoContadoCompra')), findsNothing);
+    expect(find.text(r'$624.61'), findsOneWidget, reason: 'total a meses = precio de lista');
+    expect(find.text(r'$203.00'), findsNothing, reason: 'a meses no se muestra el monto de contado');
+    expect(find.byKey(const Key('mensualidadCompra')), findsOneWidget);
+  });
+
   testWidgets('efectivo con PIN equivocado: avisa y borra el PIN', (tester) async {
     await abrirPagina(
       tester,

@@ -533,21 +533,40 @@ class _AdquirirOpcionesPageState extends State<AdquirirOpcionesPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _Renglon('Total de tu proyecto', dinero(c.total)),
-                  _Renglon(c.liquida ? 'Lo liquidas hoy' : 'Pagas hoy', dinero(c.pago)),
-                  if (c.cobro != c.pago) ...[
-                    const Divider(height: 20),
+                  // A meses (2026-11-12): precio de lista, sin descuento; se
+                  // muestra el total a meses y lo que se carga hoy, sin el
+                  // monto de contado (el cliente no ve comisión).
+                  if (_aMeses) ...[
+                    _Renglon('Total de tu proyecto', dinero(c.totalCobro ?? c.total)),
                     _Renglon(
-                      _aMeses ? 'Se cargará a tu tarjeta ($_plazo meses)' : 'Se cargará a tu tarjeta',
+                      c.liquida ? 'Se cargará a tu tarjeta ($_plazo meses)' : 'Pagas hoy con tu tarjeta ($_plazo meses)',
                       dinero(c.cobro),
                       fuerte: true,
                     ),
-                    if (_aMeses)
-                      Text(
-                        '$_plazo pagos de ${dinero(c.cobro / _plazo)} sin intereses',
-                        key: const Key('mensualidadCompra'),
-                        style: const TextStyle(fontSize: 13, color: MoblarColors.textSecondary),
+                    Text(
+                      '$_plazo pagos de ${dinero(c.cobro / _plazo)} sin intereses',
+                      key: const Key('mensualidadCompra'),
+                      style: const TextStyle(fontSize: 13, color: MoblarColors.textSecondary),
+                    ),
+                  ] else ...[
+                    // De contado: precio de lista tachado y su descuento.
+                    if (metodo != 'tarjeta' && c.lista > c.total) ...[
+                      _Renglon('Precio de lista', dinero(c.lista), tachado: true),
+                      Padding(
+                        key: const Key('descuentoContadoCompra'),
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: Text(
+                          'Aprovecha tu ${_pct(c.descuentoPct)} % de descuento pagando en efectivo o transferencia.',
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF065F46)),
+                        ),
                       ),
+                    ],
+                    _Renglon('Total de tu proyecto', dinero(c.total)),
+                    _Renglon(c.liquida ? 'Lo liquidas hoy' : 'Pagas hoy', dinero(c.pago)),
+                    if (c.cobro != c.pago) ...[
+                      const Divider(height: 20),
+                      _Renglon('Se cargará a tu tarjeta', dinero(c.cobro), fuerte: true),
+                    ],
                   ],
                   if (c.faltaFabricacion > 0 && !c.liquida) ...[
                     const SizedBox(height: 8),
@@ -678,25 +697,38 @@ class _Eleccion extends StatelessWidget {
       );
 }
 
+/// 35.0 → "35"; 34.98 → "35"; 12.5 → "12.5".
+String _pct(num p) {
+  final r = (p * 10).round() / 10;
+  return r == r.roundToDouble() ? r.toStringAsFixed(0) : r.toStringAsFixed(1);
+}
+
 class _Renglon extends StatelessWidget {
-  const _Renglon(this.etiqueta, this.valor, {this.fuerte = false});
+  const _Renglon(this.etiqueta, this.valor, {this.fuerte = false, this.tachado = false});
 
   final String etiqueta;
   final String valor;
   final bool fuerte;
 
+  /// Precio de lista tachado (de contado, 2026-11-12).
+  final bool tachado;
+
   @override
   Widget build(BuildContext context) {
     final estilo = TextStyle(
       fontWeight: fuerte ? FontWeight.w700 : FontWeight.w500,
-      color: MoblarColors.textPrimary,
+      color: tachado ? MoblarColors.textMuted : MoblarColors.textPrimary,
     );
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(
         children: [
           Expanded(child: Text(etiqueta, style: estilo)),
-          Text(valor, style: estilo),
+          Text(
+            valor,
+            key: tachado ? const Key('listaTachadaCompra') : null,
+            style: tachado ? estilo.copyWith(decoration: TextDecoration.lineThrough) : estilo,
+          ),
         ],
       ),
     );

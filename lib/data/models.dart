@@ -595,7 +595,20 @@ class CotizacionCompra {
     required this.anticipo,
     required this.apartadoMinimo,
     required this.faltaFabricacion,
+    this.lista = 0,
+    this.descuentoPct = 0,
+    this.totalCobro,
   });
+
+  /// Precio de lista (24 MSI) de lo elegido; 0 = el servidor no lo manda.
+  final num lista;
+
+  /// Descuento de contado sobre la lista, en % (2026-11-12).
+  final num descuentoPct;
+
+  /// Total del proyecto con la forma de pago elegida (a meses = lista).
+  /// null = servidor anterior: se usa [total].
+  final num? totalCobro;
 
   final num total;
   final num pago;
@@ -615,6 +628,9 @@ class CotizacionCompra {
         anticipo: _n(j['anticipo']) ?? 0,
         apartadoMinimo: _n(j['apartadoMinimo']) ?? 0,
         faltaFabricacion: _n(j['faltaFabricacion']) ?? 0,
+        lista: _n(j['lista']) ?? 0,
+        descuentoPct: _n(j['descuentoPct']) ?? 0,
+        totalCobro: _n(j['totalCobro']),
       );
 }
 

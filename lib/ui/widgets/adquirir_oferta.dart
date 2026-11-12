@@ -879,7 +879,7 @@ class _TarjetaClipPageState extends State<_TarjetaClipPage> {
           const SizedBox(height: 4),
           const Text(
             'En un solo pago cubres el anticipo. A meses pagas tu mueble completo y lo '
-            'difieres con tu tarjeta de crédito. Entre menos meses, menor precio.',
+            'difieres con tu tarjeta de crédito al precio de lista.',
             style: TextStyle(fontSize: 12, color: MoblarColors.textMuted),
           ),
           const SizedBox(height: 10),
