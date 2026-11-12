@@ -222,10 +222,16 @@ class OfertaVisita {
     this.opciones = const [],
     this.compraReal = false,
     this.compras = const [],
+    this.efectivo = true,
   });
 
   /// true: adquirir queda en el ERP (POST /citas/:id/adquirir), no en la demo.
   final bool compraReal;
+
+  /// Se puede pagar en efectivo (2026-11-12): solo con el arquitecto en la
+  /// visita (su llegada quedó dentro de la geocerca hace pocas horas). Lo
+  /// decide el servidor; si no lo manda (servidor anterior), sí.
+  final bool efectivo;
 
   /// Compras reales de esta oferta (la misma lista en cada opción).
   final List<CompraOferta> compras;
@@ -423,6 +429,7 @@ class OfertaVisita {
             ? PagoTarjetaConfig.fromJson(j['pagoTarjeta'] as Map<String, dynamic>)
             : null,
         compraReal: j['compraReal'] == true,
+        efectivo: j['efectivo'] != false,
         compras: _lista(j['compras']).map(CompraOferta.fromJson).where((c) => c.id.isNotEmpty).toList(),
       );
 }

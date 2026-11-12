@@ -493,12 +493,22 @@ class _AdquirirOpcionesPageState extends State<AdquirirOpcionesPage> {
           runSpacing: 8,
           children: [
             _Eleccion(clave: 'metodo-transferencia', texto: 'Transferencia', elegida: _metodo == 'transferencia', onTap: () => _cambiar(() => _metodo = 'transferencia')),
-            _Eleccion(clave: 'metodo-efectivo', texto: 'Efectivo', elegida: _metodo == 'efectivo', onTap: () => _cambiar(() => _metodo = 'efectivo')),
+            if (widget.oferta.efectivo)
+              _Eleccion(clave: 'metodo-efectivo', texto: 'Efectivo', elegida: _metodo == 'efectivo', onTap: () => _cambiar(() => _metodo = 'efectivo')),
             _Eleccion(clave: 'metodo-tarjeta', texto: 'Tarjeta · una exhibición', elegida: _metodo == 'tarjeta', onTap: () => _cambiar(() => _metodo = 'tarjeta')),
             if (_modalidad != 'apartado')
               _Eleccion(clave: 'metodo-meses', texto: 'Tarjeta a meses sin intereses', elegida: _metodo == 'meses', onTap: () => _cambiar(() => _metodo = 'meses')),
           ],
         ),
+        if (!widget.oferta.efectivo)
+          const Padding(
+            key: Key('sinEfectivo'),
+            padding: EdgeInsets.only(top: 8),
+            child: Text(
+              'El pago en efectivo solo está disponible durante tu visita, con tu arquitecto presente.',
+              style: TextStyle(fontSize: 12, color: MoblarColors.textMuted),
+            ),
+          ),
         if (_aMeses) ...[
           const SizedBox(height: 12),
           Wrap(

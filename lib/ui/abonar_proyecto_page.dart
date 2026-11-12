@@ -22,6 +22,8 @@ import 'widgets/pago_visita.dart' show AvisoDemo, EfectivoPinPage, Transferencia
 // tarjeta entran validados a los pagos del proyecto; la transferencia entra
 // en revisión y la valida Pagos. El cliente no ve comisión.
 // Sin `opciones` (Preview viejo) queda la demostración que no guarda nada.
+// Desde 2026-11-12 el ERP ya no ofrece efectivo en abonos (`opciones.efectivo`
+// llega vacío): el efectivo solo se recibe al adquirir, durante la visita.
 // ---------------------------------------------------------------------------
 
 String _nuevoRequestId() {

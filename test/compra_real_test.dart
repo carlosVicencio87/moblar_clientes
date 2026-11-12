@@ -227,6 +227,21 @@ void main() {
     expect(registrado!.toJson(cotizar: true).containsKey('pin'), isFalse, reason: 'cotizar no manda el PIN');
   });
 
+  testWidgets('sin el arquitecto en la visita no se ofrece efectivo (2026-11-12)', (tester) async {
+    expect(OfertaVisita.fromJson(oferta()).efectivo, isTrue, reason: 'servidor anterior: sí');
+    final sin = OfertaVisita.fromJson({...oferta(), 'efectivo': false});
+    expect(sin.efectivo, isFalse);
+    expect(sin.opciones.every((o) => !o.efectivo), isTrue, reason: 'cada opción lo hereda');
+    await abrirPagina(
+      tester,
+      AdquirirOpcionesPage(oferta: sin, inicial: 1, cotizar: (p) async => cot, adquirir: (p) async => throw UnimplementedError()),
+    );
+    expect(find.byKey(const Key('metodo-efectivo')), findsNothing);
+    expect(find.byKey(const Key('sinEfectivo')), findsOneWidget);
+    expect(find.byKey(const Key('metodo-transferencia')), findsOneWidget);
+    expect(find.byKey(const Key('metodo-tarjeta')), findsOneWidget);
+  });
+
   testWidgets('efectivo con PIN equivocado: avisa y borra el PIN', (tester) async {
     await abrirPagina(
       tester,

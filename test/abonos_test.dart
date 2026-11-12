@@ -93,6 +93,11 @@ void main() {
 
   group('pantallas', () {
     Future<void> abrir(WidgetTester t, Widget pagina) async {
+      // Pantalla alta: la lista no construye lo que queda fuera de la vista y
+      // el botón de enviar quedaba sin existir en el árbol.
+      t.view.physicalSize = const Size(1080, 7200);
+      t.view.devicePixelRatio = 3;
+      addTearDown(t.view.reset);
       await t.pumpWidget(MaterialApp(
         home: Builder(
           builder: (context) => Scaffold(
@@ -169,7 +174,6 @@ void main() {
       await t.tap(find.byKey(const Key('elegirComprobante')));
       await t.pumpAndSettle();
       expect(find.text('recibo.jpg'), findsOneWidget);
-      await t.ensureVisible(find.byKey(const Key('enviarComprobante')));
       await t.tap(find.byKey(const Key('enviarComprobante')));
       await t.pumpAndSettle();
       expect(subido?.nombre, 'recibo.jpg');
