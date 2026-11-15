@@ -259,6 +259,14 @@ class AppState extends ChangeNotifier {
     return l;
   }
 
+  /// Pago de la visita en efectivo con el PIN del arquitecto (2026-11-14).
+  /// Refresca el inicio (la cita queda con su visita pagada).
+  Future<String> pagoVisitaEfectivo(String citaId, {required String pin, required String requestId}) async {
+    final m = await _conToken((t) => api.pagoVisitaEfectivo(t, citaId, pin: pin, requestId: requestId));
+    await refrescar();
+    return m;
+  }
+
   /// Abono en efectivo con el PIN del arquitecto (2026-11-11). Refresca la cuenta.
   Future<String> abonoEfectivo(String proyectoId, {num? monto, bool liquidar = false, required String pin, required String requestId}) async {
     final m = await _conToken((t) => api.abonoEfectivo(t, proyectoId, monto: monto, liquidar: liquidar, pin: pin, requestId: requestId));

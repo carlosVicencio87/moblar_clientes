@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -67,6 +69,23 @@ class DemoPagosVisita {
   }
 }
 
+/// Un pago = un requestId: si el teléfono reintenta, el ERP no lo duplica.
+String nuevoRequestIdVisita() {
+  final r = Random.secure();
+  const letras = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  return 'visita-${List.generate(20, (_) => letras[r.nextInt(letras.length)]).join()}';
+}
+
+/// Pago real (2026-11-14): lo que dice el ERP, con la misma forma que la demo.
+ResultadoPagoVisita? resultadoReal(PagoVisita pago) {
+  if (!pago.real || pago.estado == 'pendiente' || pago.estado == 'incluida') return null;
+  return ResultadoPagoVisita(
+    metodo: 'efectivo',
+    fecha: parseFecha(pago.pagadaEl)?.toLocal() ?? DateTime.now(),
+    arquitecto: pago.recibio,
+  );
+}
+
 /// PIN que la demostración rechaza, para poder enseñar el error.
 const pinIncorrectoDemo = '0000';
 const largoPin = 4;
@@ -92,9 +111,12 @@ class TarjetaPagoVisita extends StatelessWidget {
       builder: (context, anticipos, _) => ValueListenableBuilder<Map<String, ResultadoPagoVisita>>(
       valueListenable: DemoPagosVisita.resultados,
       builder: (context, resultados, _) {
-        final r = resultados[cita.id];
-        // Inició su proyecto: la visita ya no se cobra.
-        final compro = anticipos.containsKey(cita.id);
+        // Real (2026-11-14): el estado lo da el ERP; en la demo, la memoria.
+        final r = pago.real ? resultadoReal(pago) : resultados[cita.id];
+        // Inició su proyecto: la visita ya no se cobra (o ya se descontó).
+        final compro = pago.real
+            ? (pago.estado == 'aplicada' || pago.estado == 'incluida')
+            : anticipos.containsKey(cita.id);
         final (chip, color, fondo) = r == null
             ? (compro
                 ? ('En tu anticipo', const Color(0xFF065F46), const Color(0xFFD1FAE5))
@@ -146,7 +168,10 @@ class TarjetaPagoVisita extends StatelessWidget {
                   )
                 else if (r == null) ...[
                   Text(
-                    cita.estado.clave == 'realizada'
+                    pago.real
+                        ? 'La visita se paga en efectivo a tu arquitecto y él lo confirma con su PIN. '
+                            'Si inicias tu proyecto, se descuenta de lo que pagas.'
+                        : cita.estado.clave == 'realizada'
                         ? 'La visita se paga en efectivo o por transferencia a tu arquitecto. '
                             'Si inicias tu proyecto, se toma como parte de tu anticipo.'
                         : pago.promesaRegistrada
@@ -313,7 +338,7 @@ class PagarVisitaPage extends StatelessWidget {
               icono: Icons.payments_outlined,
               titulo: 'Efectivo',
               texto: 'Se lo entregas a tu arquitecto y él lo confirma con su PIN en tu pantalla.',
-              onTap: () => _abrir(context, EfectivoVisitaPage(cita: cita, pago: pago)),
+              onTap: () => _abrir(context, EfectivoVisitaPage(cita: cita, pago: pago, requestId: nuevoRequestIdVisita())),
             ),
         ],
       ),
@@ -740,23 +765,38 @@ class _DatoCopiable extends StatelessWidget {
 // Efectivo: el arquitecto confirma con su PIN personal
 // ---------------------------------------------------------------------------
 
-/// Efectivo de la visita: la pantalla genérica con el registro de la demo.
+/// Efectivo de la visita. Real (2026-11-14): el ERP valida el PIN y lo
+/// registra; en la demo, solo en memoria.
 class EfectivoVisitaPage extends StatelessWidget {
-  const EfectivoVisitaPage({super.key, required this.cita, required this.pago});
+  const EfectivoVisitaPage({super.key, required this.cita, required this.pago, this.requestId = ''});
 
   final Cita cita;
   final PagoVisita pago;
 
+  /// Mismo id en los reintentos de este pago.
+  final String requestId;
+
   @override
-  Widget build(BuildContext context) => EfectivoPinPage(
-        monto: pago.monto,
-        arquitecto: cita.arquitecto,
-        demo: pago.demo,
-        onConfirmado: () => DemoPagosVisita.registrar(
+  Widget build(BuildContext context) {
+    final estado = AppScope.maybeRead(context);
+    final rid = requestId.isEmpty ? nuevoRequestIdVisita() : requestId;
+    return EfectivoPinPage(
+      monto: pago.monto,
+      arquitecto: cita.arquitecto,
+      demo: pago.demo,
+      titulo: 'Pagar mi visita',
+      confirmarReal: pago.real && estado != null
+          ? (pin) => estado.pagoVisitaEfectivo(cita.id, pin: pin, requestId: rid)
+          : null,
+      onConfirmado: () {
+        if (pago.real) return; // el ERP ya lo registró y el inicio se refrescó
+        DemoPagosVisita.registrar(
           cita.id,
           ResultadoPagoVisita(metodo: 'efectivo', fecha: DateTime.now(), arquitecto: cita.arquitecto),
-        ),
-      );
+        );
+      },
+    );
+  }
 }
 
 /// Pantalla de efectivo reutilizable (visita, anticipo): el cliente entrega el

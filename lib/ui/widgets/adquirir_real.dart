@@ -538,6 +538,7 @@ class _AdquirirOpcionesPageState extends State<AdquirirOpcionesPage> {
                   // monto de contado (el cliente no ve comisión).
                   if (_aMeses) ...[
                     _Renglon('Total de tu proyecto', dinero(c.totalCobro ?? c.total)),
+                    if (c.visita > 0) _RenglonVisita(c.visita),
                     _Renglon(
                       c.liquida ? 'Se cargará a tu tarjeta ($_plazo meses)' : 'Pagas hoy con tu tarjeta ($_plazo meses)',
                       dinero(c.cobro),
@@ -562,6 +563,7 @@ class _AdquirirOpcionesPageState extends State<AdquirirOpcionesPage> {
                       ),
                     ],
                     _Renglon('Total de tu proyecto', dinero(c.total)),
+                    if (c.visita > 0) _RenglonVisita(c.visita),
                     _Renglon(c.liquida ? 'Lo liquidas hoy' : 'Pagas hoy', dinero(c.pago)),
                     if (c.cobro != c.pago) ...[
                       const Divider(height: 20),
@@ -695,6 +697,30 @@ class _Eleccion extends StatelessWidget {
         showCheckmark: false,
         onSelected: (_) => onTap(),
       );
+}
+
+/// Visita ya pagada en efectivo que se descuenta (2026-11-14).
+class _RenglonVisita extends StatelessWidget {
+  const _RenglonVisita(this.monto);
+
+  final num monto;
+
+  @override
+  Widget build(BuildContext context) {
+    const verde = Color(0xFF065F46);
+    return Padding(
+      key: const Key('visitaDescontada'),
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        children: [
+          const Expanded(
+            child: Text('Tu visita (ya pagada)', style: TextStyle(fontWeight: FontWeight.w500, color: verde)),
+          ),
+          Text('− ${dinero(monto)}', style: const TextStyle(fontWeight: FontWeight.w600, color: verde)),
+        ],
+      ),
+    );
+  }
 }
 
 /// 35.0 → "35"; 34.98 → "35"; 12.5 → "12.5".

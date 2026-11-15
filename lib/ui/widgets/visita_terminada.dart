@@ -53,7 +53,15 @@ bool _mismoDia(DateTime a, DateTime b) => a.year == b.year && a.month == b.month
     for (final c in datos.citas) {
       if (c.id == o.citaId) cita = c;
     }
-    if (cita == null || cita.estado.clave != 'realizada' || cita.pagoVisita == null) continue;
+    if (cita == null || cita.estado.clave != 'realizada') continue;
+    // Con la compra real se abre al recibir la propuesta aunque el pago de la
+    // visita esté apagado (Carlos, 2026-11-13: producción sin pago de visita;
+    // el cobro de la visita, cuando exista, solo después de la propuesta).
+    // La pantalla vieja (demo) sí necesita el pago de la visita.
+    if (!o.compraReal && cita.pagoVisita == null) continue;
+    // Ya pagó su visita de verdad (2026-11-14): no se vuelve a abrir.
+    final pv = cita.pagoVisita;
+    if (pv != null && pv.real && !pv.pendiente) continue;
     final f = parseFecha(cita.fecha)?.toLocal();
     if (f == null || !_mismoDia(f, ahora)) continue;
     return (cita: cita, oferta: o);
@@ -174,9 +182,10 @@ class VisitaTerminadaPage extends StatelessWidget {
 
   /// Con la compra real (2026-10-28): al terminar la visita el cliente ve
   /// directo la oferta nueva —sus opciones, cuánto paga hoy y cómo—, la misma
-  /// pantalla de «Adquirir». Abajo, pagar solo la visita o decidir después.
+  /// pantalla de «Adquirir». Abajo, pagar solo la visita (solo si el pago de
+  /// la visita está encendido) o decidir después.
   Widget _ofertaNueva(BuildContext context) {
-    final pago = cita.pagoVisita!;
+    final pago = cita.pagoVisita;
     final o = oferta;
     final nombre = cita.arquitecto ?? o.arquitecto;
     final primera = o.opciones.isEmpty ? 1 : (o.opciones.first.opcion < 1 ? 1 : o.opciones.first.opcion);
@@ -186,7 +195,7 @@ class VisitaTerminadaPage extends StatelessWidget {
       inicial: primera,
       titulo: 'Tu visita terminó',
       encabezado: [
-        if (o.demo || pago.demo) ...[
+        if (o.demo || (pago?.demo ?? false)) ...[
           const AvisoDemo(),
           const SizedBox(height: 16),
         ],
@@ -202,14 +211,16 @@ class VisitaTerminadaPage extends StatelessWidget {
       ],
       pie: [
         const SizedBox(height: 20),
-        _Eleccion(
-          clave: const Key('finVisitaPagar'),
-          icono: Icons.payments_outlined,
-          titulo: 'Por ahora, pagar solo mi visita · ${dinero(pago.monto)}',
-          texto: 'Tu propuesta queda en Cotizaciones para cuando quieras adquirirla.',
-          onTap: () => _ir(context, PagarVisitaPage(cita: cita, pago: pago)),
-        ),
-        const SizedBox(height: 4),
+        if (pago != null && pago.pendiente) ...[
+          _Eleccion(
+            clave: const Key('finVisitaPagar'),
+            icono: Icons.payments_outlined,
+            titulo: 'Por ahora, pagar solo mi visita · ${dinero(pago.monto)}',
+            texto: 'Tu propuesta queda en Cotizaciones para cuando quieras adquirirla.',
+            onTap: () => _ir(context, PagarVisitaPage(cita: cita, pago: pago)),
+          ),
+          const SizedBox(height: 4),
+        ],
         Center(
           child: TextButton(
             key: const Key('finVisitaDespues'),

@@ -302,5 +302,38 @@ void main() {
       });
       expect(visitaPorCubrir(sinCompra, DateTime.now()), isNotNull);
     });
+
+    // Producción (2026-11-13): sin pago de visita, la pantalla se abre igual al
+    // recibir la propuesta, sin la opción de pagar solo la visita.
+    test('compra real sin pago de visita: aparece al recibir la propuesta', () {
+      Inicio sinPago({String clave = 'realizada', bool conOferta = true}) => Inicio.fromJson({
+            'contacto': const {},
+            'citas': [
+              {...citaJson(clave: clave), 'pagoVisita': null},
+            ],
+            'ofertasVisita': [
+              if (conOferta) {...ofertaJson, 'compraReal': true, 'compras': const []},
+            ],
+          });
+      expect(visitaPorCubrir(sinPago(), DateTime.now()), isNotNull);
+      expect(visitaPorCubrir(sinPago(clave: 'en_visita'), DateTime.now()), isNull, reason: 'todavía en la visita');
+      expect(visitaPorCubrir(sinPago(conOferta: false), DateTime.now()), isNull, reason: 'sin propuesta no se abre');
+      expect(visitaPorCubrir(inicio(conPago: false), DateTime.now()), isNull, reason: 'la pantalla vieja sí pide el pago');
+    });
+
+    testWidgets('compra real sin pago de visita: oferta y decidir después, sin pagar solo la visita', (tester) async {
+      tester.view.physicalSize = const Size(1080, 7200);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      final sinPago = Cita.fromJson({...citaJson(), 'pagoVisita': null});
+      final realSinDemo = OfertaVisita.fromJson({...ofertaJson, 'demo': false, 'compraReal': true, 'compras': const []});
+      await tester.pumpWidget(MaterialApp(home: VisitaTerminadaPage(cita: sinPago, oferta: realSinDemo)));
+      await tester.pumpAndSettle();
+      expect(find.text('Tu visita terminó'), findsOneWidget);
+      expect(find.byKey(const Key('adquirirOpciones')), findsOneWidget);
+      expect(find.byKey(const Key('finVisitaPagar')), findsNothing);
+      expect(find.byKey(const Key('finVisitaDespues')), findsOneWidget);
+      expect(find.byType(AvisoDemo), findsNothing);
+    });
   });
 }

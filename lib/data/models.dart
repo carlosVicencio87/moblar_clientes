@@ -140,14 +140,28 @@ class PagoVisita {
     required this.metodos,
     this.transferencia,
     this.transferenciaAlLlegar = false,
+    this.real = false,
+    this.pagadaEl,
+    this.recibio,
   });
 
   /// Modo demostración: nada se guarda todavía.
   final bool demo;
+
+  /// Pago real (2026-11-14): solo efectivo con el PIN del arquitecto, después
+  /// de la propuesta; el estado lo da el ERP.
+  final bool real;
   final num monto;
 
-  /// pendiente (por ahora el servidor no manda otro).
+  /// pendiente | pagada (en efectivo, sin compra) | aplicada (se descontó de
+  /// su compra) | incluida (compró sin pagarla). La demo siempre manda pendiente.
   final String estado;
+
+  /// Real: cuándo la pagó (ISO) y quién recibió el efectivo.
+  final String? pagadaEl;
+  final String? recibio;
+
+  bool get pendiente => estado == 'pendiente';
 
   /// Contact center registró la promesa de pago al agendar.
   final bool promesaRegistrada;
@@ -177,6 +191,9 @@ class PagoVisita {
             ? DatosTransferencia.fromJson(j['transferencia'] as Map<String, dynamic>)
             : null,
         transferenciaAlLlegar: j['transferenciaAlLlegar'] == true,
+        real: j['real'] == true,
+        pagadaEl: _s(j['pagadaEl']).isEmpty ? null : _s(j['pagadaEl']),
+        recibio: _s(j['recibio']).isEmpty ? null : _s(j['recibio']),
       );
 }
 
@@ -598,7 +615,12 @@ class CotizacionCompra {
     this.lista = 0,
     this.descuentoPct = 0,
     this.totalCobro,
+    this.visita = 0,
   });
+
+  /// Visita ya pagada en efectivo que se descuenta de lo que paga hoy
+  /// (2026-11-14); 0 si no hay.
+  final num visita;
 
   /// Precio de lista (24 MSI) de lo elegido; 0 = el servidor no lo manda.
   final num lista;
@@ -631,6 +653,7 @@ class CotizacionCompra {
         lista: _n(j['lista']) ?? 0,
         descuentoPct: _n(j['descuentoPct']) ?? 0,
         totalCobro: _n(j['totalCobro']),
+        visita: _n(j['visita']) ?? 0,
       );
 }
 

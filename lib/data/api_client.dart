@@ -436,6 +436,26 @@ class ClienteApi {
     if (c.statusCode != 200) throw ErrorServidor(_errorDe(_cuerpo(c)) ?? fallo);
   }
 
+  /// POST /api/cliente/citas/:id/pago-visita — el pago de la visita en
+  /// EFECTIVO confirmado con el PIN del arquitecto (2026-11-14). Regresa el
+  /// mensaje del ERP. El monto lo pone el ERP (costo de la cita).
+  Future<String> pagoVisitaEfectivo(
+    String token,
+    String citaId, {
+    required String pin,
+    required String requestId,
+  }) async {
+    final r = await _enviar(() => _http.post(
+          Uri.parse('$_base/api/cliente/citas/$citaId/pago-visita'),
+          headers: _headers(token: token, json: true),
+          body: jsonEncode({'pin': pin, 'requestId': requestId}),
+        ));
+    if (r.statusCode == 401) throw const SesionTerminada();
+    final j = _cuerpo(r);
+    if (r.statusCode != 200) throw ErrorServidor(_errorDe(j) ?? 'No pudimos registrar el pago de tu visita. Intenta de nuevo.');
+    return (j['mensaje'] as String?) ?? 'Listo: registramos el pago de tu visita.';
+  }
+
   /// POST /api/cliente/proyectos/:id/abonos — abono en EFECTIVO confirmado con
   /// el PIN del arquitecto (2026-11-11). Regresa el mensaje del ERP.
   Future<String> abonoEfectivo(
