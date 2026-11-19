@@ -4,6 +4,7 @@ import '../data/api_client.dart';
 import '../data/models.dart';
 import '../data/session_store.dart';
 import '../util/formato.dart';
+import '../util/soporte.dart';
 
 enum EstadoApp { arrancando, sinSesion, conSesion }
 
@@ -13,10 +14,20 @@ enum EstadoApp { arrancando, sinSesion, conSesion }
 /// regenerado por la operadora, pase vencido), la sesión se borra y el cliente
 /// regresa a la pantalla de ingreso con un aviso.
 class AppState extends ChangeNotifier {
-  AppState({required this.api, required this.store, PagoPendienteStore? pagos, DemoStore? demo, AvisosStore? avisos})
-      : pagos = pagos ?? MemoryPagoPendienteStore(),
+  AppState({
+    required this.api,
+    required this.store,
+    PagoPendienteStore? pagos,
+    DemoStore? demo,
+    AvisosStore? avisos,
+    this.soporte = false,
+  })  : pagos = pagos ?? MemoryPagoPendienteStore(),
         demo = demo ?? MemoryDemoStore(),
         avisosStore = avisos ?? MemoryAvisosStore();
+
+  /// Sesión de soporte abierta desde el ERP (ver util/soporte.dart): solo
+  /// lectura, en memoria, con la franja arriba. 2026-11-17.
+  final bool soporte;
 
   /// Hasta dónde vio el cliente sus avisos (sobrevive a cerrar la app).
   final AvisosStore avisosStore;
@@ -78,7 +89,8 @@ class AppState extends ChangeNotifier {
     estado = EstadoApp.conSesion;
     notifyListeners();
     await refrescar();
-    await revisarPagoPendiente();
+    // En soporte no se retoma ningún pago (además, el servidor no deja).
+    if (!soporte) await revisarPagoPendiente();
   }
 
   /// Lanza [ApiException] para que la pantalla de ingreso muestre el motivo.
@@ -382,7 +394,8 @@ class AppState extends ChangeNotifier {
     _avisosVistos = null;
     _avisosLeidos = true;
     await avisosStore.borrar();
-    this.aviso = aviso;
+    // En soporte, el 401 es que venció la hora (o regeneraron el código).
+    this.aviso = soporte && aviso != null ? mensajeSoporteTerminado : aviso;
     await store.borrar();
     await pagos.borrar();
     estado = EstadoApp.sinSesion;
