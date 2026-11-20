@@ -338,11 +338,16 @@ class _TarjetaOfertaVisitaState extends State<TarjetaOfertaVisita> {
                   ),
                 ],
                 const SizedBox(height: 12),
-                _Precios(
-                  oferta: v,
-                  // Sin factura: el precio con factura y el descuento por no facturar.
-                  conFactura: o.eligeFactura && !factura ? o : null,
-                ),
+                // Ya adquirida en la app (2026-11-20): sin precio de lista ni
+                // desglose; solo el precio por el que la adquirió.
+                if (comprasOp.isNotEmpty)
+                  PrecioAdquirido(compra: comprasOp.first)
+                else
+                  _Precios(
+                    oferta: v,
+                    // Sin factura: el precio con factura y el descuento por no facturar.
+                    conFactura: o.eligeFactura && !factura ? o : null,
+                  ),
                 if (elige) ...[
                   const SizedBox(height: 4),
                   _OtrasOpciones(
@@ -923,6 +928,49 @@ class _InterruptorFactura extends StatelessWidget {
 
 /// Precio de lista y su mensualidad; abajo, en verde, el precio más bajo:
 /// de contado (efectivo o transferencia), con su desglose.
+/// El precio por el que el cliente adquirió (2026-11-20): una sola cifra.
+/// A meses, lo que paga en total a meses; si no, el precio de contado (la
+/// comisión de la tarjeta es del pago, no del mueble).
+num precioAdquirido(CompraOferta c) => c.plazo > 0 ? (c.cobro ?? c.total) : c.total;
+
+class PrecioAdquirido extends StatelessWidget {
+  const PrecioAdquirido({super.key, required this.compra});
+
+  final CompraOferta compra;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = compra;
+    final varias = c.opciones.length > 1;
+    final detalle = [
+      c.factura ? 'IVA incluido' : 'Sin factura',
+      if (c.plazo > 0) 'a ${c.plazo} meses sin intereses',
+    ].join(' · ');
+    return Container(
+      key: const Key('precioAdquirido'),
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: MoblarColors.surfaceSubtle, borderRadius: BorderRadius.circular(12)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            varias ? 'Precio de tus opciones ${c.opciones.join(' y ')}' : 'Precio de tu mueble',
+            style: const TextStyle(fontSize: 13, color: MoblarColors.textSecondary),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            dinero(precioAdquirido(c)),
+            key: const Key('precioAdquiridoMonto'),
+            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: MoblarColors.primaryDark),
+          ),
+          Text(detalle, style: const TextStyle(fontSize: 12.5, color: MoblarColors.textMuted)),
+        ],
+      ),
+    );
+  }
+}
+
 class _Precios extends StatelessWidget {
   const _Precios({required this.oferta, this.conFactura});
 

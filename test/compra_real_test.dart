@@ -98,6 +98,19 @@ void main() {
     expect(find.text('Anticipo del 50 % pagado'), findsOneWidget);
     expect(find.text('Firma tu cotización formal'), findsOneWidget);
     expect(find.text('Adquirir otra opción'), findsOneWidget);
+    // Ya adquirida (2026-11-20): solo el precio por el que la adquirió, sin
+    // precio de lista ni desglose.
+    expect(find.byKey(const Key('precioAdquirido')), findsOneWidget);
+    expect(tester.widget<Text>(find.byKey(const Key('precioAdquiridoMonto'))).data, r'$2,320.00');
+    expect(find.textContaining('Precio de lista'), findsNothing);
+    expect(find.textContaining('meses sin intereses de'), findsNothing);
+  });
+
+  test('precio adquirido: contado; a meses, lo que paga a meses', () {
+    final contado = CompraOferta.fromJson({...compraOpcion2});
+    expect(precioAdquirido(contado), 2320);
+    final msi = CompraOferta.fromJson({...compraOpcion2, 'plazo': 12, 'cobro': 2900});
+    expect(precioAdquirido(msi), 2900);
   });
 
   Future<void> abrirPagina(WidgetTester tester, Widget pagina) async {
