@@ -12,6 +12,7 @@ import '../navegacion.dart';
 import 'adquirir_oferta.dart' show DemoAnticipos, ResultadoAnticipo;
 import 'adquirir_real.dart' show ArchivoComprobante, elegirComprobante;
 import 'comunes.dart';
+import 'dato_copiable.dart';
 
 // ---------------------------------------------------------------------------
 // Pago de la visita — ESQUELETO DE DEMOSTRACIÓN (decisiones de Carlos,
@@ -601,16 +602,16 @@ class _TransferenciaPagoPageState extends State<TransferenciaPagoPage> {
                       ),
                     ),
                   const SizedBox(height: 8),
-                  _DatoCopiable(etiqueta: 'Monto', valor: dinero(widget.monto), copiar: widget.monto.toStringAsFixed(2)),
-                  _DatoCopiable(etiqueta: 'Banco', valor: d.banco),
-                  _DatoCopiable(etiqueta: 'Beneficiario', valor: d.beneficiario),
-                  _DatoCopiable(
+                  DatoCopiable(etiqueta: 'Monto', valor: dinero(widget.monto), copiar: widget.monto.toStringAsFixed(2)),
+                  DatoCopiable(etiqueta: 'Banco', valor: d.banco),
+                  DatoCopiable(etiqueta: 'Beneficiario', valor: d.beneficiario),
+                  DatoCopiable(
                     clave: const Key('copiarClabe'),
                     etiqueta: 'CLABE',
                     valor: d.clabeLegible,
                     copiar: d.clabe,
                   ),
-                  _DatoCopiable(
+                  DatoCopiable(
                     clave: const Key('copiarConcepto'),
                     etiqueta: 'Concepto',
                     valor: d.concepto,
@@ -696,64 +697,6 @@ class _TransferenciaPagoPageState extends State<TransferenciaPagoPage> {
             'Tu pago quedará "En revisión" hasta que nuestro equipo lo confirme.',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 12, color: MoblarColors.textMuted),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DatoCopiable extends StatelessWidget {
-  const _DatoCopiable({
-    this.clave,
-    required this.etiqueta,
-    required this.valor,
-    this.copiar,
-    this.destacado = false,
-  });
-
-  final Key? clave;
-  final String etiqueta;
-  final String valor;
-
-  /// Lo que se copia; por omisión, el valor mostrado.
-  final String? copiar;
-  final bool destacado;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 6),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(etiqueta, style: const TextStyle(fontSize: 12, color: MoblarColors.textMuted)),
-                Text(
-                  valor,
-                  style: TextStyle(
-                    fontSize: destacado ? 18 : 15,
-                    fontWeight: destacado ? FontWeight.w700 : FontWeight.w600,
-                    color: destacado ? MoblarColors.primaryDark : MoblarColors.textPrimary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          IconButton(
-            key: clave,
-            tooltip: 'Copiar $etiqueta',
-            icon: const Icon(Icons.copy_outlined, size: 20),
-            color: MoblarColors.primary,
-            onPressed: () async {
-              await Clipboard.setData(ClipboardData(text: copiar ?? valor));
-              if (!context.mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('$etiqueta copiado'), duration: const Duration(seconds: 2)),
-              );
-            },
           ),
         ],
       ),

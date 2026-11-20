@@ -11,6 +11,7 @@ import '../../state/app_scope.dart';
 import '../../theme.dart';
 import '../../util/formato.dart';
 import 'comunes.dart';
+import 'dato_copiable.dart';
 
 // ---------------------------------------------------------------------------
 // Compra REAL de opciones de la oferta (Carlos, 2026-10-26/27): el cliente
@@ -591,10 +592,36 @@ class _AdquirirOpcionesPageState extends State<AdquirirOpcionesPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('Transfiere ${dinero(c.pago)} a:', style: const TextStyle(fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 6),
-                  Text('${t.banco} · ${t.beneficiario}'),
-                  SelectableText('CLABE ${t.clabeLegible}'),
-                  SelectableText('Concepto: ${t.concepto}'),
+                  const Text(
+                    'Toca un dato para copiarlo y pegarlo en la app de tu banco.',
+                    style: TextStyle(fontSize: 12, color: MoblarColors.textMuted),
+                  ),
+                  const SizedBox(height: 4),
+                  DatoCopiable(
+                    clave: const Key('copiarMontoCompra'),
+                    etiqueta: 'Monto',
+                    valor: dinero(c.pago),
+                    copiar: c.pago.toStringAsFixed(2),
+                  ),
+                  DatoCopiable(etiqueta: 'Banco', valor: t.banco),
+                  DatoCopiable(clave: const Key('copiarBeneficiarioCompra'), etiqueta: 'Beneficiario', valor: t.beneficiario),
+                  DatoCopiable(
+                    clave: const Key('copiarClabeCompra'),
+                    etiqueta: 'CLABE',
+                    valor: t.clabeLegible,
+                    copiar: t.clabe,
+                  ),
+                  DatoCopiable(
+                    clave: const Key('copiarConceptoCompra'),
+                    etiqueta: 'Concepto',
+                    valor: t.concepto,
+                    destacado: true,
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Escribe el concepto tal cual: así identificamos tu pago.',
+                    style: TextStyle(fontSize: 12, color: MoblarColors.textMuted),
+                  ),
                 ],
               ),
             ),

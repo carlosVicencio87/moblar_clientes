@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:moblar_clientes/data/api_client.dart' show AbonoInvalido;
 import 'package:moblar_clientes/data/models.dart';
@@ -163,7 +164,22 @@ void main() {
     expect(pedidos.last.opciones, [1, 2]);
     expect(find.byKey(const Key('desgloseCompra')), findsOneWidget);
     expect(find.byKey(const Key('datosTransferenciaCompra')), findsOneWidget);
-    expect(find.text('Concepto: ANTICIPO-CITA1'), findsOneWidget);
+    // Beneficiario, CLABE (sin espacios) y concepto se copian con un toque (2026-11-20).
+    final copiados = <String>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, (llamada) async {
+      if (llamada.method == 'Clipboard.setData') copiados.add((llamada.arguments as Map)['text'] as String);
+      return null;
+    });
+    addTearDown(() => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, null));
+    for (final k in ['copiarBeneficiarioCompra', 'copiarClabeCompra', 'copiarConceptoCompra']) {
+      await tester.ensureVisible(find.byKey(Key(k)));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(Key(k)));
+      await tester.pump();
+    }
+    expect(copiados, ['Moblar', '012180001234567891', 'ANTICIPO-CITA1']);
+    expect(find.text('Copiado: Concepto'), findsOneWidget);
+    await tester.pumpAndSettle(const Duration(seconds: 3));
 
     FilledButton boton() => tester.widget<FilledButton>(find.byKey(const Key('confirmarCompra')));
     expect(boton().onPressed, isNull, reason: 'sin comprobante no se registra');
