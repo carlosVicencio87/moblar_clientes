@@ -32,15 +32,16 @@ class DatoCopiable extends StatelessWidget {
       await Clipboard.setData(ClipboardData(text: copiar ?? valor));
     } catch (_) {
       m
-        ?..hideCurrentSnackBar()
+        ?..removeCurrentSnackBar()
         ..showSnackBar(
           SnackBar(content: Text('No se pudo copiar $etiqueta. Mantén presionado el dato para copiarlo.')),
         );
       return;
     }
-    // Uno tras otro (beneficiario, CLABE, concepto) sin hacer fila de avisos.
+    // Uno tras otro (beneficiario, CLABE, concepto): el aviso anterior se quita
+    // al instante (sin animación) para que el nuevo salga ya, sin hacer fila.
     m
-      ?..hideCurrentSnackBar()
+      ?..removeCurrentSnackBar()
       ..showSnackBar(
         SnackBar(content: Text('Copiado: $etiqueta'), duration: const Duration(seconds: 2)),
       );
